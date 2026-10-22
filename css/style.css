@@ -328,11 +328,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 /* 二眼完成！の表示（石を取ったときの演出より控えめ） */
 #eyes {
-  position: absolute; left: 50%; top: 22%; transform: translate(-50%, 0); pointer-events: none; opacity: 0;
-  font-family: var(--font-logo); font-size: clamp(22px, 6vw, 40px); color: #fff; white-space: nowrap;
+  position: absolute; left: 50%; top: 34%; transform: translate(-50%, 0); pointer-events: none; opacity: 0; z-index: 4;
+  font-family: var(--font-logo); font-size: clamp(34px, 10vw, 60px); color: #fff; white-space: nowrap;
   text-shadow: 0 0 10px var(--ec, #ffd23f), 0 0 22px var(--ec, #ffd23f), 0 3px 0 #000;
 }
-#eyes.show { animation: eyes-pop 1.6s ease-out forwards; }
+#eyes.show { animation: eyes-pop 2.2s ease-out forwards; }
 /* デストロイルール：ダメージの計算式（盤の真ん中に大きく） */
 #dmg-formula {
   position: fixed; left: 50%; top: 58%; transform: translate(-50%, 0); width: max-content; max-width: min(96vw, 520px);
@@ -347,6 +347,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #dmg-formula .f-calc small { font-size: 0.72em; font-weight: 700; color: #ffd9a8; }
 #dmg-formula .f-calc b { font-size: 1.35em; color: #ff5a3c; }
 #dmg-formula .f-dmg { font-size: clamp(12px, 3.4vw, 15px); font-weight: 700; color: #ffb4a0; }
+#dmg-formula .f-heal .f-tags, #dmg-formula.heal .f-tags { color: #7dffa4; text-shadow: 0 0 10px #0a7a30, 0 0 22px #2bff6a, 0 3px 0 #000; }
+#dmg-formula .f-heal .f-calc b, #dmg-formula.heal .f-calc b { color: #5cff8a; }
+#dmg-formula .f-heal .f-dmg, #dmg-formula.heal .f-dmg { color: #b8ffcc; }
 #dmg-formula.show { animation: formula-pop 2.6s ease-out forwards; }
 #dmg-formula.show.again { animation: formula-stay 2.6s ease-out forwards; } /* 反動を足したときは、跳ねずにそのまま延ばす */
 @keyframes formula-stay { 0% { opacity: 1; } 80% { opacity: 1; } 100% { transform: translate(-50%, -10px); opacity: 0; } }
@@ -388,6 +391,32 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .controls .pv-row button { padding: 6px 2px; font-size: 12px; border-radius: 999px; white-space: nowrap; }
 .controls .pv-row button[aria-pressed="true"] { background: var(--tc, var(--accent)); border-color: transparent; color: #fff; text-shadow: 0 1px 2px #000; }
 .previewing #play-controls { display: none; }
+/* 棋譜の再生 */
+#replay-controls { display: none; align-items: center; flex-wrap: wrap; }
+#replay-controls .score-hint { flex: 1 0 100%; text-align: center; font-size: 13px; color: var(--accent2); }
+.replaying #play-controls { display: none; }
+.replaying #replay-controls { display: flex; }
+.replaying #rp-auto { flex: 2; }
+.replaying .p-clock { visibility: hidden; } /* 再生では時計を使わない */
+.title-links { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.m-sub { margin-top: 8px; }
+.m-themes { margin: 0 0 14px; text-align: left; gap: 8px; }
+.m-themes .tr-label { font-size: 13px; }
+.m-themes .chip { padding: 4px 8px; font-size: 12px; }
+.m-themes .chip .mk { width: 18px; height: 18px; font-size: 11px; }
+.m-themes .chip.locked { display: none; } /* 使えない演出は出さない */
+.modal-box { max-height: calc(100vh - 32px); overflow-y: auto; }
+#kifu-pop {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 32; width: min(460px, calc(100% - 24px)); max-height: 75vh;
+  display: flex; flex-direction: column; border-radius: 14px; background: var(--panel); border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+}
+#kifu-pop[hidden] { display: none; }
+#kifu-list { list-style: none; margin: 0; padding: 6px 12px 12px; overflow-y: auto; }
+#kifu-list li { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px dashed rgba(255, 255, 255, 0.1); }
+#kifu-list .kf-main { flex: 1; display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+#kifu-list .kf-main small { color: var(--muted); font-size: 12px; }
+#kifu-list button { border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.06); border-radius: 8px; padding: 6px 10px; font-weight: 700; font-size: 13px; }
+#kifu-list button.accent { background: linear-gradient(180deg, #ff6a3d, #d4001a); border-color: transparent; }
 .previewing #preview-controls { display: flex; }
 
 /* ---------- 演出レイヤー ---------- */
@@ -531,7 +560,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   font-weight: 900; font-size: 13px; line-height: 1; color: #120a10; background: var(--tc);
 }
 .chip[aria-pressed="true"] { border-color: var(--tc); background: color-mix(in srgb, var(--tc) 22%, transparent); box-shadow: 0 0 14px color-mix(in srgb, var(--tc) 60%, transparent); }
-.chip.taken { opacity: 0.35; cursor: not-allowed; }
+.chip.taken { opacity: 0.6; } /* 押すと相手と入れ替え */
 .chip:disabled { opacity: 0.35; cursor: not-allowed; }
 .chip.taken::after { content: '使用中'; font-size: 10px; font-weight: 700; margin-left: 2px; color: var(--muted); }
 .chip:focus-visible, .p-theme:focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; }

@@ -28,7 +28,10 @@
       </div>
 
       <button id="btn-start" class="big-btn">対局開始</button>
-      <button id="btn-fs-title" class="fs-btn sub-btn">⛶ 全画面にする</button>
+      <div class="title-links">
+        <button id="btn-fs-title" class="fs-btn sub-btn">⛶ 全画面にする</button>
+        <button id="btn-kifu" class="sub-btn">📼 棋譜を見る</button>
+      </div>
 
       <div class="themes">
         <div class="theme-row" data-color="1">
@@ -208,6 +211,14 @@
         <button id="btn-calc" class="accent">計算する</button>
         <button id="btn-continue">対局に戻る</button>
       </div>
+      <div class="controls" id="replay-controls">
+        <div class="score-hint" id="rp-info"></div>
+        <button id="rp-first" title="最初へ">⏮</button>
+        <button id="rp-prev" title="1手戻る">◀</button>
+        <button id="rp-auto" class="accent">▶ ハイライト</button>
+        <button id="rp-next" title="1手進む">▶</button>
+        <button id="rp-last" title="最後へ">⏭</button>
+      </div>
       <div class="controls" id="preview-controls">
         <div class="score-hint" id="preview-info"></div>
         <div class="pv-row" id="pv-themes"></div>
@@ -224,6 +235,11 @@
   <div id="banner"></div>
 
   <div id="gtoast"></div>
+  <!-- 棋譜の一覧 -->
+  <div id="kifu-pop" hidden>
+    <div class="log-head"><b>棋譜（最近の20局）</b><button id="kifu-close">閉じる</button></div>
+    <ol id="kifu-list"></ol>
+  </div>
   <!-- 対局中に見るルール（？ ルール） -->
   <div id="rules-pop" hidden>
     <div class="log-head"><b>ルール</b><button id="rules-close">閉じる</button></div>
@@ -265,9 +281,17 @@
       <button id="btn-mclose" aria-label="閉じて盤面を見る">×</button>
       <div class="m-title"></div>
       <div class="m-body"></div>
+      <!-- 次の対局の演出（タイトルに戻らずに選べる） -->
+      <div class="themes m-themes">
+        <div class="theme-row" data-color="1"><span class="tr-label"><i class="p-stone black"></i>次の黒の演出</span><div class="chips"></div></div>
+        <div class="theme-row" data-color="2"><span class="tr-label"><i class="p-stone white"></i>次の白の演出</span><div class="chips"></div></div>
+      </div>
       <div class="m-buttons">
         <button id="btn-again" class="accent">もう一局</button>
         <button id="btn-home">タイトルへ</button>
+      </div>
+      <div class="m-buttons m-sub">
+        <button id="btn-replay-last" hidden>📼 この対局を見返す（ハイライト）</button>
       </div>
     </div>
   </div>

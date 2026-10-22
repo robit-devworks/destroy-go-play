@@ -329,9 +329,8 @@
         if (chip.classList.contains('locked')) return;
         const taken = chip.dataset.key === themes[otherColor(color)];
         chip.setAttribute('aria-pressed', chip.dataset.key === themes[color]);
-        chip.disabled = taken;
         chip.classList.toggle('taken', taken);
-        chip.title = taken ? `${NAMES[otherColor(color)]}が使用中` : '';
+        chip.title = taken ? `${NAMES[otherColor(color)]}が使用中（押すと入れ替え）` : '';
       });
     });
     for (const color of [BLACK, WHITE]) {
@@ -364,7 +363,8 @@
         return;
       }
       chip.onclick = () => {
-        if (themes[otherColor(color)] === t.key) return; // 相手が使用中
+        // 相手が使っている演出を選んだら、相手と入れ替える（黒と白で同じ演出は使えないため）
+        if (themes[otherColor(color)] === t.key) themes[otherColor(color)] = themes[color];
         previewColor = color; setTheme(color, t.key);
       };
       box.appendChild(chip);
@@ -565,7 +565,7 @@
   }
 
   // ---------- 2 眼で取られない石 ----------
-  const showShields = () => game && (phase === 'play' || phase === 'paused' || phase === 'over') && (dstate || hintMode !== 'none');
+  const showShields = () => game && (phase === 'play' || phase === 'paused' || phase === 'over' || phase === 'replay') && (dstate || hintMode !== 'none');
   let aliveCache = { key: '', sets: null };
   function aliveSets() {
     const key = SIZE + ':' + game.board.join('');
@@ -858,6 +858,7 @@
       if (opt.trace.checked) BoardFX.addTrace(themes[mover], FX.tierIndex(r.captured.length), onBoard, geo, mover, game.moveNumber);
     }
     if (dstate) destroyAfterMove(mover, r.captured, i, maxCharge, hold);
+    if (kifu) kifu.moves.push({ p: i, c: chargeLv, x: maxCharge ? 1 : 0, s: dstate && dstate.lastSpurt ? 1 : 0, t: themes[mover] });
     if (r.captured.length >= 20 && !(cpuSide && mover === cpuSide)) later(() => unlockSecret('dark'), hold); // 隠し要素
     if (dstate && dstate.lastHit === 'critical' && !(cpuSide && mover === cpuSide)) later(() => unlockBgm('lastboss01'), hold + 4500);
     checkNewEyes(Math.min(hold, 900) + 200);
@@ -890,7 +891,7 @@
         + `<div class="f-calc">${head}${mults}${cap} ＝ <b>${h.amount}</b></div>`
         + `<div class="f-dmg">${NAMES[victim]}に ${h.amount} ダメージ</div>`;
     }
-    el.innerHTML = html;
+    el.innerHTML = html; el._t = performance.now();
     const r = canvas.getBoundingClientRect(); // 盤の真ん中より少し下
     el.style.left = (r.left + r.width / 2) + 'px'; el.style.top = (r.top + r.height * (h.recoil > 0 ? 0.4 : 0.58)) + 'px'; // 反動も出すときは、下にはみ出さないよう上から
     el.className = ''; void el.offsetWidth; el.className = 'show';
@@ -957,6 +958,21 @@
   $('#rules-close').onclick = () => { $('#rules-pop').hidden = true; };
   $('#btn-log').onclick = (e) => { e.stopPropagation(); renderLog(); $('#log-pop').hidden = !$('#log-pop').hidden; $('#rules-pop').hidden = true; };
   $('#log-close').onclick = () => { $('#log-pop').hidden = true; };
+  // 2 眼の回復も、盤の真ん中に大きく（取られない石 4 子ごとに HP 1）
+  function showHealFormula(c, gain) {
+    const el = $('#dmg-formula'), r = canvas.getBoundingClientRect();
+    const body = `<div class="f-tags">回復！</div>`
+      + `<div class="f-calc">取られない石（盾マーク）${gain * DestroyRule.HEAL_STONES}子 ÷ ${DestroyRule.HEAL_STONES} ＝ <b>+${gain}</b></div>`
+      + `<div class="f-dmg">${NAMES[c]}の HP が ${gain} 回復</div>`;
+    if (el.className.startsWith('show') && performance.now() - (el._t || 0) < 2300) { // ダメージの計算式が出ている最中なら、その下に足す
+      el.insertAdjacentHTML('beforeend', `<div class="f-recoil f-heal">${body}</div>`);
+      el.className = ''; void el.offsetWidth; el.className = 'show again';
+      return;
+    }
+    el.innerHTML = body; el._t = performance.now();
+    el.style.left = (r.left + r.width / 2) + 'px'; el.style.top = (r.top + r.height * 0.5) + 'px';
+    el.className = ''; void el.offsetWidth; el.className = 'show heal';
+  }
   // 反動：ダメージの計算式の下に、同じ見た目で足す（例：6（ため撃ち）− 4（溜めない）＝ 2）
   function showRecoilFormula(mover, h) {
     const el = $('#dmg-formula'), full = h.amount - h.plain;
@@ -999,6 +1015,7 @@
       later(() => showBigNote('LAST SPURT!! ダメージ1.5倍', '#ff3b3b'), Math.min(hold, 900) + 1200);
     }
     const h = dstate.hit(mover, captured, { maxCharge, spurt, point, stones: capturedStones }); // 取れなかった手も記録する（コンボ・カウンターのため）
+    dstate.lastSpurt = spurt; // 棋譜に残す（再生で同じダメージにするため）
     dstate.lastHit = h.kind; // BGM の解放（クリティカル）に使う
     if (captured) {
       const victim = otherColor(mover);
@@ -1026,6 +1043,7 @@
     for (const c of [BLACK, WHITE]) if (healed[c]) logDamage({ color: c, kind: 'heal', text: `2眼で回復 → ${NAMES[c]} <b>+${healed[c]}</b>` });
     for (const c of [BLACK, WHITE]) if (healed[c]) later(() => {
       popDamage(c, `+${healed[c]}`, 'heal'); FX.heal();
+      showHealFormula(c, healed[c]);
       renderHp(c); // 4 つそろって光ってから、残りの端数の表示に戻す
       later(() => renderHp(), 600);
     }, Math.min(hold, 900) + 650);
@@ -1166,7 +1184,7 @@
     if (!t || !t.ok) { // パス
       const mover = game.turn;
       if (dstate) { ruleHist.push(dstate.snapshot()); dstate.pass(mover); }
-      const r = game.pass();
+      const r = game.pass(); if (kifu) kifu.moves.push({ p: -1 });
       toast(`${NAMES[mover]}（CPU）がパスしました`);
       finishTurn(mover);
       if (r.ended) endByPasses();
@@ -1187,14 +1205,14 @@
     cancelCharge();
     const mover = game.turn;
     if (dstate) { ruleHist.push(dstate.snapshot()); dstate.pass(mover); }
-    const r = game.pass();
+    const r = game.pass(); if (kifu) kifu.moves.push({ p: -1 });
     toast(`${NAMES[mover]}がパスしました`);
     finishTurn(mover);
     if (r.ended) endByPasses();
   };
 
   function undoOne() {
-    game.undo(); if (dstate && ruleHist.length) dstate.restore(ruleHist.pop());
+    game.undo(); if (kifu) kifu.moves.pop(); if (dstate && ruleHist.length) dstate.restore(ruleHist.pop());
     dlog = dlog.filter((e) => e.move <= game.moveNumber); // 待ったした手の履歴も消す
   }
   $('#btn-undo').onclick = () => {
@@ -1396,7 +1414,9 @@
 
   // winner を渡すと、勝った側の演出で負けた側の石を全部消してから結果を出す
   function endGame(title, body, winner = 0) {
+    if (phase === 'replay') return;
     phase = 'over'; clock.stop(); cancelCharge();
+    saveKifu(title, body, winner);
     const show = () => {
       $('.m-title').textContent = title;
       $('.m-body').textContent = body;
@@ -1433,7 +1453,7 @@
   };
   $('#btn-result').onclick = () => { $('#modal').classList.add('show'); $('#btn-result').hidden = true; };
   $('#btn-again').onclick = () => { $('#modal').classList.remove('show'); newGame(); };
-  $('#btn-home').onclick = () => { $('#modal').classList.remove('show'); showScreen('title'); phase = 'title'; stopBgm(); };
+  $('#btn-home').onclick = () => { $('#modal').classList.remove('show'); endReplay(); showScreen('title'); phase = 'title'; stopBgm(); };
 
   // ---------- 時計・パネル ----------
   function fmt(ms) {
@@ -1518,6 +1538,9 @@
     const hc = effectiveHandicap();
     if (hc) { game.setHandicap(hc); toast(`置き石${hc}子・白から打ちます`); }
     cpuSide = opponent === 'cpu' ? otherColor(gameHumanColor()) : 0;
+    // 棋譜（終わったら端末に保存して、あとで見返せる）
+    kifu = { date: Date.now(), size: SIZE, rules, mode, adv: dAdvanced, hc, hpb: { color: hpBonusColor, rate: hpBonus },
+      cpu: cpuSide ? { side: cpuSide, level: cpuLevel } : null, moves: [], result: null };
     cpuLevelInGame = cpuLevel; cpuResignInGame = cpuResign;
     renderNames(); renderHp(); resetEyes();
     clock.start(game.turn);
@@ -1747,6 +1770,7 @@
     $('#btn-title').classList.remove('accent');
   }
   function goTitle() {
+    endReplay();
     disarmTitle(); disarmResign(); cancelCharge();
     cpuToken++; setThinking(false); gameSerial++;
     endPreviewThemes();
@@ -1762,6 +1786,128 @@
     showScreen('title');
     stopBgm();
   }
+  // ---------- 棋譜の保存と見返し・ハイライト ----------
+  let kifu = null;
+  const KIFU_KEY = 'destroy-go-kifu', KIFU_MAX = 20;
+  const loadKifus = () => { try { return JSON.parse(localStorage.getItem(KIFU_KEY) || '[]'); } catch (e) { return []; } };
+  function saveKifu(title, body, winner) {
+    if (!kifu || !kifu.moves.length) return;
+    kifu.result = { title, body, winner };
+    const list = [kifu, ...loadKifus()].slice(0, KIFU_MAX); // 新しい順に 20 局まで
+    try { localStorage.setItem(KIFU_KEY, JSON.stringify(list)); } catch (e) { /* いっぱいなら保存しない */ }
+    $('#btn-replay-last').hidden = false;
+  }
+  const kifuLabel = (k) => `${k.size}路・${k.mode === 'destroy' ? `デストロイ${k.adv ? '上級' : '初級'}` : 'ふつう'}${k.cpu ? `・CPU Lv${k.cpu.level}` : '・2人'}・${k.moves.length}手`;
+  function renderKifuList() {
+    const list = loadKifus();
+    $('#kifu-list').innerHTML = list.length ? list.map((k, i) => {
+      const d = new Date(k.date);
+      return `<li><div class="kf-main"><b>${(k.result && k.result.title) || '途中まで'}</b><small>${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}　${kifuLabel(k)}</small></div>`
+        + `<button data-kf-play="${i}" class="accent">▶ 見る</button><button data-kf-del="${i}">🗑</button></li>`;
+    }).join('') : '<li class="log-empty">まだ棋譜はありません。対局が終わると自動で保存されます</li>';
+    $('#kifu-list').querySelectorAll('[data-kf-play]').forEach((b) => { b.onclick = () => { $('#kifu-pop').hidden = true; startReplay(loadKifus()[+b.dataset.kfPlay]); }; });
+    $('#kifu-list').querySelectorAll('[data-kf-del]').forEach((b) => { b.onclick = () => {
+      const l = loadKifus(); l.splice(+b.dataset.kfDel, 1);
+      try { localStorage.setItem(KIFU_KEY, JSON.stringify(l)); } catch (e) { /* 無視 */ }
+      renderKifuList();
+    }; });
+  }
+  $('#btn-kifu').onclick = () => { renderKifuList(); $('#kifu-pop').hidden = false; };
+  $('#kifu-close').onclick = () => { $('#kifu-pop').hidden = true; };
+  $('#btn-replay-last').onclick = () => { const k = loadKifus()[0]; if (k) { $('#modal').classList.remove('show'); startReplay(k); } };
+
+  // 再生：対局の画面をそのまま使い、棋譜の手を 1 手ずつ置き直す（時計は止めたまま）
+  let rpk = null, rpIdx = 0, rpTimer = 0, rpSaved = null;
+  function rpReset() {
+    clearTimeout(rpTimer);
+    FX.clear(); BoardFX.clear(); BoardFX.resetTraces();
+    game = new GoGame(SIZE, rpk.rules);
+    if (rpk.hc) game.setHandicap(rpk.hc);
+    dstate = rpk.mode === 'destroy' ? new DestroyRule.DestroyState(SIZE, rpk.hpb, rpk.adv) : null;
+    wiped = new Set(); dead = new Set(); terrGlow = null; rpIdx = 0;
+  }
+  // 1 手置く。animate なら石を取る演出・ダメージも見せる。演出の長さ（ms）を返す
+  function rpApply(animate) {
+    const mv = rpk.moves[rpIdx++], mover = game.turn;
+    if (mv.p < 0) { game.pass(); if (dstate) dstate.pass(mover); if (animate) toast(`${NAMES[mover]}がパス`); return 0; }
+    if (mv.t) themes[mover] = mv.t;
+    const [x, y] = game.xy(mv.p), r = game.play(x, y);
+    if (!r.ok) return 0;
+    let hold = 0;
+    if (r.captured.length) {
+      const onBoard = r.captured.map((c) => { const [cx, cy] = game.xy(c); return { x: px(cx), y: px(cy) }; });
+      if (animate) {
+        const k = canvas.getBoundingClientRect().width / geo.css;
+        hold = FX.capture(r.captured.map(stoneScreenPos), otherColor(mover), geo.cell * 0.96 * k, themes[mover], mv.c || 0);
+        BoardFX.apply(themes[mover], FX.tierIndex(r.captured.length), onBoard, geo);
+      }
+      if (opt.trace.checked) BoardFX.addTrace(themes[mover], FX.tierIndex(r.captured.length), onBoard, geo, mover, game.moveNumber);
+    } else if (animate) FX.stoneClick();
+    if (dstate) {
+      const h = dstate.hit(mover, r.captured.length, { maxCharge: !!mv.x, spurt: !!mv.s, point: mv.p, stones: r.captured });
+      const healed = dstate.heal(game.board);
+      if (animate && r.captured.length) {
+        const victim = otherColor(mover), n = r.captured.length;
+        later(() => {
+          popDamage(victim, h.kind === 'ko' ? 'K.O.!!' : `${h.kind === 'critical' ? 'CRITICAL!! ' : ''}-${h.amount}`, h.kind, h.tags);
+          showFormula(victim, h, n); renderHp();
+        }, Math.min(hold, 900));
+        if (h.recoil > 0) later(() => { popDamage(mover, `反動 -${h.recoil}`, 'recoil'); showRecoilFormula(mover, h); }, Math.min(hold, 900) + 450);
+      }
+      if (animate) for (const c of [BLACK, WHITE]) if (healed[c]) later(() => { popDamage(c, `+${healed[c]}`, 'heal'); FX.heal(); showHealFormula(c, healed[c]); }, Math.min(hold, 900) + 650);
+    }
+    return hold;
+  }
+  function rpRender() {
+    draw(); renderHp(); updatePanels();
+    $('#rp-info').textContent = `${rpIdx} / ${rpk.moves.length}手${rpIdx === rpk.moves.length && rpk.result ? `　${rpk.result.title}` : ''}`;
+    $('#rp-auto').textContent = rpTimer ? '⏸ 止める' : '▶ ハイライト';
+  }
+  function rpGoTo(n) { // n 手目まで、演出なしで一気に進める
+    rpStop(); rpReset();
+    while (rpIdx < Math.min(n, rpk.moves.length)) rpApply(false);
+    rpRender();
+  }
+  function rpStop() { clearTimeout(rpTimer); rpTimer = 0; }
+  // ハイライト：何も起きない手は速く、石を取る手は等倍で演出を見せる。最後は勝ったときの演出
+  function rpAutoStep() {
+    if (rpIdx >= rpk.moves.length) { rpTimer = 0; rpFinish(); rpRender(); return; }
+    const mv = rpk.moves[rpIdx];
+    const t = mv.p >= 0 ? game.tryPlay(mv.p) : null, event = t && t.ok && t.captured.length > 0;
+    const hold = rpApply(event);
+    rpRender();
+    rpTimer = setTimeout(rpAutoStep, event ? Math.max(1800, hold + 1500) : 110);
+  }
+  function rpFinish() {
+    const res = rpk.result;
+    if (!res || !res.winner) return;
+    const loser = otherColor(res.winner), stones = [...game.board.keys()].filter((i) => game.board[i] === loser);
+    const r = canvas.getBoundingClientRect(), k = r.width / geo.css, mid = (SIZE - 1) / 2;
+    if (stones.length) FX.victory(stones.map(stoneScreenPos), loser, geo.cell * 0.96 * k, themes[res.winner], { x: r.left + px(mid) * k, y: r.top + px(mid) * k });
+    wiped = new Set(stones); draw(); // 対局と同じく、負けた側の石は消えたまま（戻る・最初へで元に戻る）
+    showBigNote(res.title, '#ffd23f');
+  }
+  function startReplay(k) {
+    rpSaved = { size: SIZE, themes: { ...themes } };
+    rpk = k; SIZE = k.size;
+    clock = new GoClock({ base: 60000 }); // 再生では時計を使わない
+    gameSerial++; cpuToken++; setThinking(false); cpuSide = k.cpu ? k.cpu.side : 0; cpuLevelInGame = k.cpu ? k.cpu.level : 3;
+    showScreen('game'); phase = 'replay';
+    gameEl.classList.remove('scoring', 'previewing'); gameEl.classList.add('replaying');
+    $('#btn-result').hidden = true; $('#btn-log').hidden = true;
+    layout(); rpReset(); renderNames(); renderThemes(); rpRender();
+  }
+  function endReplay() {
+    if (!rpSaved) return;
+    rpStop(); SIZE = rpSaved.size; Object.assign(themes, rpSaved.themes); rpSaved = null; rpk = null;
+    gameEl.classList.remove('replaying'); renderThemes();
+  }
+  $('#rp-first').onclick = () => rpGoTo(0);
+  $('#rp-prev').onclick = () => rpGoTo(rpIdx - 1);
+  $('#rp-next').onclick = () => { if (rpIdx >= rpk.moves.length) return; rpStop(); FX.clear(); rpApply(true); if (rpIdx >= rpk.moves.length) rpFinish(); rpRender(); };
+  $('#rp-last').onclick = () => { rpGoTo(rpk.moves.length); rpFinish(); };
+  $('#rp-auto').onclick = () => { if (rpTimer) { rpStop(); rpRender(); return; } if (rpIdx >= rpk.moves.length) rpGoTo(0); rpAutoStep(); };
+
   $('#btn-title').onclick = () => {
     if ((phase === 'play' || phase === 'paused') && performance.now() > titleArmed) {
       titleArmed = performance.now() + 3000;
