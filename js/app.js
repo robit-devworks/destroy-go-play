@@ -47,12 +47,21 @@
   // 無料版で使える演出（製品版では全部）
   const ED = window.EDITION || { free: false, version: '' };
   const FREE = !!ED.free;
-  const unlocked = (key) => !FREE || ED.freeThemes.includes(key);
+  // 無料版の隠し要素：条件を満たすと、その端末でほかの演出も使えるようになる（製品版は最初から全部）
+  const SECRETS = {
+    fire: 'タイトルのロゴを壊した',
+    thunder: 'デストロイルールで KO 勝ちした',
+    dark: '一度に 20 子以上取った',
+    light: 'コンピューター Lv9 に勝った',
+  };
+  const secretUnlocked = new Set();
+  try { for (const k of JSON.parse(localStorage.getItem('destroy-go-unlocks') || '[]')) if (SECRETS[k]) secretUnlocked.add(k); } catch (e) { /* 無視 */ }
+  const unlocked = (key) => !FREE || ED.freeThemes.includes(key) || secretUnlocked.has(key);
   // テスター用：無料版でも URL の最後に ?beta を付けると、デストロイルールの上級版を遊べる（演出はそのまま）
   let BETA = false;
   try { BETA = FREE && new URLSearchParams(location.search).has('beta'); } catch (e) { /* 無視 */ }
   const advancedOk = !FREE || BETA;
-  const THEME_KEYS = FX.themes.map((t) => t.key).filter(unlocked);
+  const themeKeys = () => FX.themes.map((t) => t.key).filter(unlocked);
   const themeOf = (key) => FX.themes.find((t) => t.key === key) || FX.themes[0];
   // 黒と白で同じ演出は選べない（どちらの演出か一目でわかるように）
   const themes = { [BLACK]: 'default', [WHITE]: FREE ? 'ice' : 'fire' };
@@ -60,12 +69,12 @@
     const saved = JSON.parse(localStorage.getItem('destroy-go-themes') || '{}');
     for (const c of [BLACK, WHITE]) {
       const k = saved[c] === 'explosion' ? 'dark' : saved[c]; // 「爆発」は「闇」に作り替えた
-      if (THEME_KEYS.includes(k)) themes[c] = k;
+      if (themeKeys().includes(k)) themes[c] = k;
     }
   } catch (e) { /* 保存できない環境ではデフォルトのまま */ }
   const otherColor = (c) => (c === BLACK ? WHITE : BLACK);
   // 前に保存した設定が同じ演出なら、白を空いている演出に変える
-  if (themes[BLACK] === themes[WHITE]) themes[WHITE] = THEME_KEYS.find((k) => k !== themes[BLACK]);
+  if (themes[BLACK] === themes[WHITE]) themes[WHITE] = themeKeys().find((k) => k !== themes[BLACK]);
   let previewColor = BLACK;
 
   // ---------- ルール（日本／中国） ----------
@@ -120,7 +129,7 @@
     chip.onclick = () => { dAdvanced = key === 'advanced'; try { localStorage.setItem('destroy-go-dlevel', key); } catch (e) { /* 無視 */ } renderMode(); renderRules(); showRuleTab('destroy'); };
     $('#dlevel-chips').appendChild(chip);
   }
-  for (const [key, label] of [['go', 'ふつうの囲碁（地の多さ）'], ['destroy', 'デストロイルール（HPバトル）']]) {
+  for (const [key, label] of [['go', 'ふつうの囲碁（地の多さ）'], ['destroy', 'デストロイルール（HPバトル）【調整中】']]) {
     const chip = document.createElement('button');
     chip.className = 'chip rule-chip'; chip.dataset.mode = key; chip.textContent = label;
     chip.onclick = () => { mode = key; try { localStorage.setItem('destroy-go-mode', key); } catch (e) { /* 無視 */ } renderMode(); renderRules(); showRuleTab(key); };
@@ -339,9 +348,12 @@
     $('#preview-label').textContent = `${NAMES[previewColor]}：${themeOf(themes[previewColor]).label}`;
   }
 
+  // 演出の選択肢を作る（隠し要素を解放したら作り直す）
+  function buildThemeChips() {
   document.querySelectorAll('.theme-row').forEach((row) => {
     const color = +row.dataset.color;
     const box = row.querySelector('.chips');
+    box.textContent = '';
     FX.themes.forEach((t) => {
       const chip = document.createElement('button');
       chip.className = 'chip'; chip.dataset.key = t.key;
@@ -362,12 +374,28 @@
       box.appendChild(chip);
     });
   });
+  }
+  buildThemeChips();
+  // 隠し要素の解放：その端末に記録して、演出の選択肢を作り直し、派手に知らせる
+  function unlockSecret(key) {
+    if (!FREE || unlocked(key)) return;
+    secretUnlocked.add(key);
+    try { localStorage.setItem('destroy-go-unlocks', JSON.stringify([...secretUnlocked])); } catch (e) { /* 無視 */ }
+    buildThemeChips(); renderThemes();
+    document.querySelectorAll('#pv-themes button').forEach((b) => { b.textContent = themeOf(b.dataset.key).label + (unlocked(b.dataset.key) ? '' : '🔒'); });
+    const t = themeOf(key), el = $('#unlock-pop');
+    el.innerHTML = `<b>🔓 「${t.label}」が解放された！</b><small>${SECRETS[key]}。演出の選択で使えるようになりました</small>`;
+    el.style.setProperty('--tc', t.color);
+    el.className = ''; void el.offsetWidth; el.className = 'show';
+    FX.heal();
+  }
   for (const color of [BLACK, WHITE]) {
     $('#p' + color + ' .p-theme').onclick = () => {
       // 相手が使っている演出は飛ばして次へ
-      let i = THEME_KEYS.indexOf(themes[color]);
-      do { i = (i + 1) % THEME_KEYS.length; } while (THEME_KEYS[i] === themes[otherColor(color)]);
-      setTheme(color, THEME_KEYS[i]);
+      const keys = themeKeys();
+      let i = keys.indexOf(themes[color]);
+      do { i = (i + 1) % keys.length; } while (keys[i] === themes[otherColor(color)]);
+      setTheme(color, keys[i]);
       toast(`${NAMES[color]}の演出：${themeOf(themes[color]).label}`);
     };
   }
@@ -728,6 +756,7 @@
       if (opt.trace.checked) BoardFX.addTrace(themes[mover], FX.tierIndex(r.captured.length), onBoard, geo, mover, game.moveNumber);
     }
     if (dstate) destroyAfterMove(mover, r.captured, i, maxCharge, hold);
+    if (r.captured.length >= 20 && !(cpuSide && mover === cpuSide)) later(() => unlockSecret('dark'), hold); // 隠し要素
     checkNewEyes(Math.min(hold, 900) + 200);
     finishTurn(mover, hold);
   }
@@ -1103,6 +1132,11 @@
       $('.m-body').textContent = body;
       $('#modal').classList.add('show');
       FX.boom(0.6);
+      // 隠し要素：人が勝ったとき（コンピューター戦なら人の側）
+      if (winner && (!cpuSide || winner !== cpuSide)) {
+        if (dstate && title.startsWith('K.O.')) later(() => unlockSecret('thunder'), 700);
+        if (cpuSide && cpuLevelInGame === 9) later(() => unlockSecret('light'), 700);
+      }
     };
     const loser = otherColor(winner);
     const stones = winner ? [...game.board.keys()].filter((i) => game.board[i] === loser) : [];
@@ -1270,6 +1304,7 @@
 
   function shatterLogo(x, y) {
     logoBusy = true;
+    setTimeout(() => unlockSecret('fire'), 1400); // 隠し要素
     const text = logo.firstChild, range = document.createRange(), cs = getComputedStyle(logo);
     const layer = document.createElement('div');
     layer.className = 'logo-shards';

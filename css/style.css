@@ -241,6 +241,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
   opacity: 0; pointer-events: none; transition: opacity 0.2s;
 }
 #gtoast.show { opacity: 1; }
+/* 隠し演出を解放したときのお知らせ */
+#unlock-pop {
+  position: fixed; left: 50%; top: 18%; transform: translate(-50%, 0); z-index: 45; width: max-content; max-width: calc(100% - 32px);
+  display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; pointer-events: none; opacity: 0;
+  padding: 14px 22px; border-radius: 16px; background: rgba(10, 6, 16, 0.92); border: 2px solid var(--tc, #ffd23f);
+  box-shadow: 0 0 30px color-mix(in srgb, var(--tc, #ffd23f) 70%, transparent);
+}
+#unlock-pop b { font-size: 20px; color: var(--tc, #ffd23f); text-shadow: 0 0 12px var(--tc, #ffd23f); }
+#unlock-pop small { font-size: 13px; color: #ddd; }
+#unlock-pop.show { animation: unlock-pop 4.2s ease-out forwards; }
+@keyframes unlock-pop { 0% { opacity: 0; transform: translate(-50%, 20px) scale(0.7); } 8% { opacity: 1; transform: translate(-50%, 0) scale(1.08); } 14% { transform: translate(-50%, 0) scale(1); } 85% { opacity: 1; } 100% { opacity: 0; } }
 #charge {
   position: absolute; left: 50%; top: 12%; transform: translate(-50%, 0); pointer-events: none; opacity: 0;
   font-family: var(--font-logo); font-size: clamp(26px, 8vw, 54px); color: #fff; white-space: nowrap;
