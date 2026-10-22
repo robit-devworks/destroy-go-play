@@ -286,6 +286,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .rp-table td { padding: 5px 0; font-weight: 700; }
 .rp-table tr + tr { border-top: 1px solid rgba(255, 255, 255, 0.08); }
 .rp-note { color: var(--muted); font-size: 13px; }
+.rp-words { margin: 0; }
+.rp-words dt { font-weight: 800; margin-top: 8px; color: #fff; }
+.rp-words dd { margin: 2px 0 0; color: #ddd; font-size: 13px; }
 .rp-card { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 8px 12px; margin-bottom: 8px; }
 .rp-name { font-weight: 800; font-size: 15px; display: flex; justify-content: space-between; }
 .rp-name span { color: #ffd23f; }
