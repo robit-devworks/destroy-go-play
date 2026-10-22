@@ -1038,10 +1038,16 @@
     $('#btn-fs').textContent = on ? '✕' : '⛶';
     $('#btn-fs-title').textContent = on ? '全画面を終了' : '⛶ 全画面にする';
   }
+  // ホーム画面のアイコンから開いているとき（もう画面いっぱい）
+  const standalone = !!(navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches));
+  // iPhone は全画面の機能がないので、「ホーム画面に追加」の案内を出す
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   document.querySelectorAll('.fs-btn').forEach((b) => {
-    b.hidden = !fsSupported;
-    b.onclick = toggleFullscreen;
+    if (fsSupported && !standalone) { b.onclick = toggleFullscreen; return; }
+    b.hidden = standalone || !isIOS || EMBEDDED;
+    b.onclick = () => { $('#a2hs').hidden = false; };
   });
+  $('#a2hs-close').onclick = () => { $('#a2hs').hidden = true; };
   document.addEventListener('fullscreenchange', updateFsButtons);
   document.addEventListener('webkitfullscreenchange', updateFsButtons);
 

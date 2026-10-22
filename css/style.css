@@ -36,7 +36,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* ---------- タイトル ---------- */
 #title {
   flex-direction: column; align-items: center; justify-content: flex-start; gap: 22px;
-  padding: 24px 16px; overflow-y: auto;
+  padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom)); overflow-y: auto;
   background:
     radial-gradient(ellipse at 50% 30%, rgba(255, 60, 30, 0.35), transparent 60%),
     radial-gradient(ellipse at 50% 120%, rgba(140, 30, 255, 0.35), transparent 60%),
@@ -386,6 +386,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background: rgba(0, 0, 0, 0.7); padding: 16px;
 }
 #modal.show { display: flex; }
+#a2hs {
+  position: fixed; inset: 0; z-index: 35; display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.7); padding: 16px;
+}
+#a2hs[hidden] { display: none; }
+.a2hs-title { font-size: 20px; font-weight: 800; color: var(--accent2); }
+.a2hs-steps { text-align: left; line-height: 1.8; padding-left: 22px; margin: 14px 0 8px; }
+.a2hs-note { font-size: 13px; color: var(--muted); margin: 0 0 16px; }
 .modal-box {
   position: relative;
   width: 100%; max-width: 380px; background: var(--panel); border-radius: 18px; padding: 24px;

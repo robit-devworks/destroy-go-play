@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0b0710">
   <title>デストロイ碁 - DESTROY GO</title>
+  <!-- ホーム画面に追加すると、ブラウザのバーなしの全画面で遊べる（iPhone は全画面のボタンが使えないため） -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="デストロイ碁">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Black+Ops+One&display=swap" rel="stylesheet">
@@ -203,6 +211,19 @@
   <div id="banner"></div>
 
   <div id="gtoast"></div>
+  <!-- iPhone など全画面のボタンが使えない端末向けの案内 -->
+  <div id="a2hs" hidden>
+    <div class="modal-box">
+      <div class="a2hs-title">全画面で遊ぶには</div>
+      <ol class="a2hs-steps">
+        <li>Safari の下（または上）にある<b>共有ボタン</b>（□に↑のマーク）を押す</li>
+        <li>「<b>ホーム画面に追加</b>」を選ぶ</li>
+        <li>ホーム画面にできた<b>デストロイ碁のアイコン</b>から開く</li>
+      </ol>
+      <p class="a2hs-note">アイコンから開くと、ブラウザのバーが消えて画面いっぱいで遊べます。</p>
+      <div class="m-buttons"><button id="a2hs-close" class="accent">わかった</button></div>
+    </div>
+  </div>
   <div id="modal">
     <div class="modal-box">
       <button id="btn-mclose" aria-label="閉じて盤面を見る">×</button>
