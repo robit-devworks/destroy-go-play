@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0710">
+  <title>デストロイ碁 - DESTROY GO</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Black+Ops+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="stage">
+    <!-- タイトル -->
+    <section id="title" class="screen active">
+      <div class="title-wrap">
+        <h1 class="logo" data-text="デストロイ碁">デストロイ碁</h1>
+        <p class="sublogo">DESTROY GO</p>
+      </div>
+
+      <button id="btn-start" class="big-btn">対局開始</button>
+      <button id="btn-fs-title" class="fs-btn sub-btn">⛶ 全画面にする</button>
+
+      <div class="themes">
+        <div class="theme-row" data-color="1">
+          <span class="tr-label"><i class="p-stone black"></i>黒の演出</span>
+          <div class="chips"></div>
+        </div>
+        <div class="theme-row" data-color="2">
+          <span class="tr-label"><i class="p-stone white"></i>白の演出</span>
+          <div class="chips"></div>
+        </div>
+      </div>
+
+      <div class="themes">
+        <div class="rule-row">
+          <span class="tr-label">勝ち負けの決め方</span>
+          <div class="chips" id="mode-chips"></div>
+        </div>
+        <div class="rule-row" id="dlevel-row" hidden>
+          <span class="tr-label">デストロイルールの種類</span>
+          <div class="chips" id="dlevel-chips"></div>
+        </div>
+        <div class="rule-row" id="hpb-row" hidden>
+          <span class="tr-label">HPハンデ（弱い側の最初のHPを増やす）</span>
+          <div class="chips" id="hpb-chips"></div>
+        </div>
+        <div class="rule-row" id="hpb-who-row" hidden>
+          <span class="tr-label">HPハンデをもらうのは</span>
+          <div class="chips" id="hpb-who-chips"></div>
+        </div>
+        <div class="rule-row">
+          <span class="tr-label">対戦相手</span>
+          <div class="chips" id="opp-chips"></div>
+        </div>
+        <div class="rule-row" id="level-row" hidden>
+          <span class="tr-label">コンピューターの強さ（1 やさしい 〜 9 つよい）</span>
+          <div class="chips" id="level-chips"></div>
+        </div>
+        <div class="rule-row" id="resign-row" hidden>
+          <span class="tr-label">コンピューターの投了（しない：差がついても最後まで打ち続ける）</span>
+          <div class="chips" id="resign-chips"></div>
+        </div>
+        <div class="rule-row" id="side-row" hidden>
+          <span class="tr-label">あなたの石</span>
+          <div class="chips" id="side-chips"></div>
+        </div>
+        <div class="rule-row">
+          <span class="tr-label">置き石（ハンデ）</span>
+          <div class="chips" id="hc-chips"></div>
+        </div>
+        <div class="rule-row" id="hc-who-row" hidden>
+          <span class="tr-label">置き石を置くのは</span>
+          <div class="chips" id="hc-who-chips"></div>
+        </div>
+        <div class="rule-row">
+          <span class="tr-label">碁盤</span>
+          <div class="chips" id="size-chips"></div>
+        </div>
+        <div class="rule-row">
+          <span class="tr-label">持ち時間</span>
+          <div class="chips" id="time-chips"></div>
+        </div>
+        <div class="rule-row">
+          <span class="tr-label">ルール</span>
+          <div class="chips" id="rule-chips"></div>
+        </div>
+        <div class="rule-row">
+          <span class="tr-label">陣地ヒント（打った石のまわりに勢力やつながりを表示）</span>
+          <div class="chips" id="hint-chips"></div>
+        </div>
+      </div>
+
+      <div class="options">
+        <label><input type="checkbox" id="opt-confirm"> 2回タップで着手（誤タップ防止）</label>
+        <label><input type="checkbox" id="opt-face"> 向かい合わせモード（白の表示を反転）</label>
+        <label><input type="checkbox" id="opt-trace" checked> 石を取った跡を盤にうっすら残す</label>
+        <label><input type="checkbox" id="opt-coords" checked> 碁盤のまわりに座標（A・B・C… と 1・2・3…）を表示</label>
+      </div>
+
+      <div class="rules">
+        <div class="rules-head">
+          <h2>ルール</h2>
+          <div class="rule-tabs" role="tablist">
+            <button role="tab" data-tab="go">ノーマルルール</button>
+            <button role="tab" data-tab="destroy">デストロイルール</button>
+          </div>
+        </div>
+        <ul id="rules-destroy" hidden></ul>
+        <ul id="rules-go">
+          <li id="rule-line">19路盤・黒番から</li>
+          <li id="time-line">持ち時間 <b>7分</b>（上限も7分）</li>
+          <li>1手 <b>5秒以内</b>に打つと余った秒数を加算（1秒で打てば +4秒）</li>
+          <li>5秒を超えると超えた分だけ持ち時間が減る</li>
+          <li>持ち時間が0になったら<b>負け</b></li>
+          <li>一度に取った石が多いほど<b>ド派手な演出</b>（演出中は時計が止まります）</li>
+          <li>演出は黒・白それぞれ「デストロイ／炎／氷／雷／闇／光」から選べます（対局中も名前の横のマークで切替）</li>
+          <li>2子以上取れる手は<b>長押しで「ため撃ち」</b>。もっと派手に取れるが、ためている間も自分の時計は進む（ためられる長さは取る数で変わる：2〜3子 1秒／4〜11子 3秒／12子〜 5秒）</li>
+          <li>2人連続パスで終局 → 死に石をタップして計算（コンピューター戦では死に石を自動で判定）</li>
+        </ul>
+      </div>
+
+      <div class="preview">
+        <span>演出プレビュー（<b id="preview-label">黒</b>・碁盤つき）：</span>
+        <button data-n="1">1子</button>
+        <button data-n="2">2子</button>
+        <button data-n="3">3子</button>
+        <button data-n="5">5子</button>
+        <button data-n="9">9子</button>
+        <button data-n="15">15子</button>
+        <button data-n="25">25子</button>
+      </div>
+      <p class="title-foot"><a id="feedback" href="#" target="_blank" rel="noopener">不具合・感想を送る</a><span id="version"></span><span>© ROBIT</span></p>
+    </section>
+
+    <!-- 対局画面 -->
+    <section id="game" class="screen">
+      <div class="top-bar"><button id="btn-title">← タイトルへ</button><button id="btn-result" hidden>結果を見る</button></div>
+      <div class="player" id="p2" data-color="2">
+        <div class="p-stone white"></div>
+        <div class="p-info">
+          <div class="p-name">白 <button class="p-theme" title="演出を切り替え"></button></div>
+          <div class="p-cap">アゲハマ <b class="cap">0</b></div>
+          <div class="p-hp" hidden><div class="hp-bar"><div class="hp-fill"></div></div><span class="hp-num"></span><span class="hp-carry" title="取られない石があと何子で回復するか"><i></i><i></i><i></i><i></i></span></div>
+        </div>
+        <div class="p-clock">
+          <div class="time">7:00</div>
+          <div class="grace"><div class="grace-bar"></div></div>
+          <div class="delta"></div>
+        </div>
+      </div>
+
+      <div id="board-wrap">
+        <canvas id="board"></canvas>
+        <canvas id="own-1"></canvas>
+        <canvas id="own-2"></canvas>
+        <canvas id="board-fx"></canvas>
+        <div id="pause-cover"><div>一時停止中</div><button id="btn-resume" class="big-btn">再開</button></div>
+        <div id="toast"></div>
+        <div id="charge"></div>
+        <div id="eyes"></div>
+      </div>
+
+      <div class="player" id="p1" data-color="1">
+        <div class="p-stone black"></div>
+        <div class="p-info">
+          <div class="p-name">黒 <button class="p-theme" title="演出を切り替え"></button></div>
+          <div class="p-cap">アゲハマ <b class="cap">0</b></div>
+          <div class="p-hp" hidden><div class="hp-bar"><div class="hp-fill"></div></div><span class="hp-num"></span><span class="hp-carry" title="取られない石があと何子で回復するか"><i></i><i></i><i></i><i></i></span></div>
+        </div>
+        <div class="p-clock">
+          <div class="time">7:00</div>
+          <div class="grace"><div class="grace-bar"></div></div>
+          <div class="delta"></div>
+        </div>
+      </div>
+
+      <div class="controls" id="play-controls">
+        <button id="btn-pass">パス</button>
+        <button id="btn-undo">待った</button>
+        <button id="btn-pause">一時停止</button>
+        <button id="btn-resign">投了</button>
+        <button id="btn-mute" title="音">🔊</button>
+        <button id="btn-fs" class="fs-btn" title="全画面">⛶</button>
+      </div>
+      <div class="controls" id="score-controls">
+        <div class="score-hint">死に石をタップ（グループごと切替）<span id="score-live"></span></div>
+        <button id="btn-calc" class="accent">計算する</button>
+        <button id="btn-continue">対局に戻る</button>
+      </div>
+      <div class="controls" id="preview-controls">
+        <div class="score-hint" id="preview-info"></div>
+        <div class="pv-row" id="pv-themes"></div>
+        <div class="pv-row" id="pv-counts"></div>
+      </div>
+    </section>
+  </div>
+
+  <div id="vignette"></div>
+  <canvas id="fx"></canvas>
+  <div id="flash"></div>
+  <div id="banner"></div>
+
+  <div id="gtoast"></div>
+  <div id="modal">
+    <div class="modal-box">
+      <button id="btn-mclose" aria-label="閉じて盤面を見る">×</button>
+      <div class="m-title"></div>
+      <div class="m-body"></div>
+      <div class="m-buttons">
+        <button id="btn-again" class="accent">もう一局</button>
+        <button id="btn-home">タイトルへ</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/edition.js"></script>
+  <script src="js/go.js"></script>
+  <script src="js/clock.js"></script>
+  <script src="js/sounds.js"></script>
+  <script src="js/effects.js"></script>
+  <script src="js/boardfx.js"></script>
+  <script src="js/destroy-rule.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
