@@ -42,19 +42,22 @@
   const MAX_MULT = 2.5;
   const comboMult = (combo) => (combo >= 2 ? Math.min(2, 1 + 0.2 * (combo - 1)) : 1);
   // 一度に n 子取ったときのダメージ。{ amount, kind: 'normal' | 'critical' | 'ko', tags: 付いた倍率の名前 }
+  // 画面で計算式を出せるように、内訳も返す：base（倍率をかける前）、per（1 子あたり。クリティカルは null）、
+  // parts（[{ name, mult }] 付いた倍率）、mult（掛け合わせた倍率。上限 MAX_MULT で止めたもの）、capped（上限で止めたか）
   function damage(n, size, { advanced = true, maxCharge = false, desperate = false, counter = false, combo = 0, spurt = false } = {}) {
     const c = conf(size, advanced);
-    if (n <= 0) return { amount: 0, kind: 'none', tags: [] };
-    if (n >= c.ko) return { amount: Infinity, kind: 'ko', tags: [] };
-    let amount = n >= c.crit ? c.hp / 2 : n * perStone(n), mult = 1;
-    const tags = [];
-    if (maxCharge) { mult *= 1.5; tags.push('ため撃ち'); }
-    if (desperate) { mult *= 1.2; tags.push('背水'); }
-    if (counter) { mult *= 1.5; tags.push('COUNTER!!'); }
-    if (combo >= 2) { mult *= comboMult(combo); tags.push(`${combo} COMBO!`); }
-    if (spurt) { mult *= 1.5; tags.push('LAST SPURT'); }
-    amount *= Math.min(MAX_MULT, mult);
-    return { amount: Math.round(amount), kind: n >= c.crit ? 'critical' : 'normal', tags };
+    if (n <= 0) return { amount: 0, kind: 'none', tags: [], parts: [] };
+    if (n >= c.ko) return { amount: Infinity, kind: 'ko', tags: [], parts: [] };
+    const crit = n >= c.crit, per = crit ? null : perStone(n), base = crit ? c.hp / 2 : n * per;
+    const tags = [], parts = [];
+    const add = (tag, name, mult) => { tags.push(tag); parts.push({ name, mult }); };
+    if (maxCharge) add('ため撃ち', 'ため撃ち', 1.5);
+    if (desperate) add('背水', '背水', 1.2);
+    if (counter) add('COUNTER!!', 'カウンター', 1.5);
+    if (combo >= 2) add(`${combo} COMBO!`, `${combo}コンボ`, comboMult(combo));
+    if (spurt) add('LAST SPURT', 'ラストスパート', 1.5);
+    const raw = parts.reduce((m, p) => m * p.mult, 1), mult = Math.min(MAX_MULT, raw);
+    return { amount: Math.round(base * mult), kind: crit ? 'critical' : 'normal', tags, base, per, parts, mult, capped: raw > MAX_MULT };
   }
 
   // ---------- 2 眼で取られない石（ベンソンのアルゴリズム） ----------
@@ -143,12 +146,14 @@
       if (d.kind === 'none') return d;
       this.hp[victim] = Math.max(0, this.hp[victim] - d.amount);
       if (this.hp[victim] <= 0) this.ko = victim;
-      let recoil = 0;
+      // 反動：ため撃ちで増えた分（plain は溜めなかったときのダメージ。画面で計算式を出すのに使う）
+      let recoil = 0, plain = d.amount;
       if (maxCharge && !this.ko) {
-        recoil = Math.min(d.amount - damage(n, this.size, opts).amount, this.hp[mover] - 1);
+        plain = damage(n, this.size, opts).amount;
+        recoil = Math.min(d.amount - plain, this.hp[mover] - 1);
         this.hp[mover] -= recoil;
       }
-      return { ...d, victim, hp: this.hp[victim], recoil };
+      return { ...d, victim, hp: this.hp[victim], recoil, plain };
     }
     // 盤面を見て、新しく取られなくなった石の分だけ回復する。{ [色]: 回復量 } を返す
     heal(board) {

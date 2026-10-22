@@ -57,10 +57,6 @@
   const secretUnlocked = new Set();
   try { for (const k of JSON.parse(localStorage.getItem('destroy-go-unlocks') || '[]')) if (SECRETS[k]) secretUnlocked.add(k); } catch (e) { /* 無視 */ }
   const unlocked = (key) => !FREE || ED.freeThemes.includes(key) || secretUnlocked.has(key);
-  // テスター用：無料版でも URL の最後に ?beta を付けると、デストロイルールの上級版を遊べる（演出はそのまま）
-  let BETA = false;
-  try { BETA = FREE && new URLSearchParams(location.search).has('beta'); } catch (e) { /* 無視 */ }
-  const advancedOk = !FREE || BETA;
   const themeKeys = () => FX.themes.map((t) => t.key).filter(unlocked);
   const themeOf = (key) => FX.themes.find((t) => t.key === key) || FX.themes[0];
   // 黒と白で同じ演出は選べない（どちらの演出か一目でわかるように）
@@ -94,7 +90,7 @@
   try { const h = JSON.parse(localStorage.getItem('destroy-go-hpbonus') || '{}'); if ([0.25, 0.5, 1].includes(h.rate)) hpBonus = h.rate; if (h.color === WHITE) hpBonusColor = WHITE; } catch (e) { /* 無視 */ }
   // デストロイルールの種類：シンプル版（基本だけ）か上級版（倍率・反動あり）
   let dAdvanced = false;
-  try { dAdvanced = advancedOk && localStorage.getItem('destroy-go-dlevel') === 'advanced'; } catch (e) { /* 無視 */ }
+  try { dAdvanced = localStorage.getItem('destroy-go-dlevel') === 'advanced'; } catch (e) { /* 無視 */ }
   function renderMode() {
     document.querySelectorAll('#dlevel-chips .chip').forEach((c) => c.setAttribute('aria-pressed', (c.dataset.level === 'advanced') === dAdvanced));
     $('#dlevel-row').hidden = mode !== 'destroy';
@@ -120,12 +116,6 @@
   for (const [key, label] of [['simple', 'シンプル'], ['advanced', '上級（倍率・反動あり）']]) {
     const chip = document.createElement('button');
     chip.className = 'chip rule-chip'; chip.dataset.level = key; chip.textContent = label;
-    if (!advancedOk && key === 'advanced') { // 上級版は製品版だけ（テスター用の ?beta では遊べる）
-      chip.classList.add('locked'); chip.title = '製品版（準備中）で使えます';
-      chip.onclick = () => toast('上級版は製品版（準備中）で遊べます');
-      $('#dlevel-chips').appendChild(chip);
-      continue;
-    }
     chip.onclick = () => { dAdvanced = key === 'advanced'; try { localStorage.setItem('destroy-go-dlevel', key); } catch (e) { /* 無視 */ } renderMode(); renderRules(); showRuleTab('destroy'); };
     $('#dlevel-chips').appendChild(chip);
   }
@@ -261,7 +251,7 @@
     return parts.join('・');
   }
   // 版番号と、不具合・感想の送り先（版・設定・端末を書き込んだ状態で開く）
-  $('#version').textContent = ED.version ? `v${ED.version}${FREE ? (BETA ? '（無料版・テスト）' : '（無料版）') : ''}` : '';
+  $('#version').textContent = ED.version ? `v${ED.version}${FREE ? '（無料版）' : ''}` : '';
   if (ED.feedback) {
     $('#feedback').onclick = (e) => {
       const body = [
@@ -772,6 +762,35 @@
     $('#p' + color).appendChild(el);
     setTimeout(() => el.remove(), 1700);
   }
+  // 盤の真ん中に、付いた倍率（COUNTER!! など）を大きく、ダメージの計算式をその下に出す
+  // 例：5子×3 ×1.5（ため撃ち）×1.5（カウンター）＝ 34
+  const fmtMult = (m) => String(Math.round(m * 100) / 100);
+  function showFormula(victim, h, n) {
+    const el = $('#dmg-formula');
+    let html;
+    if (h.kind === 'ko') html = `<div class="f-tags">即 K.O.!!</div><div class="f-calc">${n}子 まとめて取ったので一撃</div>`;
+    else {
+      const head = h.per ? `${n}子×${h.per}` : `クリティカル ${h.base}`;
+      const mults = h.parts.map((p) => ` ×${fmtMult(p.mult)}<small>（${p.name}）</small>`).join('');
+      const cap = h.capped ? ` <small>→ 倍率は${DestroyRule.MAX_MULT}倍まで</small>` : '';
+      html = (h.tags.length ? `<div class="f-tags">${h.tags.join('　')}</div>` : '')
+        + `<div class="f-calc">${head}${mults}${cap} ＝ <b>${h.amount}</b></div>`
+        + `<div class="f-dmg">${NAMES[victim]}に ${h.amount} ダメージ</div>`;
+    }
+    el.innerHTML = html;
+    const r = canvas.getBoundingClientRect(); // 盤の真ん中より少し下
+    el.style.left = (r.left + r.width / 2) + 'px'; el.style.top = (r.top + r.height * (h.recoil > 0 ? 0.4 : 0.58)) + 'px'; // 反動も出すときは、下にはみ出さないよう上から
+    el.className = ''; void el.offsetWidth; el.className = 'show';
+  }
+  // 反動：ダメージの計算式の下に、同じ見た目で足す（例：6（ため撃ち）− 4（溜めない）＝ 2）
+  function showRecoilFormula(mover, h) {
+    const el = $('#dmg-formula'), full = h.amount - h.plain;
+    const stop = h.recoil < full ? `<small>（HPは1で止まる）</small>` : '';
+    el.insertAdjacentHTML('beforeend', `<div class="f-recoil"><div class="f-tags">反動</div>`
+      + `<div class="f-calc">${h.amount}<small>（ため撃ち）</small> − ${h.plain}<small>（溜めない）</small> ＝ <b>${full}</b></div>`
+      + `<div class="f-dmg">${NAMES[mover]}に ${h.recoil} ダメージ${stop}</div></div>`);
+    el.className = ''; void el.offsetWidth; el.className = 'show again'; // 表示を延ばす
+  }
   // carryFull: その色の「あと何子で回復」の 4 つを、回復の瞬間だけ全部光らせる
   // unpaid: まだ見せていない反動 { [色]: 量 }（その分を足して表示する）
   function renderHp(carryFull = 0, unpaid = {}) {
@@ -810,11 +829,13 @@
       later(() => {
         if (h.kind === 'ko') popDamage(victim, 'K.O.!!', 'ko');
         else popDamage(victim, `${h.kind === 'critical' ? 'CRITICAL!! ' : ''}-${h.amount}`, h.kind, h.tags);
+        showFormula(victim, h, captured);
         renderHp(0, { [mover]: h.recoil || 0 });
       }, Math.min(hold, 900));
       // 反動は、相手へのダメージが出てから自分の側に出す（HP はそのとき減らして見せる）
       if (h.recoil > 0) later(() => {
         popDamage(mover, `反動 -${h.recoil}`, 'recoil');
+        showRecoilFormula(mover, h);
         renderHp();
         const box = $('#p' + mover + ' .p-hp');
         box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
@@ -1072,7 +1093,7 @@
   // iPhone は全画面の機能がないので、「ホーム画面に追加」の案内を出す
   const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   document.querySelectorAll('.fs-btn').forEach((b) => {
-    if (fsSupported && !standalone) { b.onclick = toggleFullscreen; return; }
+    if (fsSupported) { b.onclick = toggleFullscreen; return; } // パソコンや Android（アプリとして入れて開いたときも使えるようにする）
     b.hidden = standalone || !isIOS || EMBEDDED;
     b.onclick = () => { $('#a2hs').hidden = false; };
   });
