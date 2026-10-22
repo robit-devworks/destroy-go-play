@@ -1076,6 +1076,15 @@
     b.hidden = standalone || !isIOS || EMBEDDED;
     b.onclick = () => { $('#a2hs').hidden = false; };
   });
+  // 使っているブラウザに合わせて、「ホーム画面に追加」の場所を案内する（iPhone の Chrome も共有から追加できる）
+  {
+    const ua = navigator.userAgent;
+    const share = /CriOS/.test(ua) ? 'アドレスバーの右にある<b>共有ボタン</b>（□に↑のマーク）を押す。見つからなければ右下の「…」→「共有」'
+      : /FxiOS|EdgiOS/.test(ua) ? '右下（または右上）のメニューを開いて「<b>共有</b>」を押す'
+      : '画面の下（または上）にある<b>共有ボタン</b>（□に↑のマーク）を押す';
+    $('#a2hs-steps').innerHTML = [share, '「<b>ホーム画面に追加</b>」を選ぶ（見つからなければ、下にスクロール）', 'ホーム画面にできた<b>デストロイ碁のアイコン</b>から開く']
+      .map((t) => `<li>${t}</li>`).join('');
+  }
   $('#a2hs-close').onclick = () => { $('#a2hs').hidden = true; };
   document.addEventListener('fullscreenchange', updateFsButtons);
   document.addEventListener('webkitfullscreenchange', updateFsButtons);
