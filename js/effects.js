@@ -79,7 +79,7 @@
   };
 
   // ---------- サウンド（WebAudio で合成、音源ファイル不要） ----------
-  let ctx = null, muted = false;
+  let ctx = null, muted = false, volume = 1;
   function ac() {
     if (!ctx) {
       try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; }
@@ -87,7 +87,10 @@
       const comp = ctx.createDynamicsCompressor();
       comp.threshold.value = -14; comp.knee.value = 10; comp.ratio.value = 8;
       comp.attack.value = 0.002; comp.release.value = 0.25;
-      comp.connect(ctx.destination);
+      // 効果音の音量（設定で変える）。録音もコンプレッサーのあとも、すべてここを通す
+      ctx.master = ctx.createGain(); ctx.master.gain.value = volume;
+      ctx.master.connect(ctx.destination);
+      comp.connect(ctx.master);
       ctx.out = comp;
     }
     if (ctx.state === 'suspended') ctx.resume();
@@ -154,7 +157,7 @@
   function playSample(key, delay = 0) {
     const start = (buf, d) => sfx((a, t) => {
       const src = a.createBufferSource(); src.buffer = buf;
-      src.connect(a.destination); src.start(t);
+      src.connect(a.master); src.start(t);
       playing.add(src); src.onended = () => playing.delete(src);
     }, d);
     if (samples[key]) { start(samples[key], delay); return; }
@@ -1495,6 +1498,7 @@
     capture, victory, volley, stoneClick, gameStart, heal, blip, boom, tierIndex, clear, busy, logoHit, logoChunks, rattle, chargeUp,
     themes: Object.keys(THEMES).map((key) => ({ key, label: THEMES[key].label, mark: THEMES[key].mark, color: THEMES[key].color, shield: THEMES[key].shield })),
     setMuted(m) { muted = m; }, isMuted: () => muted,
+    setVolume(v) { volume = v; if (ctx) ctx.master.gain.value = v; },
     unlock: ac,
   };
 })(this);

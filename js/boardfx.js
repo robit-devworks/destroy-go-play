@@ -9,7 +9,7 @@
   const own = { 1: document.getElementById('own-1'), 2: document.getElementById('own-2') };
   const og = { 1: own[1].getContext('2d'), 2: own[2].getContext('2d') };
   const TRACE_ALPHA = 0.45;
-  const TRACE_ALPHA_BY = { fire: 0.7 }; // 焼け跡は薄いと茶色いしみに見えるので濃いめに残す
+  const TRACE_ALPHA_BY = { fire: 0.7, light: 0.95 }; // 焼け跡は薄いと茶色いしみに見えるので濃いめに残す。光の星もはっきり残す
   let traces = [], layerKey = '';
   let traceComp = null, traceCompKey = ''; // 跡を重ね合わせた画像（黒・白それぞれ）。跡が増減したときだけ作り直す
 
@@ -497,6 +497,35 @@
     wrap.dataset.bfx = '';
   }
 
+  // 光の跡：黄色い星。shape 'spiky' は長い光 8 本と短い光 8 本、'diamond' はダイヤのようなきらめき（長い光 4 本と短い光 4 本）
+  // big が true なら、たくさん取ったとき（BIG_STAR 子以上）に 1 つの大きな星にする
+  const LIGHT_STAR = Object.assign({ shape: 'diamond', big: true }, root.__lightStar || {}); // __lightStar は見比べ用
+  const BIG_STAR = 5;
+  function lightStar(x, cx, cy, r, shape = LIGHT_STAR.shape) {
+    x.save(); x.translate(cx, cy);
+    x.fillStyle = '#f5d22e'; x.shadowColor = 'rgba(255,220,80,0.8)'; x.shadowBlur = r * 0.15;
+    x.beginPath();
+    const diamond = shape === 'diamond';
+    const n = diamond ? 8 : 16, inner = r * (diamond ? 0.16 : 0.2);
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + (i / n) * Math.PI * 2;
+      const len = diamond ? (i % 2 === 0 ? r : r * 0.42) // 上下左右が長い 4 本の光
+        : i % 4 === 0 ? r : i % 2 === 0 ? r * 0.82 : r * 0.58; // 上下左右がいちばん長い
+      const b = a + Math.PI / n;
+      x.lineTo(Math.cos(a) * len, Math.sin(a) * len);
+      x.lineTo(Math.cos(b) * inner, Math.sin(b) * inner);
+    }
+    x.closePath(); x.fill();
+    x.beginPath(); x.arc(0, 0, r * (diamond ? 0.2 : 0.26), 0, Math.PI * 2); x.fill();
+    x.restore();
+  }
+  function lightStars(x, pts, cell) {
+    if (LIGHT_STAR.big && pts.length >= BIG_STAR) { // 取った石の真ん中に、取った数に合わせた大きな星を 1 つ
+      const cx = pts.reduce((a, p) => a + p.x, 0) / pts.length, cy = pts.reduce((a, p) => a + p.y, 0) / pts.length;
+      lightStar(x, cx, cy, cell * Math.min(4, 0.85 * Math.sqrt(pts.length) * 1.1));
+    } else for (const p of pts) lightStar(x, p.x, p.y, cell * 0.85);
+  }
+
   // 取った場所に跡を残す。盤全体に広がる演出でも、跡は取った場所のまわりだけにする
   // owner: 取った側の色（1 黒 / 2 白）。move: その手の手数（待ったで消すため）
   function addTrace(key, ti, pts, geo, owner, move) {
@@ -515,6 +544,7 @@
       x.fillStyle = tint; x.beginPath(); x.arc(p.x, p.y, geo.cell * 0.75, 0, Math.PI * 2); x.fill();
     }
     BUILD[key](e, x, gx);
+    if (key === 'light') lightStars(x, pts, geo.cell); // 光は木の盤だと見えにくいので、黄色い星の形を残す
     // 跡の範囲（mask）は、あとで同じ場所に新しい跡ができたときに古い跡を消すのに使う
     const mask = maskTo(img, e);
     traces.push({ img, mask, move, owner, alpha: TRACE_ALPHA_BY[key] || TRACE_ALPHA });

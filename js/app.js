@@ -88,7 +88,7 @@
   // HP ハンデ（デストロイルールのとき）：なし／+25%／+50%／+100%、もらうのは黒か白
   let hpBonus = 0, hpBonusColor = BLACK;
   try { const h = JSON.parse(localStorage.getItem('destroy-go-hpbonus') || '{}'); if ([0.25, 0.5, 1].includes(h.rate)) hpBonus = h.rate; if (h.color === WHITE) hpBonusColor = WHITE; } catch (e) { /* 無視 */ }
-  // デストロイルールの種類：シンプル版（基本だけ）か上級版（倍率・反動あり）
+  // デストロイルールの種類：初級（基本だけ。中ではシンプル版と呼ぶ）か上級（倍率・反動あり）
   let dAdvanced = false;
   try { dAdvanced = localStorage.getItem('destroy-go-dlevel') === 'advanced'; } catch (e) { /* 無視 */ }
   function renderMode() {
@@ -113,7 +113,7 @@
     chip.onclick = () => { hpBonusColor = color; saveHpBonus(); renderMode(); renderRules(); };
     $('#hpb-who-chips').appendChild(chip);
   }
-  for (const [key, label] of [['simple', 'シンプル'], ['advanced', '上級（倍率・反動あり）']]) {
+  for (const [key, label] of [['simple', '初級'], ['advanced', '上級（倍率・反動あり）']]) {
     const chip = document.createElement('button');
     chip.className = 'chip rule-chip'; chip.dataset.level = key; chip.textContent = label;
     chip.onclick = () => { dAdvanced = key === 'advanced'; try { localStorage.setItem('destroy-go-dlevel', key); } catch (e) { /* 無視 */ } renderMode(); renderRules(); showRuleTab('destroy'); };
@@ -168,6 +168,12 @@
   };
   addChip('#opp-chips', '2人で対局', { opp: 'human' }, () => { opponent = 'human'; });
   addChip('#opp-chips', 'コンピューター', { opp: 'cpu' }, () => { opponent = 'cpu'; });
+  { // オンライン対戦は製品版で準備中（押してもお知らせだけ）
+    const chip = document.createElement('button');
+    chip.className = 'chip rule-chip soon'; chip.textContent = 'オンライン対戦（製品版）【coming soon】';
+    chip.onclick = () => toast('オンライン対戦は製品版で準備中です。お楽しみに！');
+    $('#opp-chips').appendChild(chip);
+  }
   for (let lv = 1; lv <= 9; lv++) addChip('#level-chips', `Lv${lv}`, { level: lv }, () => { cpuLevel = lv; });
   addChip('#side-chips', '黒（先手）', { side: BLACK }, () => { humanColor = BLACK; });
   addChip('#side-chips', '白（後手）', { side: WHITE }, () => { humanColor = WHITE; });
@@ -209,7 +215,7 @@
     const c = DestroyRule.config(SIZE, dAdvanced);
     const bonus = hpBonus ? `（${NAMES[hpBonusColor]}はHPハンデで+${hpBonus * 100}%）` : '';
     const items = [
-      `<b>${dAdvanced ? '上級版' : 'シンプル版'}</b>：${SIZE}路盤・${start}・<b>HP${c.hp}</b>で勝負${c.white ? `（白は先手の差の分 +${c.white}）` : ''}${bonus}`,
+      `<b>${dAdvanced ? '上級' : '初級'}</b>：${SIZE}路盤・${start}・<b>HP${c.hp}</b>で勝負${c.white ? `（白は先手の差の分 +${c.white}）` : ''}${bonus}`,
       '相手の石を取ると相手のHPが減る：1〜3子は1子<b>2</b>、4〜6子は1子<b>3</b>、7子以上は1子<b>4</b>ダメージ',
       `<b>${c.crit}子以上</b>まとめて取ると<b>クリティカル</b>（${c.hp / 2}ダメージ）、<b>${c.ko}子以上</b>で<b>即KO</b>`,
       ...(dAdvanced ? [
@@ -219,7 +225,7 @@
       ...(dAdvanced ? ['2眼で取られなくなった石（<b>盾マーク</b>）4子ごとにHPが1回復。余りは最大HPを増やす（最初の2倍まで）'] : []),
       'HPが0で<b>KO負け</b>。2人連続パスで終局したら<b>地の総攻撃</b>：お互いに地1目につき相手に1ダメージを同時に与え、HPが0以下になったらKO。両方残ったら残りHPの多いほうの勝ち',
       dAdvanced ? '持ち時間・5秒ルール・演出はノーマルルールと同じ' : '持ち時間・5秒ルール・演出はノーマルルールと同じ。ため撃ちは演出だけ（ダメージは変わらない）',
-      ...(dAdvanced ? [] : ['上級版では、ため撃ち・背水・カウンター・コンボ・ラストスパートの倍率、反動、2眼の回復が加わる']),
+      ...(dAdvanced ? [] : ['上級では、ため撃ち・背水・カウンター・コンボ・ラストスパートの倍率、反動、2眼の回復が加わる']),
     ];
     $('#rules-destroy').innerHTML = items.map((t) => `<li>${t}</li>`).join('');
     if (!ruleTab) showRuleTab(mode);
@@ -243,7 +249,7 @@
   // 今の設定を 1 行で（不具合の報告に入れる）
   function setupSummary() {
     const hc = effectiveHandicap();
-    const parts = [mode === 'destroy' ? `デストロイ（${dAdvanced ? '上級' : 'シンプル'}）` : 'ふつうの囲碁',
+    const parts = [mode === 'destroy' ? `デストロイ（${dAdvanced ? '上級' : '初級'}）` : 'ふつうの囲碁',
       opponent === 'cpu' ? `CPU Lv${cpuLevel}` : '2人', `${SIZE}路`, `${minutes()}分`];
     if (hc) parts.push(`置き石${hc}`);
     if (mode === 'destroy' && hpBonus) parts.push(`${NAMES[hpBonusColor]}HP+${hpBonus * 100}%`);
@@ -366,6 +372,112 @@
   });
   }
   buildThemeChips();
+  // ---------- BGM（音楽：魔王魂 https://maou.audio/ 商用利用可） ----------
+  // 無料版は最初の 2 曲。ほかの曲は演出とは別の条件で解放される（when が条件）。製品版は全部
+  const BGMS = [
+    { key: 'medley02', label: 'メドレー', file: 'assets/bgm/maou_game_medley02.mp3' },
+    { key: 'fantasy13', label: 'ファンタジー', file: 'assets/bgm/maou_bgm_fantasy13.mp3' },
+    { key: 'fantasy15', label: '冒険', file: 'assets/bgm/maou_bgm_fantasy15.mp3', when: '対局を 10 回終えた' },
+    { key: 'boss03', label: 'ボス戦', file: 'assets/bgm/maou_game_boss03.mp3', when: 'コンピューター Lv5 以上に勝った' },
+    { key: 'lastboss01', label: 'ラスボス', file: 'assets/bgm/maou_game_lastboss01.mp3', when: 'デストロイルールでクリティカルを出した' },
+    { key: 'random', label: 'ランダム' }, // 解放されている曲の中から、対局ごとに選ぶ
+    { key: 'off', label: 'なし' },
+  ];
+  const bgmUnlocked = new Set();
+  try { for (const k of JSON.parse(localStorage.getItem('destroy-go-bgm-unlocks') || '[]')) bgmUnlocked.add(k); } catch (e) { /* 無視 */ }
+  const bgmOk = (b) => !FREE || !b.when || bgmUnlocked.has(b.key);
+  function unlockBgm(key) {
+    const b = BGMS.find((x) => x.key === key);
+    if (!b || bgmOk(b)) return;
+    bgmUnlocked.add(key);
+    try { localStorage.setItem('destroy-go-bgm-unlocks', JSON.stringify([...bgmUnlocked])); } catch (e) { /* 無視 */ }
+    buildBgmChips();
+    const el = $('#unlock-pop');
+    el.innerHTML = `<b>🎵 BGM「${b.label}」が解放された！</b><small>${b.when}。BGM の選択で使えるようになりました</small>`;
+    el.style.setProperty('--tc', '#7fe3ff');
+    el.className = ''; void el.offsetWidth; el.className = 'show';
+    FX.heal();
+  }
+  let bgmKey = 'medley02';
+  try { const k = localStorage.getItem('destroy-go-bgm'); const b = BGMS.find((x) => x.key === k); if (b && bgmOk(b)) bgmKey = k; } catch (e) { /* 無視 */ }
+  const bgmAudio = new Audio();
+  bgmAudio.loop = true; bgmAudio.preload = 'none';
+  // 音量（0〜100）。効果音と BGM を別々に変えられる。BGM は控えめ（最初の 40 で 0.1、100 でも 0.25）
+  // 目盛りを変えたら、保存する名前も変える（前の目盛りで保存した値は読まない）
+  const vol = { se: 100, bgm: 40, seMute: false, bgmMute: false }; // seMute・bgmMute はそれぞれの消音
+  try { Object.assign(vol, JSON.parse(localStorage.getItem('destroy-go-volume4') || '{}')); } catch (e) { /* 無視 */ }
+  const saveVolume = () => { try { localStorage.setItem('destroy-go-volume4', JSON.stringify(vol)); } catch (e) { /* 無視 */ } };
+  function applyVolume() {
+    FX.setVolume(vol.se / 100); FX.setMuted(vol.seMute);
+    bgmAudio.volume = 0.25 * vol.bgm / 100;
+    if (vol.bgmMute) bgmAudio.pause();
+    document.querySelectorAll('.vol-mute-se').forEach((b) => { b.textContent = vol.seMute ? '🔇' : '🔊'; b.setAttribute('aria-pressed', vol.seMute); });
+    document.querySelectorAll('.vol-mute-bgm').forEach((b) => { b.textContent = vol.bgmMute ? '🔇' : '🔊'; b.setAttribute('aria-pressed', vol.bgmMute); });
+    const all = vol.seMute && vol.bgmMute;
+    $('#btn-mute').textContent = all ? '🔇' : '🔊';
+    $('#vol-mute').textContent = all ? '🔊 音を全部出す' : '🔇 音を全部消す';
+    document.querySelectorAll('.vol-se').forEach((r) => { r.value = vol.se; });
+    document.querySelectorAll('.vol-bgm').forEach((r) => { r.value = vol.bgm; });
+    document.querySelectorAll('.vol-num-se').forEach((n) => { n.textContent = vol.se; });
+    document.querySelectorAll('.vol-num-bgm').forEach((n) => { n.textContent = vol.bgm; });
+  }
+  document.querySelectorAll('.vol-se, .vol-bgm').forEach((r) => {
+    r.oninput = () => {
+      vol[r.classList.contains('vol-se') ? 'se' : 'bgm'] = +r.value;
+      saveVolume(); applyVolume();
+    };
+    if (r.classList.contains('vol-se')) r.onchange = () => FX.stoneClick(); // 離したときに試しに鳴らす
+  });
+  // 効果音・BGM それぞれの消音ボタン
+  document.querySelectorAll('.vol-mute-se, .vol-mute-bgm').forEach((b) => {
+    b.onclick = () => {
+      const k = b.classList.contains('vol-mute-se') ? 'seMute' : 'bgmMute';
+      vol[k] = !vol[k]; saveVolume(); applyVolume();
+      if (k === 'bgmMute' && !vol.bgmMute && phase !== 'title') playBgm();
+    };
+  });
+  applyVolume();
+  let bgmPick = null; // ランダムのときに選んだ曲（対局ごとに選び直す）
+  const bgmSongs = () => BGMS.filter((b) => b.file && bgmOk(b));
+  function nowSong() {
+    if (bgmKey !== 'random') return BGMS.find((x) => x.key === bgmKey);
+    if (!bgmPick || !bgmOk(bgmPick)) { const list = bgmSongs(); bgmPick = list[Math.floor(Math.random() * list.length)]; }
+    return bgmPick;
+  }
+  function playBgm() {
+    const b = nowSong();
+    renderNowPlaying();
+    if (!b || !b.file || vol.bgmMute) { bgmAudio.pause(); return; }
+    if (bgmAudio.dataset.key !== b.key) { bgmAudio.src = b.file; bgmAudio.dataset.key = b.key; }
+    const r = bgmAudio.play(); if (r && r.catch) r.catch(() => {}); // 曲のファイルがない環境では鳴らさない
+  }
+  const stopBgm = () => bgmAudio.pause();
+  function renderNowPlaying() {
+    const b = bgmKey === 'off' ? null : nowSong();
+    document.querySelectorAll('.bgm-now').forEach((el) => { el.textContent = b && b.file ? `♪ ${b.label}${bgmKey === 'random' ? '（ランダム）' : ''}` : ''; });
+  }
+  // BGM の選択肢。タイトルと、対局中の 🔊 の窓の両方に作る（どちらで選んでも同じ）
+  function buildBgmChips() {
+    document.querySelectorAll('.bgm-chips').forEach((box) => {
+      box.textContent = '';
+      for (const b of BGMS) {
+        const chip = document.createElement('button');
+        chip.className = 'chip rule-chip'; chip.dataset.bgm = b.key; chip.textContent = b.label;
+        chip.setAttribute('aria-pressed', b.key === bgmKey);
+        if (!bgmOk(b)) {
+          chip.classList.add('locked'); chip.title = '製品版（準備中）で使えます';
+          chip.onclick = () => toast(`BGM「${b.label}」は製品版（準備中）で使えます`);
+        } else chip.onclick = () => { // 選ぶと試しに鳴らす（タイトルでも）。対局中ならそのまま切り替わる
+          bgmKey = b.key; bgmPick = null;
+          try { localStorage.setItem('destroy-go-bgm', b.key); } catch (e) { /* 無視 */ }
+          buildBgmChips(); playBgm();
+        };
+        box.appendChild(chip);
+      }
+    });
+    renderNowPlaying();
+  }
+  buildBgmChips();
   // 隠し要素の解放：その端末に記録して、演出の選択肢を作り直し、派手に知らせる
   function unlockSecret(key) {
     if (!FREE || unlocked(key)) return;
@@ -747,6 +859,7 @@
     }
     if (dstate) destroyAfterMove(mover, r.captured, i, maxCharge, hold);
     if (r.captured.length >= 20 && !(cpuSide && mover === cpuSide)) later(() => unlockSecret('dark'), hold); // 隠し要素
+    if (dstate && dstate.lastHit === 'critical' && !(cpuSide && mover === cpuSide)) later(() => unlockBgm('lastboss01'), hold + 4500);
     checkNewEyes(Math.min(hold, 900) + 200);
     finishTurn(mover, hold);
   }
@@ -782,6 +895,68 @@
     el.style.left = (r.left + r.width / 2) + 'px'; el.style.top = (r.top + r.height * (h.recoil > 0 ? 0.4 : 0.58)) + 'px'; // 反動も出すときは、下にはみ出さないよう上から
     el.className = ''; void el.offsetWidth; el.className = 'show';
   }
+  // ---------- ダメージの履歴（デストロイルール） ----------
+  // { move: 何手目, color: 誰に起きたか, kind: 'dmg' | 'crit' | 'ko' | 'recoil' | 'heal' | 'final', text }
+  let dlog = [];
+  const calcText = (h, n) => (h.per ? `${n}子×${h.per}` : `クリティカル ${h.base}`)
+    + h.parts.map((p) => ` ×${fmtMult(p.mult)}（${p.name}）`).join('') + (h.capped ? ` → ${DestroyRule.MAX_MULT}倍まで` : '') + ` ＝ ${h.amount}`;
+  function logDamage(entry) { dlog.push({ move: game.moveNumber, ...entry }); if (!$('#log-pop').hidden) renderLog(); }
+  function renderLog() {
+    const list = $('#log-list');
+    if (!dlog.length) { list.innerHTML = '<li class="log-empty">まだダメージは起きていません</li>'; return; }
+    list.innerHTML = dlog.slice().reverse().map((e) => `<li class="log-${e.kind}"><span class="log-move">${e.move}手目</span>`
+      + `<i class="p-stone ${e.color === BLACK ? 'black' : 'white'}"></i><span class="log-text">${e.text}</span></li>`).join('');
+  }
+  // ---------- ？ ルール：対局中もいつでも見られる。ノーマル・初級・上級と、碁盤（9・13・19 路）をタブで切り替える ----------
+  const rp = { tab: 'go', size: 19 };
+  function renderRulesPop() {
+    const tabs = [['go', 'ノーマル'], ['basic', 'デストロイ初級'], ['adv', 'デストロイ上級']]
+      .map(([k, l]) => `<button data-rp-tab="${k}" aria-selected="${rp.tab === k}">${l}</button>`).join('');
+    let html = `<div class="rp-tabs">${tabs}</div>`;
+    if (rp.tab === 'go') {
+      html += `<ul class="rp-list">${$('#rules-go').innerHTML}</ul>`;
+    } else {
+      const adv = rp.tab === 'adv', n = rp.size, c = DestroyRule.config(n, adv);
+      html += `<div class="rp-tabs rp-sizes">${[9, 13, 19].map((z) => `<button data-rp-size="${z}" aria-selected="${n === z}">${z}路</button>`).join('')}</div>`;
+      const rows = [
+        ['最初の HP', `${c.hp}${c.white ? `（白は +${c.white}）` : ''}`],
+        ['1子あたりのダメージ', '1〜3子 2／4〜6子 3／7子〜 4'],
+        ['クリティカル', `${c.crit}子以上 → ${c.hp / 2} ダメージ`],
+        ['即 KO', `${c.ko}子以上まとめて取る`],
+        ...(adv ? [['背水になる HP', `${Math.floor(c.hp / 4)} 以下（最大 HP の 4 分の 1）`]] : []),
+      ];
+      html += `<table class="rp-table">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>`;
+      html += `<ul class="rp-list">
+        <li>相手の石を取ると、相手の HP が減る。まとめて取るほど 1子あたりのダメージが大きい</li>
+        <li>HP が 0 になったら <b>KO 負け</b></li>
+        <li>2人がパスしたら<b>地の総攻撃</b>：お互いに地 1目につき相手に 1 ダメージを同時に与え、HP が 0 以下なら KO。両方残ったら残り HP の多いほうの勝ち</li>
+        <li>${adv ? 'ため撃ち MAX はダメージ 1.5 倍（反動あり。下を見てね）' : 'ため撃ちは演出だけ（ダメージは変わらない）'}</li>
+        <li>持ち時間・5秒ルールはノーマルと同じ</li></ul>`;
+      if (adv) {
+        const fx = [
+          ['ため撃ち', '×1.5', '石が取れる手を長押しして、ゲージを MAX まで溜めてから離すとダメージが 1.5 倍。', '例：5子取り 15 → 23'],
+          ['反動', '自分にも', 'ため撃ち MAX で増えた分だけ、自分の HP も減る。HP は 1 で止まり、相手を KO したときは受けない。溜めて得するのは、とどめを刺すときや、わざと背水に入るとき。', '例：6（ため撃ち）− 4（溜めない）＝ 自分に 2'],
+          ['背水', '×1.2', `自分の HP が最大 HP の 4 分の 1 以下のとき、攻撃が 1.2 倍。HP バーが赤く光る（${n}路なら HP ${Math.floor(c.hp / 4)} 以下）。`, ''],
+          ['カウンター', '×1.5', '相手に石を取られた直後に、その取りに来た石ごと取り返すと 1.5 倍（うってがえしなど）。別の場所の石を取り返すだけではならない。', ''],
+          ['コンボ', '×1.2〜2', '自分の手番で続けて石を取ると、2 連続 1.2 倍・3 連続 1.4 倍…と上がる（2 倍まで）。取れなかった手やパスで途切れる。', ''],
+          ['ラストスパート', '×1.5', '盤の 7 割が石で埋まるか、打つ側の持ち時間が 1 分以下になると 1.5 倍。最初に入ったとき「LAST SPURT!!」と出る。', ''],
+          ['倍率の上限', '2.5倍まで', 'いくつ重なっても、全部掛け合わせて 2.5 倍まで。', '例：ため撃ち×カウンター×ラストスパート＝3.375 → 2.5倍'],
+          ['2眼で回復', '+1', '2 眼ができて取られなくなった石（盾マーク）4子ごとに HP が 1 回復。最大 HP を超えたら最大 HP も増える（最初の 2 倍まで）。', ''],
+        ];
+        html += '<h3>上級で加わる効果</h3>' + fx.map(([k, m, d, ex]) => `<div class="rp-card"><div class="rp-name">${k}<span>${m}</span></div><p>${d}</p>${ex ? `<p class="rp-ex">${ex}</p>` : ''}</div>`).join('');
+      } else html += '<p class="rp-note">上級では、ため撃ち・反動・背水・カウンター・コンボ・ラストスパート・2眼の回復が加わる（HP も多い）。</p>';
+    }
+    $('#rules-body').innerHTML = html;
+    $('#rules-body').querySelectorAll('[data-rp-tab]').forEach((b) => { b.onclick = () => { rp.tab = b.dataset.rpTab; renderRulesPop(); }; });
+    $('#rules-body').querySelectorAll('[data-rp-size]').forEach((b) => { b.onclick = () => { rp.size = +b.dataset.rpSize; renderRulesPop(); }; });
+  }
+  $('#btn-rules').onclick = (e) => {
+    e.stopPropagation();
+    if ($('#rules-pop').hidden) { rp.tab = dstate ? (dstate.advanced ? 'adv' : 'basic') : 'go'; rp.size = SIZE; } // 開くときは今の対局に合わせる
+    renderRulesPop(); $('#rules-pop').hidden = !$('#rules-pop').hidden; $('#log-pop').hidden = true; };
+  $('#rules-close').onclick = () => { $('#rules-pop').hidden = true; };
+  $('#btn-log').onclick = (e) => { e.stopPropagation(); renderLog(); $('#log-pop').hidden = !$('#log-pop').hidden; $('#rules-pop').hidden = true; };
+  $('#log-close').onclick = () => { $('#log-pop').hidden = true; };
   // 反動：ダメージの計算式の下に、同じ見た目で足す（例：6（ため撃ち）− 4（溜めない）＝ 2）
   function showRecoilFormula(mover, h) {
     const el = $('#dmg-formula'), full = h.amount - h.plain;
@@ -824,8 +999,13 @@
       later(() => showBigNote('LAST SPURT!! ダメージ1.5倍', '#ff3b3b'), Math.min(hold, 900) + 1200);
     }
     const h = dstate.hit(mover, captured, { maxCharge, spurt, point, stones: capturedStones }); // 取れなかった手も記録する（コンボ・カウンターのため）
+    dstate.lastHit = h.kind; // BGM の解放（クリティカル）に使う
     if (captured) {
       const victim = otherColor(mover);
+      if (h.kind === 'ko') logDamage({ color: victim, kind: 'ko', text: `${NAMES[mover]}が ${captured}子 まとめて取って 即 K.O.!!` });
+      else logDamage({ color: victim, kind: h.kind === 'critical' ? 'crit' : 'dmg',
+        text: `${NAMES[mover]}が ${captured}子取り → ${NAMES[victim]} <b>-${h.amount}</b>${h.tags.length ? `（${h.tags.join('・')}）` : ''}<small>${calcText(h, captured)}</small>` });
+      if (h.recoil > 0) logDamage({ color: mover, kind: 'recoil', text: `反動 → ${NAMES[mover]} <b>-${h.recoil}</b><small>${h.amount}（ため撃ち）− ${h.plain}（溜めない）</small>` });
       later(() => {
         if (h.kind === 'ko') popDamage(victim, 'K.O.!!', 'ko');
         else popDamage(victim, `${h.kind === 'critical' ? 'CRITICAL!! ' : ''}-${h.amount}`, h.kind, h.tags);
@@ -843,6 +1023,7 @@
     }
     const healed = dstate.heal(game.board);
     // 回復は「二眼完成！」（+200ms）より少し遅らせて、表示と音が重ならないようにする
+    for (const c of [BLACK, WHITE]) if (healed[c]) logDamage({ color: c, kind: 'heal', text: `2眼で回復 → ${NAMES[c]} <b>+${healed[c]}</b>` });
     for (const c of [BLACK, WHITE]) if (healed[c]) later(() => {
       popDamage(c, `+${healed[c]}`, 'heal'); FX.heal();
       renderHp(c); // 4 つそろって光ってから、残りの端数の表示に戻す
@@ -873,6 +1054,7 @@
       const { left, winner: w, ko } = dstate.finalAttack(terr);
       if (!w) { phase = 'play'; toast('同点なので地で勝負を決めます'); enterScoring(); return; }
       const order = terr[BLACK] <= terr[WHITE] ? [BLACK, WHITE] : [WHITE, BLACK];
+      for (const c of order) logDamage({ color: otherColor(c), kind: 'final', text: `地の総攻撃：${NAMES[c]}の地 ${terr[c]}目 → ${NAMES[otherColor(c)]} <b>-${terr[c]}</b>` });
       showBigNote('地の総攻撃！', '#ffd23f');
       // 攻撃する側の地が光ってから、地の点が光の弾になって相手の HP バーに降り注ぐ
       const STEP = 2300;
@@ -1011,7 +1193,10 @@
     if (r.ended) endByPasses();
   };
 
-  function undoOne() { game.undo(); if (dstate && ruleHist.length) dstate.restore(ruleHist.pop()); }
+  function undoOne() {
+    game.undo(); if (dstate && ruleHist.length) dstate.restore(ruleHist.pop());
+    dlog = dlog.filter((e) => e.move <= game.moveNumber); // 待ったした手の履歴も消す
+  }
   $('#btn-undo').onclick = () => {
     if (phase !== 'play' || !game.history.length) return;
     cancelCharge();
@@ -1066,10 +1251,68 @@
     endGame(`${NAMES[otherColor(loser)]}の中押し勝ち`, `${NAMES[loser]}が投了しました`, otherColor(loser));
   };
 
-  $('#btn-mute').onclick = () => {
-    FX.setMuted(!FX.isMuted());
-    $('#btn-mute').textContent = FX.isMuted() ? '🔇' : '🔊';
+  // ---------- 📷 シェア：その瞬間の盤と演出を 1 枚の画像（1080×1350）にして、共有メニューで送る ----------
+  const PLAY_URL = 'robit-devworks.github.io/destroy-go-play';
+  async function captureScene() {
+    const Wd = 1080, Ht = 1350, out = document.createElement('canvas');
+    out.width = Wd; out.height = Ht;
+    const x = out.getContext('2d');
+    const bg = x.createLinearGradient(0, 0, 0, Ht);
+    bg.addColorStop(0, '#2a0a0e'); bg.addColorStop(0.5, '#0b0710'); bg.addColorStop(1, '#1a0830');
+    x.fillStyle = bg; x.fillRect(0, 0, Wd, Ht);
+    try { await document.fonts.load("80px 'Dela Gothic One'"); } catch (e) { /* 無視 */ }
+    // 上：ロゴ
+    const lg = x.createLinearGradient(0, 40, 0, 140);
+    lg.addColorStop(0, '#fff6c8'); lg.addColorStop(0.4, '#ffcc33'); lg.addColorStop(0.7, '#ff5a1f'); lg.addColorStop(1, '#b3001b');
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.font = "88px 'Dela Gothic One', sans-serif"; x.fillStyle = lg;
+    x.shadowColor = '#ff3b2f'; x.shadowBlur = 24; x.fillText('デストロイ碁', Wd / 2, 100); x.shadowBlur = 0;
+    // 真ん中：盤（碁盤・にじみ・盤の演出）と、その上の演出（画面全体の fx から盤の部分を切り出す）
+    const r = canvas.getBoundingClientRect(), B = 960, bx = (Wd - B) / 2, by = 190;
+    for (const el of [canvas, $('#own-1'), $('#own-2'), $('#board-fx')]) if (el.width) x.drawImage(el, bx, by, B, B);
+    const fx = $('#fx'), k = fx.width / window.innerWidth;
+    if (fx.width) x.drawImage(fx, r.left * k, r.top * k, r.width * k, r.height * k, bx, by, B, B);
+    // 演出の名前（DESTROY!!! など）が出ていれば、盤の上に大きく
+    const banner = document.querySelector('#banner.show .b-main');
+    if (banner) {
+      x.font = "96px 'Dela Gothic One', sans-serif";
+      const w = x.measureText(banner.textContent).width; // はみ出さない大きさにする
+      if (w > Wd - 80) x.font = `${Math.floor(96 * (Wd - 80) / w)}px 'Dela Gothic One', sans-serif`;
+      x.lineWidth = 14; x.strokeStyle = '#1a0005'; x.fillStyle = '#fff';
+      x.shadowColor = getComputedStyle(banner).getPropertyValue('--c') || '#ff3b2f'; x.shadowBlur = 30;
+      x.strokeText(banner.textContent, Wd / 2, by + B * 0.42); x.fillText(banner.textContent, Wd / 2, by + B * 0.42); x.shadowBlur = 0;
+    }
+    // 下：HP（デストロイルール）と、遊べる場所
+    x.font = "bold 40px sans-serif"; x.fillStyle = '#fff';
+    if (dstate) x.fillText(`黒 HP ${dstate.hp[BLACK]}　／　白 HP ${dstate.hp[WHITE]}`, Wd / 2, by + B + 60);
+    x.font = "bold 34px sans-serif"; x.fillStyle = '#ffd23f';
+    x.fillText(PLAY_URL, Wd / 2, Ht - 70);
+    x.font = "26px sans-serif"; x.fillStyle = 'rgba(255,255,255,0.6)'; x.fillText('#デストロイ碁　© ROBIT', Wd / 2, Ht - 28);
+    return out;
+  }
+  let shareFile = null;
+  $('#btn-share').onclick = async () => {
+    const cv = await captureScene(); // 押した瞬間を撮る（演出の途中でも）
+    const blob = await new Promise((res) => cv.toBlob(res, 'image/png'));
+    shareFile = new File([blob], 'destroy-go.png', { type: 'image/png' });
+    const url = URL.createObjectURL(blob);
+    $('#share-img').src = url; $('#share-save').href = url;
+    $('#share-go').hidden = !(navigator.canShare && navigator.canShare({ files: [shareFile] }));
+    $('#share-pop').hidden = false;
   };
+  $('#share-go').onclick = async () => {
+    try { await navigator.share({ files: [shareFile], text: `デストロイ碁で遊んだ！ https://${PLAY_URL}/ #デストロイ碁` }); }
+    catch (e) { /* 閉じただけ */ }
+  };
+  $('#share-close').onclick = () => { $('#share-pop').hidden = true; };
+  // 🔊 で音量の窓を開く（効果音・BGM の音量と、全部消す）
+  function setMute(m) { // 効果音と BGM をまとめて消す・出す
+    vol.seMute = vol.bgmMute = m; saveVolume(); applyVolume();
+    if (!m && phase !== 'title') playBgm();
+  }
+  $('#btn-mute').onclick = (e) => { e.stopPropagation(); $('#vol-pop').hidden = !$('#vol-pop').hidden; };
+  $('#vol-mute').onclick = () => setMute(!(vol.seMute && vol.bgmMute));
+  document.addEventListener('pointerdown', (e) => { if (!$('#vol-pop').hidden && !e.target.closest('#vol-pop, #btn-mute')) $('#vol-pop').hidden = true; });
 
   // ---------- 全画面 ----------
   const fsTarget = document.documentElement;
@@ -1163,7 +1406,12 @@
       if (winner && (!cpuSide || winner !== cpuSide)) {
         if (dstate && title.startsWith('K.O.')) later(() => unlockSecret('thunder'), 700);
         if (cpuSide && cpuLevelInGame === 9) later(() => unlockSecret('light'), 700);
+        if (cpuSide && cpuLevelInGame >= 5) later(() => unlockBgm('boss03'), 4900); // 演出の解放と重ならないよう後で
       }
+      // 終えた対局の数（BGM の解放に使う）
+      let played = 0;
+      try { played = +(localStorage.getItem('destroy-go-played') || 0) + 1; localStorage.setItem('destroy-go-played', played); } catch (e) { /* 無視 */ }
+      if (played >= 10) later(() => unlockBgm('fantasy15'), 4900);
     };
     const loser = otherColor(winner);
     const stones = winner ? [...game.board.keys()].filter((i) => game.board[i] === loser) : [];
@@ -1185,7 +1433,7 @@
   };
   $('#btn-result').onclick = () => { $('#modal').classList.add('show'); $('#btn-result').hidden = true; };
   $('#btn-again').onclick = () => { $('#modal').classList.remove('show'); newGame(); };
-  $('#btn-home').onclick = () => { $('#modal').classList.remove('show'); showScreen('title'); phase = 'title'; };
+  $('#btn-home').onclick = () => { $('#modal').classList.remove('show'); showScreen('title'); phase = 'title'; stopBgm(); };
 
   // ---------- 時計・パネル ----------
   function fmt(ms) {
@@ -1251,6 +1499,7 @@
   }
 
   function newGame() {
+    bgmPick = null; playBgm(); // ランダムなら対局ごとに選び直す
     game = new GoGame(SIZE, rules);
     clock = new GoClock({ base: minutes() * 60 * 1000 });
     $('#btn-result').hidden = true;
@@ -1265,6 +1514,7 @@
     layout();
     cpuToken++; setThinking(false); cpuLow = 0; gameSerial++;
     dstate = mode === 'destroy' ? new DestroyRule.DestroyState(SIZE, { color: hpBonusColor, rate: hpBonus }, dAdvanced) : null; ruleHist = []; spurtShown = false;
+    dlog = []; $('#log-pop').hidden = true; $('#rules-pop').hidden = true; $('#btn-log').hidden = !dstate; // 履歴はデストロイルールのときだけ
     const hc = effectiveHandicap();
     if (hc) { game.setHandicap(hc); toast(`置き石${hc}子・白から打ちます`); }
     cpuSide = opponent === 'cpu' ? otherColor(gameHumanColor()) : 0;
@@ -1510,6 +1760,7 @@
     $('#modal').classList.remove('show');
     phase = 'title';
     showScreen('title');
+    stopBgm();
   }
   $('#btn-title').onclick = () => {
     if ((phase === 'play' || phase === 'paused') && performance.now() > titleArmed) {
@@ -1524,6 +1775,8 @@
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && phase === 'play') $('#btn-pause').onclick();
+    // 別のアプリやタブに移ったら BGM も止める（戻ったら続きから）
+    if (document.hidden) stopBgm(); else if (phase !== 'title' && phase !== 'preview') playBgm();
   });
 
   renderThemes();

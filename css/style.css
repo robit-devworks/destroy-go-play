@@ -99,6 +99,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .title-foot { display: flex; gap: 14px; align-items: center; font-size: 12px; color: var(--muted); margin: 0; }
 .title-foot a { color: var(--accent2); }
 .chip.locked { opacity: 0.45; }
+.chip.soon { opacity: 0.55; border-style: dashed; }
 .chip.locked::after { content: '🔒製品版（準備中）'; font-size: 10px; font-weight: 700; margin-left: 2px; color: var(--muted); }
 
 .options { display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--muted); }
@@ -241,6 +242,74 @@ button { font: inherit; color: inherit; cursor: pointer; }
   opacity: 0; pointer-events: none; transition: opacity 0.2s;
 }
 #gtoast.show { opacity: 1; }
+/* 音量 */
+.vol-rows { display: flex; flex-direction: column; gap: 8px; }
+.vol-rows label { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; }
+.vol-rows input[type="range"] { flex: 1; max-width: 260px; accent-color: var(--accent); }
+.vol-rows .vl { width: 3.5em; }
+.vol-rows label button { flex: none; width: 38px; height: 32px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.06); font-size: 16px; }
+.vol-rows label button[aria-pressed="true"] { background: rgba(255, 60, 40, 0.25); border-color: rgba(255, 90, 60, 0.6); }
+.vol-rows span { width: 2.2em; text-align: right; color: var(--muted); font-size: 13px; }
+#vol-pop {
+  position: fixed; right: 12px; bottom: max(84px, calc(env(safe-area-inset-bottom) + 76px)); z-index: 30; width: min(320px, calc(100% - 24px));
+  display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border-radius: 14px;
+  background: var(--panel); border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+#vol-pop[hidden] { display: none; }
+.vol-bgm-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 14px; }
+.vol-bgm-pick .chips { flex: 1 0 100%; }
+.vol-bgm-pick .chip { padding: 5px 10px; font-size: 13px; }
+.vol-bgm-pick .chip.locked { display: none; } /* 対局中は、使える曲だけ並べる */
+.bgm-now { color: #7fe3ff; font-size: 12px; font-weight: 700; margin-left: 6px; }
+.top-bar #btn-rules { margin-left: auto; }
+#log-pop {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 32; width: min(440px, calc(100% - 24px)); max-height: 70vh;
+  display: flex; flex-direction: column; border-radius: 14px; background: var(--panel); border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+}
+#log-pop[hidden] { display: none; }
+#rules-pop {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 32; width: min(480px, calc(100% - 24px)); max-height: 80vh;
+  display: flex; flex-direction: column; border-radius: 14px; background: var(--panel); border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+}
+#rules-pop[hidden] { display: none; }
+#rules-body { overflow-y: auto; padding: 4px 16px 16px; font-size: 14px; line-height: 1.7; }
+#rules-body h3 { font-size: 15px; color: var(--accent2); margin: 14px 0 6px; }
+#rules-body h3 small { font-size: 12px; color: var(--muted); font-weight: 400; }
+#rules-body b { color: var(--accent2); }
+.rp-list { margin: 8px 0 0; padding-left: 18px; }
+.rp-tabs { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.rp-tabs button { flex: 1; border: 1px solid rgba(255, 255, 255, 0.2); background: transparent; border-radius: 999px; padding: 6px 8px; font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.rp-tabs button[aria-selected="true"] { background: var(--accent); border-color: transparent; color: #fff; }
+.rp-sizes button[aria-selected="true"] { background: #3a2a60; border-color: #8a6aff; }
+.rp-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+.rp-table th { text-align: left; font-weight: 700; color: var(--muted); padding: 5px 8px 5px 0; white-space: nowrap; vertical-align: top; }
+.rp-table td { padding: 5px 0; font-weight: 700; }
+.rp-table tr + tr { border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.rp-note { color: var(--muted); font-size: 13px; }
+.rp-card { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 8px 12px; margin-bottom: 8px; }
+.rp-name { font-weight: 800; font-size: 15px; display: flex; justify-content: space-between; }
+.rp-name span { color: #ffd23f; }
+.rp-card p { margin: 2px 0 0; }
+.rp-card .rp-ex { color: var(--muted); font-size: 12px; }
+.log-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+.log-head b { color: var(--accent2); font-size: 16px; }
+.log-head button { border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.06); border-radius: 999px; padding: 4px 14px; font-weight: 700; }
+#log-list { list-style: none; margin: 0; padding: 6px 12px 12px; overflow-y: auto; font-size: 14px; }
+#log-list li { display: grid; grid-template-columns: 4.2em 18px 1fr; gap: 8px; align-items: start; padding: 8px 0; border-bottom: 1px dashed rgba(255, 255, 255, 0.08); }
+#log-list .p-stone { width: 16px; height: 16px; margin-top: 2px; }
+#log-list .log-move { color: var(--muted); font-size: 12px; padding-top: 2px; }
+#log-list b { color: #ff5a3c; font-size: 1.1em; }
+#log-list small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+#log-list .log-crit b, #log-list .log-ko .log-text { color: #ffd23f; }
+#log-list .log-heal b { color: #5cff8a; }
+#log-list .log-recoil b { color: #ff7a7a; }
+#log-list .log-final b { color: #ffb02e; }
+#log-list .log-empty { display: block; color: var(--muted); text-align: center; border: 0; }
+#share-pop { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.75); padding: 16px; }
+#share-pop[hidden] { display: none; }
+#share-pop img { width: 100%; max-height: 60vh; object-fit: contain; border-radius: 10px; margin-bottom: 14px; }
+#share-pop .m-buttons a { flex: 1; border: 1px solid rgba(255, 255, 255, 0.15); background: var(--panel-active); border-radius: 10px; padding: 12px; font-weight: 700; color: #fff; text-decoration: none; font-size: 14px; }
+#vol-mute { border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 8px; font-weight: 700; }
 /* 隠し演出を解放したときのお知らせ */
 #unlock-pop {
   position: fixed; left: 50%; top: 18%; transform: translate(-50%, 0); z-index: 45; width: max-content; max-width: calc(100% - 32px);
@@ -438,7 +507,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   position: absolute; top: 6px; right: 6px; width: 40px; height: 40px; border-radius: 50%;
   background: transparent; border: none; color: #fff; font-size: 26px; line-height: 1; opacity: 0.75;
 }
-.top-bar #btn-result { margin-left: auto; }
+
 .m-title { font-family: var(--font-logo); font-size: 34px; color: var(--accent2); text-shadow: 0 0 14px #ff3b2f; }
 .m-body { margin: 14px 0 20px; line-height: 1.8; white-space: pre-line; }
 .m-buttons { display: flex; gap: 8px; }
