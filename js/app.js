@@ -377,7 +377,7 @@
   const BGMS = [
     { key: 'medley02', label: 'メドレー', file: 'assets/bgm/maou_game_medley02.mp3' },
     { key: 'fantasy13', label: 'ファンタジー', file: 'assets/bgm/maou_bgm_fantasy13.mp3' },
-    { key: 'fantasy15', label: '冒険', file: 'assets/bgm/maou_bgm_fantasy15.mp3', when: '対局を 10 回終えた' },
+    { key: 'fantasy15', label: '冒険', file: 'assets/bgm/maou_bgm_fantasy15.mp3', when: '対局を 10 回終えた（チュートリアルのクリアでも）' },
     { key: 'boss03', label: 'ボス戦', file: 'assets/bgm/maou_game_boss03.mp3', when: 'コンピューター Lv5 以上に勝った' },
     { key: 'lastboss01', label: 'ラスボス', file: 'assets/bgm/maou_game_lastboss01.mp3', when: 'デストロイルールでクリティカルを出した' },
     { key: 'random', label: 'ランダム' }, // 解放されている曲の中から、対局ごとに選ぶ
@@ -386,14 +386,14 @@
   const bgmUnlocked = new Set();
   try { for (const k of JSON.parse(localStorage.getItem('destroy-go-bgm-unlocks') || '[]')) bgmUnlocked.add(k); } catch (e) { /* 無視 */ }
   const bgmOk = (b) => !FREE || !b.when || bgmUnlocked.has(b.key);
-  function unlockBgm(key) {
+  function unlockBgm(key, why) {
     const b = BGMS.find((x) => x.key === key);
     if (!b || bgmOk(b)) return;
     bgmUnlocked.add(key);
     try { localStorage.setItem('destroy-go-bgm-unlocks', JSON.stringify([...bgmUnlocked])); } catch (e) { /* 無視 */ }
     buildBgmChips();
     const el = $('#unlock-pop');
-    el.innerHTML = `<b>🎵 BGM「${b.label}」が解放された！</b><small>${b.when}。BGM の選択で使えるようになりました</small>`;
+    el.innerHTML = `<b>🎵 BGM「${b.label}」が解放された！</b><small>${why || b.when}。BGM の選択で使えるようになりました</small>`;
     el.style.setProperty('--tc', '#7fe3ff');
     el.className = ''; void el.offsetWidth; el.className = 'show';
     FX.heal();
@@ -565,7 +565,7 @@
   }
 
   // ---------- 2 眼で取られない石 ----------
-  const showShields = () => game && (phase === 'play' || phase === 'paused' || phase === 'over' || phase === 'replay') && (dstate || hintMode !== 'none');
+  const showShields = () => game && (phase === 'play' || phase === 'paused' || phase === 'over' || phase === 'replay' || phase === 'tutorial') && (dstate || hintMode !== 'none' || phase === 'tutorial');
   let aliveCache = { key: '', sets: null };
   function aliveSets() {
     const key = SIZE + ':' + game.board.join('');
@@ -691,6 +691,13 @@
       game.atariStones().forEach(drawAtariCrack);
     }
 
+    // チュートリアルのヒント：打つ場所を光らせる
+    if (phase === 'tutorial' && tut.hint >= 0) {
+      const [x, y] = game.xy(tut.hint), a = 0.5 + 0.5 * Math.sin(performance.now() / 180);
+      g2.strokeStyle = `rgba(255,210,63,${0.5 + 0.5 * a})`; g2.lineWidth = c * 0.12;
+      g2.beginPath(); g2.arc(px(x), px(y), c * (0.36 + 0.08 * a), 0, Math.PI * 2); g2.stroke();
+      requestAnimationFrame(() => { if (phase === 'tutorial' && tut.hint >= 0) draw(); });
+    }
     // 最終手マーク
     if (game.lastMove >= 0) {
       const [x, y] = game.xy(game.lastMove);
@@ -751,6 +758,7 @@
     const p = pointAt(e);
     if (p < 0) return;
     if (phase === 'scoring') { toggleDead(p); return; }
+    if (phase === 'tutorial') { tutTap(p); return; }
     if (phase !== 'play' || performance.now() < lockUntil || isCpuTurn()) return;
     if (opt.confirm.checked && e.pointerType !== 'mouse' && p !== pending) {
       const r = game.tryPlay(p);
@@ -1576,6 +1584,15 @@
   }
 
   $('#btn-start').onclick = () => { FX.unlock(); newGame(); };
+  // おすすめで始める：コンピューター Lv1・9路・置き石なし（ほかの設定は今のまま）。選んだ内容は保存されるので、次からもそのまま
+  $('#btn-beginner').onclick = () => {
+    FX.unlock();
+    $('#opp-chips .chip[data-opp="cpu"]').click();
+    $('#level-chips .chip[data-level="1"]').click();
+    $('#hc-chips .chip[data-hc="0"]').click();
+    $('#size-chips .chip[data-size="9"]').click();
+    newGame();
+  };
   // スマホは「指を離したとき」「クリックしたとき」でないと音を出す許可がもらえないことがあるので、そこでも音を有効にする
   for (const ev of ['touchend', 'click']) document.addEventListener(ev, () => FX.unlock(), { capture: true, passive: true });
 
@@ -1796,7 +1813,7 @@
     $('#btn-title').classList.remove('accent');
   }
   function goTitle() {
-    endReplay();
+    endReplay(); endTutorial();
     disarmTitle(); disarmResign(); cancelCharge();
     cpuToken++; setThinking(false); gameSerial++;
     endPreviewThemes();
@@ -1812,6 +1829,130 @@
     showScreen('title');
     stopBgm();
   }
+  // ---------- チュートリアル（はじめての人向け。9 路の盤で 1 問ずつ） ----------
+  // type: 'play' は answer に打つと正解、'forbid' は打てない場所に打とうとすると正解、'view' は見るだけ
+  const TUT = [
+    { title: '囲んで取る（真ん中）', type: 'play', b: [[3, 4], [5, 4], [4, 3]], w: [[4, 4]], answer: [4, 5],
+      text: '石の上下左右の空いている点を<b>呼吸点</b>と言います。呼吸点が全部ふさがれると、その石は取られます。白はあと1つで取られる<b>アタリ</b>。最後の1か所に打って取ろう！',
+      done: '取れた！ 相手の石を囲んで取るのが囲碁の基本です' },
+    { title: '囲んで取る（辺）', type: 'play', b: [[3, 0], [5, 0]], w: [[4, 0]], answer: [4, 1],
+      text: '盤の端（辺）の石は、呼吸点が3つしかありません。白の石を取ろう！', done: '辺は3方向で取れます' },
+    { title: '囲んで取る（角）', type: 'play', b: [[1, 0]], w: [[0, 0]], answer: [0, 1],
+      text: '角の石は、呼吸点が2つだけ。白の石を取ろう！', done: '角は2方向で取れます。角や辺の石は取られやすいので気をつけよう' },
+    { title: 'まとめて取る', type: 'play', b: [[2, 4], [5, 4], [3, 3], [4, 3], [3, 5]], w: [[3, 4], [4, 4]], answer: [4, 5],
+      text: 'つながった石は、かたまり全体の呼吸点を全部ふさぐと<b>まとめて取れます</b>。まとめて取るほど演出が派手に！ 取れる手は<b>長押しで「ため撃ち」</b>もできます（対局で試してね）',
+      done: 'まとめて取れた！ たくさん取るほど演出が進化します' },
+    { title: '打てない場所（禁止点）', type: 'forbid', b: [], w: [[3, 4], [5, 4], [4, 3], [4, 5]], answer: [4, 4],
+      text: '白に囲まれた真ん中の点に、黒で打とうとしてみよう', done: '打てない！ 打った瞬間に取られてしまう場所には打てません（<b>禁止点</b>）' },
+    { title: '取れるなら打てる', type: 'play', b: [[3, 3], [5, 3], [4, 2]], w: [[3, 4], [5, 4], [4, 3], [4, 5]], answer: [4, 4],
+      text: 'さっきと同じ場所。でも今度は、上の白（アタリ）が取れます。<b>相手の石が取れるなら、禁止点にも打てます</b>。打ってみよう',
+      done: '打てた！ 上の白を取ったので、黒の呼吸点ができました' },
+    { title: '二眼で生きる', type: 'play', b: [[0, 1], [1, 1], [2, 1], [3, 1], [3, 0]], w: [[0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [4, 1], [4, 0]], answer: [1, 0],
+      text: '石のかたまりの中に、離れた空き（<b>眼</b>）が2つあると、相手はどちらにも打てないので<b>ずっと取られません（二眼）</b>。左上の黒の中に1つ打って、眼を2つに分けよう',
+      done: '二眼完成！ 取られなくなった石には<b>盾マーク</b>が付きます' },
+    { title: '二眼を作らせない', type: 'play', b: [[0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [4, 1], [4, 0]], w: [[0, 1], [1, 1], [2, 1], [3, 1], [3, 0]], answer: [1, 0],
+      // 黒が急所に打つ → 白が眼を作ろうとして打つ → 黒が最後の呼吸点に打って全部取る
+      reply: [2, 0], next: [0, 0],
+      replyText: '白は眼を作ろうと、右に打ってきた。でも白の呼吸点は<b>あと1つ</b>（アタリ）！ 最後の1か所に打って、白を全部取ろう',
+      text: '今度は白が二眼を作ろうとしています。白が眼を2つに分けたい場所に、<b>先に打って</b>邪魔しよう',
+      done: '全部取れた！ 二眼を作れなかった石は、こうして囲んで取りきれます' },
+    { title: 'にじみとつながり', type: 'view', hint: 'both', b: [[2, 2], [2, 4], [3, 6], [6, 2]], w: [[6, 6], [5, 4], [6, 4]],
+      text: '<b>デストロイ碁の用語</b>です（囲碁のふつうの用語ではありません）。<b>にじみ</b>：石のまわりの色で、その石の勢力の範囲がわかる。<b>つながり</b>：味方の石どうしを結ぶ線で、つながり具合がわかる。設定の「陣地ヒント」で切り替えられます' },
+    { title: '勝ち負け', type: 'view', b: [[3, 0], [3, 1], [3, 2], [3, 3], [3, 4], [3, 5], [3, 6], [3, 7], [3, 8]], w: [[5, 0], [5, 1], [5, 2], [5, 3], [5, 4], [5, 5], [5, 6], [5, 7], [5, 8]],
+      text: '2人が続けて<b>パス</b>したら終局。自分の石で囲んだ空き（<b>地</b>）が多いほうの勝ちです（この盤なら黒の地は左側、白の地は右側）。<b>デストロイルール</b>では、石を取って相手の HP を 0 にすると KO 勝ち！' },
+  ];
+  const tut = { i: 0, solved: false, hint: -1, saved: null, wrong: 0, step: 0 };
+  const tutAnswer = () => { const q = TUT[tut.i]; return game.idx(...(tut.step ? q.next : q.answer)); };
+  function tutLoad(i) {
+    tut.i = i; tut.solved = TUT[i].type === 'view'; tut.hint = -1; tut.wrong = 0; tut.step = 0; lockUntil = 0;
+    const q = TUT[i];
+    FX.clear(); BoardFX.clear(); BoardFX.resetTraces();
+    game = new GoGame(9, rules); dstate = null; wiped = new Set(); dead = new Set(); terrGlow = null;
+    for (const [x, y] of q.b) game.board[game.idx(x, y)] = BLACK;
+    for (const [x, y] of q.w) game.board[game.idx(x, y)] = WHITE;
+    game.turn = BLACK;
+    hintMode = q.hint || 'none'; resetEyes();
+    $('#tut-title').textContent = `${i + 1} / ${TUT.length}　${q.title}`;
+    $('#tut-text').innerHTML = q.text;
+    tutButtons(); draw(); updatePanels();
+    try { localStorage.setItem('destroy-go-tut', i); } catch (e) { /* 無視 */ }
+  }
+  function tutButtons() {
+    $('#tut-prev').disabled = tut.i === 0;
+    $('#tut-hint').hidden = TUT[tut.i].type === 'view' || tut.solved; // 解けたらヒントはいらない
+    $('#tut-next').disabled = !tut.solved;
+    $('#tut-next').textContent = tut.i === TUT.length - 1 ? 'クリア！ ▶' : '次へ ▶';
+  }
+  function tutTap(p) {
+    const q = TUT[tut.i];
+    if (tut.solved || q.type === 'view' || performance.now() < lockUntil) return;
+    const ans = tutAnswer();
+    if (p !== ans) {
+      tut.wrong++;
+      toast(tut.wrong >= 2 ? '光っている場所に打ってみよう' : 'おしい！ もう一度考えてみよう（💡 ヒントもあるよ）');
+      if (tut.wrong >= 2) { tut.hint = ans; draw(); }
+      FX.blip(140, 0.12, 'sawtooth', 0.08);
+      return;
+    }
+    tut.hint = -1; tut.wrong = 0;
+    if (q.reply && tut.step === 0) { // 途中の手：黒を打ってから、白が打ち返す
+      const [x, y] = game.xy(p); game.play(x, y); FX.stoneClick(); draw();
+      tut.step = 1; lockUntil = performance.now() + 900;
+      later(() => { const [rx, ry] = q.reply; game.play(rx, ry); FX.stoneClick(); $('#tut-text').innerHTML = q.replyText; draw(); }, 700);
+      return;
+    }
+    tut.solved = true;
+    if (q.type === 'forbid') { FX.blip(140, 0.12, 'sawtooth', 0.08); showBigNote('打てない！', '#ff6a6a'); }
+    else {
+      const [x, y] = game.xy(p), r = game.play(x, y);
+      if (r.captured.length) {
+        const k = canvas.getBoundingClientRect().width / geo.css;
+        FX.capture(r.captured.map(stoneScreenPos), WHITE, geo.cell * 0.96 * k, themes[BLACK], 0);
+        BoardFX.apply(themes[BLACK], FX.tierIndex(r.captured.length), r.captured.map((c) => { const [cx, cy] = game.xy(c); return { x: px(cx), y: px(cy) }; }), geo);
+      } else FX.stoneClick();
+      checkNewEyes(300);
+      later(() => showBigNote('正解！', '#5cff8a'), r.captured.length ? 900 : 0);
+    }
+    $('#tut-text').innerHTML = `<span class="tut-ok">⭕ ${q.done}</span>`;
+    tutButtons(); draw(); updatePanels();
+  }
+  function startTutorial(from = 0) {
+    tut.saved = { size: SIZE, hint: hintMode };
+    SIZE = 9; clock = new GoClock({ base: 60000 }); cpuSide = 0;
+    gameSerial++; cpuToken++; setThinking(false);
+    showScreen('game'); phase = 'tutorial';
+    gameEl.classList.remove('scoring', 'previewing', 'replaying'); gameEl.classList.add('tutorial');
+    $('#btn-result').hidden = true; $('#btn-log').hidden = true;
+    for (const c of [BLACK, WHITE]) $('#p' + c + ' .p-name').firstChild.nodeValue = NAMES[c] + (c === BLACK ? '（あなた）' : '') + ' ';
+    layout(); tutLoad(from); renderHp();
+  }
+  function endTutorial() {
+    if (!tut.saved) return;
+    SIZE = tut.saved.size; hintMode = tut.saved.hint; tut.saved = null;
+    gameEl.classList.remove('tutorial');
+  }
+  $('#tut-prev').onclick = () => { if (tut.i > 0) tutLoad(tut.i - 1); };
+  $('#tut-hint').onclick = () => { tut.hint = tutAnswer(); draw(); };
+  $('#tut-next').onclick = () => {
+    if (!tut.solved) return;
+    if (tut.i < TUT.length - 1) { tutLoad(tut.i + 1); return; }
+    // クリア：ご褒美は BGM「冒険」（10 局遊んでも手に入る）
+    try { localStorage.setItem('destroy-go-tut-done', '1'); } catch (e) { /* 無視 */ }
+    unlockBgm('fantasy15', 'チュートリアルをクリアした');
+    showBigNote('チュートリアル クリア！', '#ffd23f');
+    $('#tut-title').textContent = 'クリア！';
+    $('#tut-text').innerHTML = 'おつかれさま！ これで対局を始められます。まずは「おすすめで始める」（コンピューター Lv1・9路）がおすすめ。タイトルへ戻って遊んでみよう！';
+    $('#tut-next').disabled = true; $('#tut-hint').hidden = true;
+  };
+  $('#btn-tutorial').onclick = () => {
+    let from = 0;
+    try { from = Math.min(TUT.length - 1, +(localStorage.getItem('destroy-go-tut') || 0)); } catch (e) { /* 無視 */ }
+    if (from > 0 && !confirmFrom(from)) from = 0;
+    FX.unlock(); startTutorial(from);
+  };
+  // 途中まで進めていたら、続きから始めるか聞く（埋め込み環境では confirm が使えないことがあるので、使えなければ続きから）
+  function confirmFrom(i) { try { return window.confirm(`前回の続き（${i + 1}問目）から始めますか？\n「キャンセル」で最初から`); } catch (e) { return true; } }
+
   // ---------- 棋譜の保存と見返し・ハイライト ----------
   let kifu = null;
   const KIFU_KEY = 'destroy-go-kifu', KIFU_MAX = 20;

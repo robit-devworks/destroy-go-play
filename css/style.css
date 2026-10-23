@@ -394,6 +394,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .controls .pv-row button { padding: 6px 2px; font-size: 12px; border-radius: 999px; white-space: nowrap; }
 .controls .pv-row button[aria-pressed="true"] { background: var(--tc, var(--accent)); border-color: transparent; color: #fff; text-shadow: 0 1px 2px #000; }
 .previewing #play-controls { display: none; }
+/* チュートリアル */
+#tut-controls { display: none; align-items: stretch; flex-wrap: wrap; }
+.tutorial #play-controls { display: none; }
+.tutorial #tut-controls { display: flex; }
+.tutorial .p-clock, .tutorial #btn-log, .tutorial #btn-share { visibility: hidden; }
+.tut-box { flex: 1 0 100%; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 210, 63, 0.35); border-radius: 12px; padding: 8px 12px; text-align: left; }
+.tut-box b { color: var(--accent2); font-size: 14px; }
+.tut-box p { margin: 4px 0 0; font-size: 13px; line-height: 1.6; height: 6.4em; overflow-y: auto; } /* 問題ごとに高さが変わって盤が動かないよう、高さを決めておく */
+.tut-box p b { color: #ffd23f; font-size: inherit; }
+.tut-ok { color: #8dffb0; }
+#tut-controls button:disabled { opacity: 0.35; }
 /* 棋譜の再生 */
 #replay-controls { display: none; align-items: center; flex-wrap: wrap; }
 #replay-controls .score-hint { flex: 1 0 100%; text-align: center; font-size: 13px; color: var(--accent2); }
@@ -402,6 +413,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .replaying #rp-auto { flex: 2; }
 .replaying .p-clock { visibility: hidden; } /* 再生では時計を使わない */
 .title-links { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.beginner {
+  max-width: 520px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
+  padding: 10px 14px; border-radius: 14px; background: rgba(255, 210, 63, 0.08); border: 1px solid rgba(255, 210, 63, 0.35); font-size: 13px; line-height: 1.6;
+}
+.beginner b { color: var(--accent2); }
 .m-sub { margin-top: 8px; }
 .m-themes { margin: 0 0 14px; text-align: left; gap: 8px; }
 .m-themes .tr-label { font-size: 13px; }

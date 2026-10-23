@@ -28,6 +28,11 @@
       </div>
 
       <button id="btn-start" class="big-btn">対局開始</button>
+      <!-- はじめての人向け：押すだけで、コンピューター Lv1・9路で始める -->
+      <div class="beginner">
+        <span>囲碁を知らなくても大丈夫！ はじめての人は <b>コンピューター Lv1 ＋ 9路</b> で始めてみよう</span>
+        <div class="title-links"><button id="btn-tutorial" class="sub-btn">📖 チュートリアル</button><button id="btn-beginner" class="sub-btn">▶ おすすめで始める</button></div>
+      </div>
       <div class="title-links">
         <button id="btn-fs-title" class="fs-btn sub-btn">⛶ 全画面にする</button>
         <button id="btn-kifu" class="sub-btn">📼 棋譜を見る</button>
@@ -210,6 +215,12 @@
         <div class="score-hint">死に石をタップ（グループごと切替）<span id="score-live"></span></div>
         <button id="btn-calc" class="accent">計算する</button>
         <button id="btn-continue">対局に戻る</button>
+      </div>
+      <div class="controls" id="tut-controls">
+        <div class="tut-box"><b id="tut-title"></b><p id="tut-text"></p></div>
+        <button id="tut-prev">◀ 前へ</button>
+        <button id="tut-hint">💡 ヒント</button>
+        <button id="tut-next" class="accent">次へ ▶</button>
       </div>
       <div class="controls" id="replay-controls">
         <div class="score-hint" id="rp-info"></div>
