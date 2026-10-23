@@ -374,7 +374,7 @@
     el.className = ''; void el.offsetWidth; el.className = 'show';
     FX.heal();
   }
-  let bgmKey = 'medley02';
+  let bgmKey = 'off'; // 最初は鳴らさない（いきなり音が出ると驚くので）。選べばメドレーなどが流れる
   try { const k = localStorage.getItem('destroy-go-bgm'); const b = BGMS.find((x) => x.key === k); if (b && bgmOk(b)) bgmKey = k; } catch (e) { /* 無視 */ }
   const bgmAudio = new Audio();
   bgmAudio.loop = true; bgmAudio.preload = 'none';
@@ -495,12 +495,14 @@
         + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     };
     const fit = (other) => Math.floor(Math.max(200, Math.min(vw - 16, vh - other - 4, 900)));
+    // 名前欄・ボタン欄は碁盤より細くしない（画面が低いと碁盤だけ小さくなり、文字が縦に折り返してしまうため）
+    const uiWidth = (b) => document.documentElement.style.setProperty('--ui-width', Math.max(b, Math.min(vw - 16, 360)) + 'px');
     let size = fit(2 * 66 + 52 + 38 + 40 + (gameEl.classList.contains('previewing') ? 30 : 0));
-    document.documentElement.style.setProperty('--board-size', size + 'px');
+    document.documentElement.style.setProperty('--board-size', size + 'px'); uiWidth(size);
     if (gameEl.classList.contains('active')) {
       for (let k = 0; k < 2; k++) {
         size = fit(others());
-        document.documentElement.style.setProperty('--board-size', size + 'px');
+        document.documentElement.style.setProperty('--board-size', size + 'px'); uiWidth(size);
       }
     }
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
@@ -513,6 +515,7 @@
     draw();
   }
   window.addEventListener('resize', layout);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', layout); // アプリ内ブラウザで下の欄が出入りしたとき
 
   const px = (i) => geo.margin + i * geo.cell;
 

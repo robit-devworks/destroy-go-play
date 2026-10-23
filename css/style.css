@@ -16,6 +16,7 @@ html, body {
   margin: 0; height: 100%; background: var(--bg); color: var(--text);
   font-family: 'Hiragino Sans', 'Yu Gothic', 'Noto Sans JP', system-ui, sans-serif;
   overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: manipulation;
+  -webkit-text-size-adjust: 100%; text-size-adjust: 100%; /* アプリ内ブラウザで文字が勝手に大きくならないように */
 }
 [hidden] { display: none !important; }
 button { font: inherit; color: inherit; cursor: pointer; }
@@ -155,14 +156,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .dmg-pop.critical { color: #ffd23f; font-size: 30px; }
 .dmg-pop.ko { color: #fff; font-size: 34px; text-shadow: 0 0 12px #ff2b2b, 0 0 24px #ff2b2b; }
 @keyframes dmg-pop { 0% { transform: translateY(10px) scale(1.6); opacity: 0; } 15% { transform: translateY(0) scale(1); opacity: 1; } 80% { opacity: 1; } 100% { transform: translateY(-24px); opacity: 0; } }
-.top-bar { width: var(--board-size, 100%); display: flex; height: 30px; }
+.top-bar { width: var(--ui-width, var(--board-size, 100%)); display: flex; height: 30px; }
 .top-bar button {
   border: 1px solid rgba(255, 255, 255, 0.15); background: var(--panel); border-radius: 999px;
   padding: 4px 14px; font-size: 13px; font-weight: 700;
 }
 .top-bar button.accent { background: linear-gradient(180deg, #ff6a3d, #d4001a); border-color: transparent; }
 .player {
-  width: var(--board-size, 100%); display: flex; align-items: center; gap: 12px;
+  width: var(--ui-width, var(--board-size, 100%)); display: flex; align-items: center; gap: 12px;
   padding: 8px 14px; border-radius: 14px; background: var(--panel);
   border: 2px solid transparent; transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
 }
@@ -172,8 +173,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .p-stone.black { background: radial-gradient(circle at 35% 30%, #777, #000 70%); }
 .p-stone.white { background: radial-gradient(circle at 35% 30%, #fff, #bdb7aa 80%); }
 .p-info { flex: 1; min-width: 0; }
-.p-name { font-weight: 800; font-size: 17px; }
-.p-cap { font-size: 12px; color: var(--muted); }
+.p-name { font-weight: 800; font-size: 17px; white-space: nowrap; }
+.p-cap { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .p-cap b { color: var(--accent2); font-size: 15px; }
 .p-clock { position: relative; text-align: right; min-width: 108px; }
 .time { font-family: var(--font-en); font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; }
@@ -364,10 +365,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 @keyframes charge-pop { 0% { transform: translate(-50%, 0) scale(2); opacity: 0; } 100% { transform: translate(-50%, 0) scale(1); opacity: 1; } }
 @keyframes charge-shake { 50% { transform: translate(calc(-50% + 3px), -2px); } }
 
-.controls { width: var(--board-size, 100%); display: flex; gap: 6px; }
+.controls { width: var(--ui-width, var(--board-size, 100%)); display: flex; gap: 6px; }
 .controls button {
   flex: 1; border: 1px solid rgba(255, 255, 255, 0.15); background: var(--panel);
-  border-radius: 10px; padding: 10px 4px; font-size: 14px; font-weight: 700;
+  border-radius: 10px; padding: 10px 4px; font-size: 14px; font-weight: 700; white-space: nowrap;
 }
 .controls button:active { background: var(--panel-active); }
 .controls button:disabled { opacity: 0.35; }
