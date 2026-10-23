@@ -127,25 +127,8 @@
       </div>
 
       <div class="rules">
-        <div class="rules-head">
-          <h2>ルール</h2>
-          <div class="rule-tabs" role="tablist">
-            <button role="tab" data-tab="go">ノーマルルール</button>
-            <button role="tab" data-tab="destroy">デストロイルール</button>
-          </div>
-        </div>
-        <ul id="rules-destroy" hidden></ul>
-        <ul id="rules-go">
-          <li id="rule-line">19路盤・黒番から</li>
-          <li id="time-line">持ち時間 <b>7分</b>（上限も7分）</li>
-          <li>1手 <b>5秒以内</b>に打つと余った秒数を加算（1秒で打てば +4秒）</li>
-          <li>5秒を超えると超えた分だけ持ち時間が減る</li>
-          <li>持ち時間が0になったら<b>負け</b></li>
-          <li>一度に取った石が多いほど<b>ド派手な演出</b>（演出中は時計が止まります）</li>
-          <li>演出は黒・白それぞれ「デストロイ／炎／氷／雷／闇／光」から選べます（対局中も名前の横のマークで切替）</li>
-          <li>2子以上取れる手は<b>長押しで「ため撃ち」</b>。もっと派手に取れるが、ためている間も自分の時計は進む（ためられる長さは取る数で変わる：2〜3子 1秒／4〜11子 3秒／12子〜 5秒）</li>
-          <li>2人連続パスで終局 → 死に石をタップして計算（コンピューター戦では死に石を自動で判定）</li>
-        </ul>
+        <h2>ルール</h2>
+        <div id="title-rules" class="rules-body"></div>
       </div>
 
       <div class="preview">
@@ -254,7 +237,7 @@
   <!-- 対局中に見るルール（？ ルール） -->
   <div id="rules-pop" hidden>
     <div class="log-head"><b>ルール</b><button id="rules-close">閉じる</button></div>
-    <div id="rules-body"></div>
+    <div id="rules-body" class="rules-body"></div>
   </div>
   <!-- ダメージの履歴（デストロイルール） -->
   <div id="log-pop" hidden>

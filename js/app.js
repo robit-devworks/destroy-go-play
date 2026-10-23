@@ -116,13 +116,13 @@
   for (const [key, label] of [['simple', '初級'], ['advanced', '上級（倍率・反動あり）']]) {
     const chip = document.createElement('button');
     chip.className = 'chip rule-chip'; chip.dataset.level = key; chip.textContent = label;
-    chip.onclick = () => { dAdvanced = key === 'advanced'; try { localStorage.setItem('destroy-go-dlevel', key); } catch (e) { /* 無視 */ } renderMode(); renderRules(); showRuleTab('destroy'); };
+    chip.onclick = () => { dAdvanced = key === 'advanced'; try { localStorage.setItem('destroy-go-dlevel', key); } catch (e) { /* 無視 */ } renderMode(); renderRules(); };
     $('#dlevel-chips').appendChild(chip);
   }
   for (const [key, label] of [['go', 'ふつうの囲碁（地の多さ）'], ['destroy', 'デストロイルール（HPバトル）【調整中】']]) {
     const chip = document.createElement('button');
     chip.className = 'chip rule-chip'; chip.dataset.mode = key; chip.textContent = label;
-    chip.onclick = () => { mode = key; try { localStorage.setItem('destroy-go-mode', key); } catch (e) { /* 無視 */ } renderMode(); renderRules(); showRuleTab(key); };
+    chip.onclick = () => { mode = key; try { localStorage.setItem('destroy-go-mode', key); } catch (e) { /* 無視 */ } renderMode(); renderRules(); };
     $('#mode-chips').appendChild(chip);
   }
   renderMode();
@@ -202,33 +202,13 @@
     $('#time-chips').appendChild(chip);
   });
 
-  // ルールの説明は「ノーマル」と「デストロイ」をタブで切り替えて見られる（選んでいる勝ち負けの決め方とは別に見られる）
-  let ruleTab = null;
-  function showRuleTab(tab) {
-    ruleTab = tab;
-    document.querySelectorAll('.rule-tabs button').forEach((b) => b.setAttribute('aria-selected', b.dataset.tab === tab));
-    $('#rules-go').hidden = tab !== 'go';
-    $('#rules-destroy').hidden = tab !== 'destroy';
-  }
-  document.querySelectorAll('.rule-tabs button').forEach((b) => { b.onclick = () => showRuleTab(b.dataset.tab); });
-  function renderDestroyRules(start) {
-    const c = DestroyRule.config(SIZE, dAdvanced);
-    const bonus = hpBonus ? `（${NAMES[hpBonusColor]}はHPハンデで+${hpBonus * 100}%）` : '';
-    const items = [
-      `<b>${dAdvanced ? '上級' : '初級'}</b>：${SIZE}路盤・${start}・<b>HP${c.hp}</b>で勝負${c.white ? `（白は先手の差の分 +${c.white}）` : ''}${bonus}`,
-      '相手の石を取ると相手のHPが減る：1〜3子は1子<b>2</b>、4〜6子は1子<b>3</b>、7子以上は1子<b>4</b>ダメージ',
-      `<b>${c.crit}子以上</b>まとめて取ると<b>クリティカル</b>（${c.hp / 2}ダメージ）、<b>${c.ko}子以上</b>で<b>即KO</b>`,
-      ...(dAdvanced ? [
-        '倍率：ため撃ちMAX 1.5倍／背水（自分のHPが4分の1以下）1.2倍／<b>カウンター</b>（取りに来た石ごと取り返す）1.5倍／<b>コンボ</b>（続けて取る）2連続1.2倍〜／<b>ラストスパート</b>（盤の7割が埋まるか持ち時間1分以下）1.5倍。全部重なっても2.5倍まで',
-        '<b>反動</b>：ため撃ちMAXで増えたダメージと同じだけ自分のHPも減る（HPは1で止まる。相手をKOしたら受けない）。とどめや、わざと背水に入りたいときに使う',
-      ] : []),
-      ...(dAdvanced ? ['2眼で取られなくなった石（<b>盾マーク</b>）4子ごとにHPが1回復。余りは最大HPを増やす（最初の2倍まで）'] : []),
-      'HPが0で<b>KO負け</b>。2人連続パスで終局したら<b>地の総攻撃</b>：お互いに地1目につき相手に1ダメージを同時に与え、HPが0以下になったらKO。両方残ったら残りHPの多いほうの勝ち',
-      dAdvanced ? '持ち時間・5秒ルール・演出はノーマルルールと同じ' : '持ち時間・5秒ルール・演出はノーマルルールと同じ。ため撃ちは演出だけ（ダメージは変わらない）',
-      ...(dAdvanced ? [] : ['上級では、ため撃ち・背水・カウンター・コンボ・ラストスパートの倍率、反動、2眼の回復が加わる']),
-    ];
-    $('#rules-destroy').innerHTML = items.map((t) => `<li>${t}</li>`).join('');
-    if (!ruleTab) showRuleTab(mode);
+  // タイトルのルール説明は、対局中の ？ ルールと同じもの。勝ち負けの決め方・碁盤を変えたら、そのタブに合わせる
+  const ts = { tab: 'go', size: 19 };
+  let tsKey = '';
+  function renderTitleRules() {
+    const key = `${mode}|${dAdvanced}|${SIZE}`;
+    if (key !== tsKey) { tsKey = key; ts.tab = mode === 'destroy' ? (dAdvanced ? 'adv' : 'basic') : 'go'; ts.size = SIZE; }
+    renderRulesInto($('#title-rules'), ts);
   }
 
   function renderRules() {
@@ -237,13 +217,9 @@
       c.setAttribute('aria-pressed', t === timeChoice);
       c.textContent = t === 'auto' ? `おすすめ（${AUTO_MINUTES[SIZE]}分）` : `${t}分`;
     });
-    $('#time-line').innerHTML = `持ち時間 <b>${minutes()}分</b>（上限も${minutes()}分）`;
     document.querySelectorAll('#rule-chips .chip').forEach((c) => c.setAttribute('aria-pressed', c.dataset.key === rules));
     document.querySelectorAll('#size-chips .chip').forEach((c) => c.setAttribute('aria-pressed', +c.dataset.size === SIZE));
-    const hc = effectiveHandicap();
-    const start = hc ? `置き石${hc}子・白番から` : '黒番から';
-    $('#rule-line').textContent = `${SIZE}路盤・${start}・${RULES[rules].label}（${RULE_DESC[rules]}）・コミ${hc ? 0.5 : RULES[rules].komi}目`;
-    renderDestroyRules(start);
+    renderTitleRules();
     renderOpponent();
   }
   // 今の設定を 1 行で（不具合の報告に入れる）
@@ -918,12 +894,31 @@
   }
   // ---------- ？ ルール：対局中もいつでも見られる。ノーマル・初級・上級と、碁盤（9・13・19 路）をタブで切り替える ----------
   const rp = { tab: 'go', size: 19 };
-  function renderRulesPop() {
+  function renderRulesPop() { renderRulesInto($('#rules-body'), rp); }
+  // ノーマルの説明は碁盤の大きさで変わらない（変わるのはおすすめの持ち時間だけ）
+  function goRulesHTML() {
+    const rows = [
+      ['打つ順', '黒番から（置き石があるときは白番から）'],
+      ['持ち時間', `おすすめ ${[9, 13, 19].map((z) => `${z}路 ${AUTO_MINUTES[z]}分`).join('・')}（設定で${TIME_CHOICES.filter((t) => t !== 'auto').join('・')}分にも変えられる）`],
+      ['勝ち負け', Object.keys(RULES).map((k) => `${RULES[k].label}：${RULE_DESC[k]}`).join('<br>')],
+      ['コミ', `${Object.keys(RULES).map((k) => `${RULES[k].label} ${RULES[k].komi}目`).join('・')}（置き石ありは0.5目）`],
+    ];
+    return `<table class="rp-table">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>
+      <ul class="rp-list">
+        <li>1手 <b>5秒以内</b>に打つと余った秒数を加算（1秒で打てば +4秒）。持ち時間は最初の時間より増えない</li>
+        <li>5秒を超えると超えた分だけ持ち時間が減る</li>
+        <li>持ち時間が0になったら<b>負け</b></li>
+        <li>一度に取った石が多いほど<b>ド派手な演出</b>（演出中は時計が止まります）</li>
+        <li>演出は黒・白それぞれ「デストロイ／炎／氷／雷／闇／光」から選べます（対局中も名前の横のマークで切替）</li>
+        <li>2子以上取れる手は<b>長押しで「ため撃ち」</b>。もっと派手に取れるが、ためている間も自分の時計は進む（ためられる長さは取る数で変わる：2〜3子 1秒／4〜11子 3秒／12子〜 5秒）</li>
+        <li>2人連続パスで終局 → 死に石をタップして計算（コンピューター戦では死に石を自動で判定）</li></ul>`;
+  }
+  function renderRulesInto(box, rp) {
     const tabs = [['go', 'ノーマル'], ['basic', 'デストロイ初級'], ['adv', 'デストロイ上級'], ['words', '用語']]
       .map(([k, l]) => `<button data-rp-tab="${k}" aria-selected="${rp.tab === k}">${l}</button>`).join('');
     let html = `<div class="rp-tabs">${tabs}</div>`;
     if (rp.tab === 'go') {
-      html += `<ul class="rp-list">${$('#rules-go').innerHTML}</ul>`;
+      html += goRulesHTML();
     } else if (rp.tab === 'words') {
       const go = [
         ['呼吸点', '石のとなり（上下左右）の空いている点。呼吸点が全部ふさがれると、その石は取られる'],
@@ -981,9 +976,9 @@
         html += '<h3>上級で加わる効果</h3>' + fx.map(([k, m, d, ex]) => `<div class="rp-card"><div class="rp-name">${k}<span>${m}</span></div><p>${d}</p>${ex ? `<p class="rp-ex">${ex}</p>` : ''}</div>`).join('');
       } else html += '<p class="rp-note">上級では、ため撃ち・反動・背水・カウンター・コンボ・ラストスパート・2眼の回復が加わる（HP も多い）。</p>';
     }
-    $('#rules-body').innerHTML = html;
-    $('#rules-body').querySelectorAll('[data-rp-tab]').forEach((b) => { b.onclick = () => { rp.tab = b.dataset.rpTab; renderRulesPop(); }; });
-    $('#rules-body').querySelectorAll('[data-rp-size]').forEach((b) => { b.onclick = () => { rp.size = +b.dataset.rpSize; renderRulesPop(); }; });
+    box.innerHTML = html;
+    box.querySelectorAll('[data-rp-tab]').forEach((b) => { b.onclick = () => { rp.tab = b.dataset.rpTab; renderRulesInto(box, rp); }; });
+    box.querySelectorAll('[data-rp-size]').forEach((b) => { b.onclick = () => { rp.size = +b.dataset.rpSize; renderRulesInto(box, rp); }; });
   }
   $('#btn-rules').onclick = (e) => {
     e.stopPropagation();
