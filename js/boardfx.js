@@ -380,16 +380,16 @@
       const k = p.t / p.life, a = Math.max(0, 1 - k) * A;
       if (p.kind === 'smoke') {
         g.globalCompositeOperation = 'source-over';
-        g.globalAlpha = a * 0.35; g.fillStyle = p.color || '#3a3230';
+        g.globalAlpha = a * 0.35; g.fillStyle = e.variant === 'shimetsu' ? '#6a3a9a' : p.color || '#3a3230';
         g.beginPath(); g.arc(p.x, p.y, p.size * (1 + k * 1.5), 0, Math.PI * 2); g.fill();
         continue;
       }
       g.globalCompositeOperation = 'lighter';
       if (p.kind === 'flame') {
-        g.globalAlpha = a * 0.6; g.fillStyle = `hsl(${50 - 50 * k},100%,${60 - 25 * k}%)`;
+        g.globalAlpha = a * 0.6; g.fillStyle = e.variant === 'aoen' ? `hsl(${195 + 25 * k},100%,${75 - 30 * k}%)` : `hsl(${50 - 50 * k},100%,${60 - 25 * k}%)`;
         g.beginPath(); g.arc(p.x, p.y, p.size * (1 - k * 0.7), 0, Math.PI * 2); g.fill();
       } else if (p.kind === 'ember') {
-        g.globalAlpha = a; g.fillStyle = p.color || '#ffc34a';
+        g.globalAlpha = a; g.fillStyle = p.color || (e.variant === 'aoen' ? '#8ae0ff' : '#ffc34a');
         g.beginPath(); g.arc(p.x, p.y, p.size, 0, Math.PI * 2); g.fill();
       } else if (p.kind === 'sparkle') {
         const s = p.size * Math.sin(k * Math.PI);
@@ -405,8 +405,9 @@
     g.shadowBlur = 12;
     for (const w of e.walkers) {
       if (w.path.length < 2) continue;
-      const col = pick(['#bfe9ff', '#7ad7ff', '#fff59a']);
-      g.strokeStyle = col; g.shadowColor = col; g.lineWidth = 2;
+      const crimson = e.variant === 'crimson';
+      const col = crimson ? pick(['#ff2a3a', '#c0001a', '#ff5a5a']) : pick(['#bfe9ff', '#7ad7ff', '#fff59a']);
+      g.strokeStyle = col; g.shadowColor = col; g.lineWidth = crimson ? 3 : 2;
       g.globalAlpha = A * (Math.random() < 0.2 ? 0.3 : 0.9);
       g.beginPath();
       w.path.forEach(([gx, gy], i) => {
@@ -419,6 +420,10 @@
         }
       });
       g.stroke();
+      if (crimson) { // 紅雷：芯が黒い電流
+        g.globalCompositeOperation = 'source-over'; g.shadowBlur = 0; g.strokeStyle = '#0a0002'; g.lineWidth = 1.2; g.stroke();
+        g.globalCompositeOperation = 'lighter'; g.shadowBlur = 12;
+      }
     }
     g.shadowBlur = 0;
   }
@@ -428,12 +433,12 @@
     if (!e) { running = false; return; }
     // rAF の時刻は apply 時の performance.now() よりわずかに前のことがある
     if (now < e.start) { requestAnimationFrame(frame); return; } // 隕石の着弾待ち
-    if (!e.started) { e.started = true; wrap.dataset.bfx = e.full ? e.key : ''; }
+    if (!e.started) { e.started = true; wrap.dataset.bfx = e.full ? e.key : ''; wrap.dataset.bfxv = e.full && e.variant ? e.variant : ''; }
     const age = Math.max(0, now - e.start), k = age / e.dur;
     if (k >= 1) { clear(); running = false; return; }
     const A = Math.min(1, age / 350) * (k > 0.65 ? (1 - k) / 0.35 : 1);
     e.frame++;
-    if (k > 0.65 && wrap.dataset.bfx) wrap.dataset.bfx = ''; // 盤の色は先に戻し始める
+    if (k > 0.65 && wrap.dataset.bfx) wrap.dataset.bfx = wrap.dataset.bfxv = ''; // 盤の色は先に戻し始める
 
     g.clearRect(0, 0, S, S);
     const grow = Math.min(1, age / 320);
@@ -461,14 +466,47 @@
     if (e.walkers.length) drawWalkers(e, A);
     if (e.flicker > 0) {
       e.flicker--;
-      g.globalCompositeOperation = 'lighter'; g.globalAlpha = A * 0.3; g.fillStyle = '#9fc8ff'; g.fillRect(0, 0, S, S);
+      g.globalCompositeOperation = 'lighter'; g.globalAlpha = A * 0.3; g.fillStyle = e.variant === 'crimson' ? '#ff2a3a' : '#9fc8ff'; g.fillRect(0, 0, S, S);
     }
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
     requestAnimationFrame(frame);
   }
 
   // key: テーマ, ti: 演出レベル, pts: 取った石の盤上座標(CSS px), geo: {cell, margin}
+  // 色違いの演出（紅雷など）は、碁盤の上では元の演出（雷など）として描いてから、色を付け替える
+  const baseKey = (k) => (root.FX && root.FX.baseOf ? root.FX.baseOf(k) : k);
+  // 色相・彩度・明るさ（0〜360・0〜1・0〜1）を付け替える
+  const VARIANT = {
+    crimson: (h, s, l) => (s < 0.08 ? [h, s, l * 0.7] : [355, 1, Math.min(l * 0.75, 0.42)]), // 紅雷：赤黒く
+    // 蒼炎：火力が強すぎて青くなった炎。焦げ跡はほぼ黒（ほんのり青。くすんだ青だとカビに見える）、燃えている間の光は鮮やかな青
+    aoen: (h, s, l, a) => (s < 0.08 || (h > 75 && h < 330) ? [h, s, l] : l < 0.3 ? [228, 0.5, l * 0.22] : [205, 1, Math.max(0.65, l), a * 0.28]), // 青い光を木の黄色に重ねると緑っぽく濁るので、薄く・白っぽく
+    // 紫滅：ひび（濃い線）だけ紫に。盤全体のうすい影は元のまま
+    shimetsu: (h, s, l, a) => (a < 0.55 || s < 0.05 || (h > 60 && h < 330) ? [h, s, l] : [285, Math.max(s, 0.75), Math.max(l, 0.24)]),
+  };
+  function hsl2rgb(h, s, l) {
+    const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2;
+    const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+    return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+  }
+  function recolor(cv, variant, mapOverride) {
+    const map = mapOverride || VARIANT[variant];
+    if (!map) return;
+    const x = cv.getContext('2d'), img = x.getImageData(0, 0, cv.width, cv.height), d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      if (!d[i + 3]) continue;
+      const r = d[i] / 255, g2 = d[i + 1] / 255, b = d[i + 2] / 255, mx = Math.max(r, g2, b), mn = Math.min(r, g2, b), l = (mx + mn) / 2, dd = mx - mn;
+      const s2 = dd ? dd / (1 - Math.abs(2 * l - 1) || 1) : 0;
+      let h = 0;
+      if (dd) h = mx === r ? 60 * (((g2 - b) / dd) % 6) : mx === g2 ? 60 * ((b - r) / dd + 2) : 60 * ((r - g2) / dd + 4);
+      if (h < 0) h += 360;
+      const [h3, s3, l3, a3] = map(h, Math.min(1, s2), l, d[i + 3] / 255), [R, G, B] = hsl2rgb(h3 % 360, s3, l3);
+      d[i] = R; d[i + 1] = G; d[i + 2] = B; if (a3 !== undefined) d[i + 3] = a3 * 255;
+    }
+    x.putImageData(img, 0, 0);
+  }
   function apply(key, ti, pts, geo) {
+    const variant = VARIANT[key] ? key : null;
+    key = baseKey(key);
     const dur = (DURATION[key] || DURATION.other)[ti];
     if (!dur || !pts.length || !S || !BUILD[key]) return;
     const full = ti >= FULL_FROM;
@@ -484,9 +522,10 @@
       key, ti, full, pts, seeds, center, cell: geo.cell, margin: geo.margin, size: geo.size,
       // デストロイの ULTRA 以上は、隕石が着弾してからひびが入る（破壊神は噴火の後）
       R, revealR: full ? S * 1.2 : R * 1.2, start: performance.now() + (key === 'default' && full ? (ti >= 6 ? 1100 : 500) : 0), dur,
-      parts: [], walkers: [], frame: 0, flicker: 0,
+      parts: [], walkers: [], frame: 0, flicker: 0, variant,
     };
     build(cur);
+    if (variant) { recolor(cur.stat, variant); recolor(cur.glow, variant); }
     wrap.dataset.bfx = '';
     if (!running) { running = true; requestAnimationFrame(frame); }
   }
@@ -494,7 +533,7 @@
   function clear() {
     cur = null;
     g.clearRect(0, 0, S, S);
-    wrap.dataset.bfx = '';
+    wrap.dataset.bfx = wrap.dataset.bfxv = '';
   }
 
   // 光の跡：黄色い星。shape 'spiky' は長い光 8 本と短い光 8 本、'diamond' はダイヤのようなきらめき（長い光 4 本と短い光 4 本）
@@ -529,6 +568,8 @@
   // 取った場所に跡を残す。盤全体に広がる演出でも、跡は取った場所のまわりだけにする
   // owner: 取った側の色（1 黒 / 2 白）。move: その手の手数（待ったで消すため）
   function addTrace(key, ti, pts, geo, owner, move) {
+    const variant = VARIANT[key] ? key : null;
+    key = baseKey(key);
     if (!pts.length || !S || !BUILD[key]) return;
     const seeds = pts.map((p, i) => ({ x: p.x, y: p.y, rot: rnd(0, 1), main: i === 0 }));
     const e = {
@@ -544,6 +585,7 @@
       x.fillStyle = tint; x.beginPath(); x.arc(p.x, p.y, geo.cell * 0.75, 0, Math.PI * 2); x.fill();
     }
     BUILD[key](e, x, gx);
+    if (variant) recolor(img, variant);
     if (key === 'light') lightStars(x, pts, geo.cell); // 光は木の盤だと見えにくいので、黄色い星の形を残す
     // 跡の範囲（mask）は、あとで同じ場所に新しい跡ができたときに古い跡を消すのに使う
     const mask = maskTo(img, e);
@@ -556,6 +598,11 @@
   const HINT_COLOR = { default: '25,15,15', fire: '255,90,0', ice: '40,170,255', thunder: '255,225,0', dark: '130,50,220', light: '255,255,255' };
   const AURA_BOOST = { thunder: 0.8 }; // 黄色は主張が強いので控えめにする
   const AURA_EDGE = { thunder: '60,35,0' }; // 暗い縁
+  // 色違いの演出（シーズン報酬）のにじみ。青や紫は木の黄色と混ざると濁るので、暗い縁を先に敷く
+  Object.assign(HINT_COLOR, { crimson: '200,0,30', shimetsu: '140,50,230', aoen: '30,80,255' });
+  Object.assign(AURA_EDGE, { crimson: '40,0,6', shimetsu: '25,0,45', aoen: '0,6,30' });
+  // つながりの線の色の付け替え（蒼炎は焦げ跡と違い、線はあざやかな青い炎にする）
+  const LINK_VARIANT = { aoen: (h, s, l) => (s < 0.08 || (h > 75 && h < 330) ? [h, s, l] : [210, 1, Math.max(0.35, l)]) };
   // 同じ座標のペアでは毎回同じ形になるよう、座標から決まる乱数を使う
   function seeded(seed) {
     let t = seed >>> 0;
@@ -699,8 +746,8 @@
       for (let i = 0; i < inf.length; i++) {
         const v = inf[i];
         if (Math.abs(v) < 0.3) continue;
-        const owner = v > 0 ? 1 : 2, key = st.themes[owner];
-        spots.push({ owner, key, pos: pos(i), a: Math.min(0.42, (Math.abs(v) - 0.3) * 0.35 + 0.12) * (AURA_BOOST[key] || 1) });
+        const owner = v > 0 ? 1 : 2, vkey = st.themes[owner], key = HINT_COLOR[vkey] ? vkey : baseKey(vkey);
+        spots.push({ owner, key, pos: pos(i), a: Math.min(0.42, (Math.abs(v) - 0.3) * 0.35 + 0.12) * (AURA_BOOST[baseKey(vkey)] || 1) });
       }
       // 盤の木の色に近い色（雷の黄色）は、先に暗い縁を敷いてから重ねて浮かび上がらせる。
       // 縁を全部描いてから色を描く（1 点ずつ描くと隣の縁が色の上に乗ってしまう）
@@ -719,14 +766,22 @@
       }
     }
     if (st.hint === 'both' || st.hint === 'links') { // つながりの線
+      // 色違いの演出の人の線は、別の紙に描いてから色を付け替えて重ねる
+      const tmp = {};
+      for (const c of [1, 2]) if (VARIANT[st.themes[c]]) tmp[c] = layer();
       for (const [a, b, c, kind] of st.links()) {
         // 隣り合った石同士は見ればつながっているとわかるので、線を描かない
         // （ギザギザの線が石の外にはみ出して、離れた石とつながって見えるのを防ぐ）
         if (Math.abs((a % st.size) - (b % st.size)) + Math.abs(Math.floor(a / st.size) - Math.floor(b / st.size)) === 1) continue;
-        const x = og[c], look = LINK_LOOK[kind] || LINK_LOOK.ikken;
+        const x = tmp[c] ? tmp[c][1] : og[c], look = LINK_LOOK[kind] || LINK_LOOK.ikken;
         x.save(); x.globalAlpha = look.alpha;
-        LINK[st.themes[c]](x, pos(a), pos(b), st.cell * look.scale, seeded(a * 1000 + b));
+        LINK[baseKey(st.themes[c])](x, pos(a), pos(b), st.cell * look.scale, seeded(a * 1000 + b));
         x.restore();
+      }
+      for (const c of [1, 2]) {
+        if (!tmp[c]) continue;
+        recolor(tmp[c][0], st.themes[c], LINK_VARIANT[st.themes[c]]);
+        og[c].drawImage(tmp[c][0], 0, 0, S, S);
       }
     }
     // 取った場所の跡

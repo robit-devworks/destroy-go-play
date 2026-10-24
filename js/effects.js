@@ -55,7 +55,67 @@
       subs: ['昇天せよ', 'メガ・ホーリー', 'ウルトラ・ホーリー', 'GOD OF LIGHT'],
       flash: ['#ffffff', '#fff6d8', '#ffe7a3', '#fff0c0'], vignette: 'holy',
     },
+    // ---- 色違い（シーズンのランキング報酬）。動きは base の演出のまま、色だけ変える ----
+    crimson: { // 1〜3 位：赤黒い雷
+      label: '紅雷', base: 'thunder', mark: '紅', color: '#ff2a3a', palette: ['#ff5a5a', '#e0102a', '#a0001a', '#ff2a3a'],
+      names: ['RAGE!!!', 'MEGA CRIMSON!!!', 'ULTRA CRIMSON!!!!', '紅雷神降臨'],
+      subs: ['裂けろ', 'メガ・クリムゾン', 'ウルトラ・クリムゾン', 'GOD OF CRIMSON THUNDER'],
+      flash: ['#ff3a4a', '#8a0018', '#2a0006', '#000000'], vignette: 'storm', tint: 'crimson',
+    },
+    aoen: { // 11〜50 位：青い炎
+      label: '蒼炎', base: 'fire', mark: '蒼', color: '#4ab8ff', palette: ['#e8fbff', '#8ae0ff', '#3aa0ff', '#5a5aff'],
+      names: ['BLUE BURN!!!', 'MEGA BLUE INFERNO!!!', 'ULTRA BLUE INFERNO!!!!', '蒼炎神降臨'],
+      subs: ['蒼く燃えろ', 'メガ・ブルーインフェルノ', 'ウルトラ・ブルーインフェルノ', 'GOD OF BLUE FLAME'],
+      flash: ['#f0fcff', '#8ae0ff', '#2a6aff', '#00103a'], vignette: 'fire', tint: 'aoen',
+    },
+    shimetsu: { // 4〜10 位：紫と金のデストロイ
+      label: '紫滅', base: 'default', mark: '紫', color: '#b44bff', shield: '#8a8f98',
+      tierColors: ['#ffe27a', '#ffd23f', '#e0a0ff', '#b44bff', '#d24bff', '#9a3bff', '#ffffff'],
+      names: ['DESTROY!!!', 'MEGA DESTROY!!!', 'ULTRA DESTROY!!!!', '紫滅神降臨'],
+      subs: ['シメツ', 'メガ・シメツ', 'ウルトラ・シメツ', 'GOD OF VIOLET RUIN'],
+      flash: ['#ffffff', '#efe0ff', '#9a2aff', '#0e0018'], vignette: 'meteor', tint: 'shimetsu',
+    },
   };
+  const baseOf = (key) => (THEMES[key] && THEMES[key].base) || key;
+
+  // 色違いの色の付け替え。演出の途中で作る粒・輪・稲妻の色を、ここで変える（色相で振り分け）
+  const TINTS = {
+    // 紅雷：黄色・白は暗めの赤、水色は黒に近い赤。白い光も赤くして、全体を赤黒くする
+    crimson: { id: 'crimson', bolt: 'dark', crack: 'rgba(255,40,60,0.9)',
+      map: (h, s, l) => (s < 0.15 ? (l > 0.6 ? [355, 0.85, 0.55] : [h, s, l * 0.6]) : h >= 170 && h <= 260 ? [350, 1, Math.min(l * 0.5, 0.25)] : [356, 1, Math.min(0.48, Math.max(0.3, l * 0.7))]) },
+    aoen: { id: 'aoen', blueFlame: true, map: (h, s, l) => (s < 0.15 ? [h, s, l] : h <= 75 || h >= 330 ? [205 + (h > 300 ? 0 : h * 0.4), 1, l] : [h, s, l]) },
+    shimetsu: { id: 'shimetsu', crack: 'rgba(200,110,255,0.95)', map: (h, s, l) => (s < 0.15 ? [h, s, l] : h >= 330 || h <= 15 ? [285, s, l] : h <= 70 ? [45, s, l] : [h, s, l]) },
+  };
+  let tintNow = null; // 今作っている演出の色の付け替え（TINTS の 1 つ）
+  const tintCache = new Map();
+  function parseCol(col) {
+    let m = col.match(/^#([0-9a-f]{3})$/i);
+    if (m) return [...m[1]].map((x) => parseInt(x + x, 16)).concat(1);
+    m = col.match(/^#([0-9a-f]{6})$/i);
+    if (m) return [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16)).concat(1);
+    m = col.match(/^rgba?\(([^)]+)\)$/i);
+    if (m) { const v = m[1].split(',').map(Number); return [v[0], v[1], v[2], v[3] === undefined ? 1 : v[3]]; }
+    return null;
+  }
+  const tintCol = (col) => tintWith(tintNow, col);
+  const T = (p, col) => (p.tint ? tintWith(p.tint, col) : col); // 描くときに色を決めている部品用
+  function tintWith(tint, col) {
+    if (!tint || typeof col !== 'string') return col;
+    const key = tint.id + col;
+    if (tintCache.has(key)) return tintCache.get(key);
+    const v = parseCol(col); let out = col;
+    if (v) {
+      const [r, g, b] = v.map((x, i) => (i < 3 ? x / 255 : x)), mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+      const sat = d ? d / (1 - Math.abs(2 * l - 1)) : 0;
+      let h = 0;
+      if (d) h = mx === r ? 60 * (((g - b) / d) % 6) : mx === g ? 60 * ((b - r) / d + 2) : 60 * ((r - g) / d + 4);
+      if (h < 0) h += 360;
+      const [h2, s2, l2] = tint.map(h, sat, l);
+      out = `hsla(${Math.round(h2)},${Math.round(s2 * 100)}%,${Math.round(l2 * 100)}%,${v[3]})`;
+    }
+    tintCache.set(key, out);
+    return out;
+  }
 
   const rnd = (a, b) => a + Math.random() * (b - a);
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -67,12 +127,12 @@
   const BOOSTED = new Set(['stone', 'chunk', 'dust', 'shard', 'spark', 'dot', 'star']);
   const later = (ms, fn) => {
     if (ms <= 0) return fn();
-    const gen = generation, boost = boostNow;
+    const gen = generation, boost = boostNow, tint = tintNow;
     const id = setTimeout(() => {
       timers.delete(id);
       if (gen !== generation) return;
-      const prev = boostNow; boostNow = boost;
-      try { fn(); } finally { boostNow = prev; }
+      const prev = boostNow, prevTint = tintNow; boostNow = boost; tintNow = tint;
+      try { fn(); } finally { boostNow = prev; tintNow = prevTint; }
       kick();
     }, ms);
     timers.add(id);
@@ -391,13 +451,17 @@
   function spawn(p) {
     if (parts.length >= MAX_PARTS && !p.onDeath) return;
     const q = Object.assign({ t: 0, rot: 0, vr: 0, g: 0, drag: 1, vx: 0, vy: 0 }, p);
+    if (tintNow) {
+      q.tint = tintNow; q.color = tintCol(q.color); if (q.edge) q.edge = tintCol(q.edge);
+      if (tintNow.blueFlame && q.kind === 'flame') q.blue = true;
+    }
     if (boostNow !== 1 && BOOSTED.has(q.kind) && !q.static && !q.onDeath) { q.vx *= boostNow; q.vy *= boostNow; q.vr *= boostNow; }
     parts.push(q);
   }
   // 一定フレームの間、毎フレーム fn(t) を呼ぶ
-  function emit(life, fn) { emitters.push({ t: 0, life, fn }); }
+  function emit(life, fn) { emitters.push({ t: 0, life, fn, tint: tintNow }); }
   function ring(x, y, r1, color, { w = 12, life = 40, delay = 0, r0 = 4 } = {}) {
-    rings.push({ x, y, r0, r1, w, t: -delay, life, color });
+    rings.push({ x, y, r0, r1, w, t: -delay, life, color: tintCol(color) });
   }
   function boltBetween(x1, y1, x2, y2, color, { life = 18, width = 3, jag = 30 } = {}) {
     const pts = [], steps = Math.max(6, Math.round(Math.hypot(x2 - x1, y2 - y1) / 40));
@@ -405,7 +469,7 @@
       const k = i / steps, j = i === 0 || i === steps ? 0 : jag;
       pts.push([x1 + (x2 - x1) * k + rnd(-j, j), y1 + (y2 - y1) * k + rnd(-j, j) * 0.3]);
     }
-    bolts.push({ pts, t: 0, life, color, width });
+    bolts.push({ pts, t: 0, life, color: tintCol(color), width, dark: tintNow && tintNow.bolt === 'dark' });
     // 枝分かれ
     if (width > 2 && Math.random() < 0.7) {
       const s = pts[Math.floor(rnd(1, pts.length - 1))];
@@ -455,7 +519,7 @@
     }
     if (p.cracks) { // ひびが入っていく石
       const k = Math.min(1, p.t / (p.life * 0.8));
-      c2.strokeStyle = p.white ? 'rgba(60,50,40,0.9)' : 'rgba(220,220,220,0.85)'; c2.lineWidth = 1.4;
+      c2.strokeStyle = p.tint && p.tint.crack ? p.tint.crack : p.white ? 'rgba(60,50,40,0.9)' : 'rgba(220,220,220,0.85)'; c2.lineWidth = p.tint && p.tint.crack ? 1.8 : 1.4;
       c2.beginPath();
       for (const cr of p.cracks) {
         c2.moveTo(0, 0);
@@ -465,7 +529,7 @@
       c2.stroke();
     }
     if (p.charged && Math.random() < 0.6) { // 帯電した石
-      c2.strokeStyle = pick(['#fff59a', '#7ad7ff', '#ffffff']); c2.lineWidth = 2;
+      c2.strokeStyle = p.tint ? pick(['#ff7a7a', '#ff2a3a', '#ffffff']) : pick(['#fff59a', '#7ad7ff', '#ffffff']); c2.lineWidth = 2;
       c2.beginPath(); c2.arc(0, 0, s * rnd(1.05, 1.4), rnd(0, 6), rnd(0, 6) + 2); c2.stroke();
     }
     c2.restore();
@@ -542,7 +606,7 @@
         c2.globalCompositeOperation = 'source-over';
         c2.globalAlpha = fade;
         const body = c2.createLinearGradient(0, top, 0, H);
-        body.addColorStop(0, '#6a2410'); body.addColorStop(0.45, '#3a140a'); body.addColorStop(1, '#160806');
+        body.addColorStop(0, T(p, '#6a2410')); body.addColorStop(0.45, T(p, '#3a140a')); body.addColorStop(1, T(p, '#160806'));
         c2.fillStyle = body;
         // 頂上は真ん中がくぼんだ火口にする（噴き出しがそこから出ているように見せる）
         const dip = top + crater * 0.45;
@@ -551,14 +615,14 @@
         // 赤く光る稜線と、斜面を流れる溶岩
         c2.globalCompositeOperation = 'lighter';
         c2.globalAlpha = fade * (0.75 + 0.25 * Math.sin(p.t * 0.3));
-        c2.shadowColor = '#ff2a00'; c2.shadowBlur = 18;
-        c2.strokeStyle = '#ff5a1a'; c2.lineWidth = 3;
+        c2.shadowColor = T(p, '#ff2a00'); c2.shadowBlur = 18;
+        c2.strokeStyle = T(p, '#ff5a1a'); c2.lineWidth = 3;
         c2.beginPath(); outline(); c2.stroke();
         // 火口の中で煮えたぎる溶岩
         const pool = c2.createRadialGradient(p.x, top + crater * 0.2, 0, p.x, top + crater * 0.2, crater);
-        pool.addColorStop(0, 'rgba(255,240,170,1)'); pool.addColorStop(0.5, 'rgba(255,120,20,0.95)'); pool.addColorStop(1, 'rgba(255,40,0,0)');
+        pool.addColorStop(0, T(p, 'rgba(255,240,170,1)')); pool.addColorStop(0.5, T(p, 'rgba(255,120,20,0.95)')); pool.addColorStop(1, T(p, 'rgba(255,40,0,0)'));
         c2.fillStyle = pool; c2.beginPath(); c2.ellipse(p.x, top + crater * 0.18, crater * 0.95, crater * 0.32, 0, 0, Math.PI * 2); c2.fill();
-        c2.strokeStyle = '#ff4a10'; c2.lineWidth = 7;
+        c2.strokeStyle = T(p, '#ff4a10'); c2.lineWidth = 7;
         for (const lava of p.lava) {
           c2.beginPath();
           lava.forEach(([fx, fy], i) => { const x = p.x + fx * half, y = top + fy * (H - top); if (i) c2.lineTo(x, y); else c2.moveTo(x, y); });
@@ -566,7 +630,7 @@
         }
         c2.shadowBlur = 0;
         const glow = c2.createRadialGradient(p.x, top, 0, p.x, top, p.w * 0.22);
-        glow.addColorStop(0, 'rgba(255,220,120,0.95)'); glow.addColorStop(0.3, 'rgba(255,80,10,0.7)'); glow.addColorStop(1, 'rgba(255,30,0,0)');
+        glow.addColorStop(0, T(p, 'rgba(255,220,120,0.95)')); glow.addColorStop(0.3, T(p, 'rgba(255,80,10,0.7)')); glow.addColorStop(1, T(p, 'rgba(255,30,0,0)'));
         c2.fillStyle = glow; c2.beginPath(); c2.arc(p.x, top, p.w * 0.22, 0, Math.PI * 2); c2.fill();
         p.top = top;
         return;
@@ -697,7 +761,8 @@
   function loop() {
     c2.clearRect(0, 0, W, H);
 
-    for (const e of emitters) { e.fn(e.t); e.t++; }
+    for (const e of emitters) { tintNow = e.tint; e.fn(e.t); e.t++; }
+    tintNow = null;
     emitters = emitters.filter((e) => e.t < e.life);
 
     c2.globalCompositeOperation = 'lighter';
@@ -719,7 +784,9 @@
       c2.beginPath(); c2.moveTo(b.pts[0][0], b.pts[0][1]);
       for (const p of b.pts) c2.lineTo(p[0], p[1]);
       c2.stroke();
-      c2.strokeStyle = '#fff'; c2.lineWidth = Math.max(1, b.width * 0.35); c2.shadowBlur = 0; c2.stroke();
+      if (b.dark) { c2.globalCompositeOperation = 'source-over'; c2.strokeStyle = '#0a0002'; c2.lineWidth = Math.max(2, b.width * 0.8); } // 紅雷：芯が黒い稲妻
+      else c2.strokeStyle = '#fff', c2.lineWidth = Math.max(1, b.width * 0.35);
+      c2.shadowBlur = 0; c2.stroke();
     }
     bolts = bolts.filter((b) => b.t < b.life);
 
@@ -734,13 +801,13 @@
         if (d < A.eat) p.t = p.life;
       }
       if (!p.static) { p.vx *= p.drag; p.vy = p.vy * p.drag + p.g; p.x += p.vx; p.y += p.vy; p.rot += p.vr; }
-      if (p.trail) p.trail(p);
+      if (p.trail) { tintNow = p.tint || null; p.trail(p); tintNow = null; }
       drawParticle(p);
       if (p.t >= p.life && p.onDeath) dying.push(p);
     }
     parts = parts.filter((p) => p.t < p.life && p.y < H + 150 && p.y > -H * 1.5);
     c2.globalAlpha = 1; c2.globalCompositeOperation = 'source-over';
-    dying.forEach((p) => p.onDeath(p));
+    dying.forEach((p) => { tintNow = p.tint || null; p.onDeath(p); tintNow = null; });
 
     if (parts.length || rings.length || bolts.length || emitters.length) requestAnimationFrame(loop);
     else { running = false; c2.clearRect(0, 0, W, H); }
@@ -1242,7 +1309,7 @@
     const count = document.createElement('div');
     count.className = 'b-count'; count.textContent = `${c.white ? '白' : '黒'}石 ${c.n}子 撃破！`;
     banner.appendChild(count);
-    banner.className = `show t${ti} th-${c.themeKey}`;
+    banner.className = `show t${ti} th-${c.themeKey}${c.variant && c.variant !== c.themeKey ? ' th-' + c.variant : ''}`;
     banner.style.setProperty('--dur', dur + 'ms');
     clearTimeout(showBanner._t);
     showBanner._t = setTimeout(() => { banner.className = ''; }, dur);
@@ -1257,15 +1324,15 @@
     if (!THEMES[themeKey]) themeKey = 'default';
     const theme = THEMES[themeKey], tier = TIERS[ti];
     const c = {
-      points, n, ti, tier, theme, themeKey, hold: tier.hold, white: capturedColor === 2, stone: stoneSize,
+      points, n, ti, tier, theme, themeKey: baseOf(themeKey), variant: themeKey, hold: tier.hold, white: capturedColor === 2, stone: stoneSize,
       power: Math.min(1, n / 20), sounds: 10,
       cx: points.reduce((s, p) => s + p.x, 0) / n,
       cy: points.reduce((s, p) => s + p.y, 0) / n,
       partsPer: Math.ceil(tier.parts / Math.max(1, Math.sqrt(n))),
       charge,
     };
-    boostNow = 1 + charge * 0.45;
-    try { runCapture(c); } finally { boostNow = 1; }
+    boostNow = 1 + charge * 0.45; tintNow = TINTS[theme.tint] || null;
+    try { runCapture(c); } finally { boostNow = 1; tintNow = null; }
     return tier.hold;
   }
 
@@ -1289,8 +1356,8 @@
     const flashCls = ti >= GOD && themeKey !== 'default' ? 'god' : themeKey === 'thunder' && ti >= 3 ? 'strobe'
       : ti >= 4 ? 'multi' : 'on';
     const destroyGod = themeKey === 'default' && ti >= GOD, fireGod = themeKey === 'fire' && ti >= GOD;
-    flash(Math.min(1, tier.flash + charge * 0.12), flashCls, destroyGod ? { flash: ['#ffffff', '#e0e2ea', '#d4001a', '#200000'] } : theme);
-    if (ti >= 4) showVignette(fireGod ? 'volcano' : destroyGod ? 'meteor-god' : ti >= ULTRA ? theme.vignette : theme.vignette + ' soft', Math.max(1200, tier.hold + 400));
+    flash(Math.min(1, tier.flash + charge * 0.12), flashCls, destroyGod ? { flash: ['#ffffff', '#e0e2ea', '#d4001a', '#200000'].map(tintCol) } : theme);
+    if (ti >= 4) showVignette((fireGod ? 'volcano' : destroyGod ? 'meteor-god' : ti >= ULTRA ? theme.vignette : theme.vignette + ' soft') + (theme.tint ? ' v-' + theme.tint : ''), Math.max(1200, tier.hold + 400));
     showBanner(c);
 
     THEME_SOUND[themeKey](c.power, ti);
@@ -1370,7 +1437,12 @@
     const cy = center ? center.y : points.reduce((a, p) => a + p.y, 0) / n;
     // 石が多いほど 1 子あたりの粒を減らす（重くならないように）
     const k = n > 60 ? 0.35 : n > 25 ? 0.55 : n > 10 ? 0.8 : 1;
-    const c = { points, n, ti: 3, tier: TIERS[3], theme: THEMES[themeKey], themeKey, white: loserColor === 2, stone: stoneSize,
+    const theme = THEMES[themeKey];
+    const prevTint = tintNow; tintNow = TINTS[theme.tint] || null;
+    try { return runVictory(points, loserColor, stoneSize, baseOf(themeKey), theme, cx, cy, k, n); } finally { tintNow = prevTint; }
+  }
+  function runVictory(points, loserColor, stoneSize, themeKey, theme, cx, cy, k, n) {
+    const c = { points, n, ti: 3, tier: TIERS[3], theme, themeKey, white: loserColor === 2, stone: stoneSize,
       power: 0.3, sounds: 14, cx, cy, partsPer: Math.ceil(30 * k), charge: 0 };
     const order = points.map((p) => ({ p, d: Math.hypot(p.x - cx, p.y - cy) })).sort((a, b) => a.d - b.d).map((o) => o.p);
     const span = Math.min(2200, 600 + n * 25);
@@ -1453,7 +1525,7 @@
   // 地の総攻撃：地の点から光の弾が飛び出し、相手の HP バー（target）に降り注ぐ。全部が当たり終わるまでの時間（ms）を返す
   function volley(points, target, themeKey = 'default') {
     const th = THEMES[themeKey] || THEMES.default;
-    const cols = themeKey === 'default' ? ['#ffffff', '#ffd84a', '#ff8a1f', '#ff4b1f'] : th.palette;
+    const cols = baseOf(themeKey) === 'default' ? (th.tierColors ? [th.tierColors[6] || '#ffffff', th.tierColors[1], th.tierColors[3], th.tierColors[4]] : ['#ffffff', '#ffd84a', '#ff8a1f', '#ff4b1f']) : th.palette;
     const n = points.length;
     if (!n) return 0;
     const span = Math.min(900, 200 + n * 12);
@@ -1496,7 +1568,8 @@
 
   root.FX = {
     capture, victory, volley, stoneClick, gameStart, heal, blip, boom, tierIndex, clear, busy, logoHit, logoChunks, rattle, chargeUp,
-    themes: Object.keys(THEMES).map((key) => ({ key, label: THEMES[key].label, mark: THEMES[key].mark, color: THEMES[key].color, shield: THEMES[key].shield })),
+    themes: Object.keys(THEMES).map((key) => ({ key, base: baseOf(key), label: THEMES[key].label, mark: THEMES[key].mark, color: THEMES[key].color, shield: THEMES[key].shield })),
+    baseOf,
     setMuted(m) { muted = m; }, isMuted: () => muted,
     setVolume(v) { volume = v; if (ctx) ctx.master.gain.value = v; },
     unlock: ac,

@@ -54,12 +54,23 @@
     dark: '一度に 20 子以上取った',
     light: 'コンピューター Lv9 に勝った',
   };
+  // シーズンのランキング報酬（色違いの演出）。製品版でも、取った人だけが使える（開発者も同じ）
+  const SEASON_REWARDS = {
+    crimson: 'シーズン1 ランクマッチ 1〜3 位',
+    shimetsu: 'シーズン1 ランクマッチ 4〜10 位',
+    aoen: 'シーズン1 ランクマッチ 11〜50 位',
+  };
   const secretUnlocked = new Set();
-  try { for (const k of JSON.parse(localStorage.getItem('destroy-go-unlocks') || '[]')) if (SECRETS[k]) secretUnlocked.add(k); } catch (e) { /* 無視 */ }
-  const unlocked = (key) => !FREE || ED.freeThemes.includes(key) || secretUnlocked.has(key);
+  try { for (const k of JSON.parse(localStorage.getItem('destroy-go-unlocks') || '[]')) if (SECRETS[k] || SEASON_REWARDS[k]) secretUnlocked.add(k); } catch (e) { /* 無視 */ }
+  // 開発者はテストのため、ランダムマッチ・ランクマッチ以外（フレンド戦・この端末・プレビュー）ならシーズン報酬も使える
+  let rankedNow = false;
+  const devHere = () => { try { if (localStorage.getItem('destroy-go-dev') === '1') return true; } catch (e) { /* 無視 */ } return !!(window.Online && Online.me() === 'RBJU7o2rpuTScawapNfCBFPXHhj2'); };
+  const unlocked = (key) => (SEASON_REWARDS[key] ? secretUnlocked.has(key) || (!rankedNow && devHere()) : !FREE || ED.freeThemes.includes(key) || secretUnlocked.has(key));
   const themeKeys = () => FX.themes.map((t) => t.key).filter(unlocked);
   const themeOf = (key) => FX.themes.find((t) => t.key === key) || FX.themes[0];
-  // 黒と白で同じ演出は選べない（どちらの演出か一目でわかるように）
+  // 黒と白で同じ演出は選べない（どちらの演出か一目でわかるように）。色が近い演出（炎と紅雷・氷と蒼炎・闇と紫滅）も同じ扱い
+  const COLOR_GROUP = { fire: 'red', crimson: 'red', ice: 'blue', aoen: 'blue', dark: 'purple', shimetsu: 'purple' };
+  const clash = (a, b) => a === b || (!!COLOR_GROUP[a] && COLOR_GROUP[a] === COLOR_GROUP[b]);
   const themes = { [BLACK]: 'default', [WHITE]: FREE ? 'ice' : 'fire' };
   try {
     const saved = JSON.parse(localStorage.getItem('destroy-go-themes') || '{}');
@@ -70,7 +81,7 @@
   } catch (e) { /* 保存できない環境ではデフォルトのまま */ }
   const otherColor = (c) => (c === BLACK ? WHITE : BLACK);
   // 前に保存した設定が同じ演出なら、白を空いている演出に変える
-  if (themes[BLACK] === themes[WHITE]) themes[WHITE] = themeKeys().find((k) => k !== themes[BLACK]);
+  if (clash(themes[BLACK], themes[WHITE])) themes[WHITE] = themeKeys().find((k) => !clash(k, themes[BLACK]));
   let previewColor = BLACK;
 
   // ---------- ルール（日本／中国） ----------
@@ -344,6 +355,7 @@
     const box = row.querySelector('.chips');
     box.textContent = '';
     FX.themes.forEach((t) => {
+      if (SEASON_REWARDS[t.key] && !unlocked(t.key)) return; // シーズン報酬は、取るまで並べない（プレビューでは見られる）
       const chip = document.createElement('button');
       chip.className = 'chip'; chip.dataset.key = t.key;
       chip.style.setProperty('--tc', t.color);
@@ -358,7 +370,7 @@
       }
       chip.onclick = () => {
         // 相手が使っている演出を選んだら、相手と入れ替える（黒と白で同じ演出は使えないため）
-        if (themes[otherColor(color)] === t.key) themes[otherColor(color)] = themes[color];
+        if (clash(themes[otherColor(color)], t.key)) themes[otherColor(color)] = clash(themes[color], t.key) ? themeKeys().find((k) => !clash(k, t.key)) : themes[color];
         previewColor = color; setTheme(color, t.key);
       };
       box.appendChild(chip);
@@ -473,13 +485,20 @@
     renderNowPlaying();
   }
   buildBgmChips();
+  // 演出の選択肢（設定とプレビュー）を、解放したものに合わせて作り直す
+  function refreshThemeChoices() {
+    buildThemeChips(); renderThemes();
+    document.querySelectorAll('#pv-themes button').forEach((b) => {
+      b.textContent = themeOf(b.dataset.key).label + (unlocked(b.dataset.key) ? '' : '🔒');
+      b.hidden = !!SEASON_REWARDS[b.dataset.key] && !unlocked(b.dataset.key);
+    });
+  }
   // 隠し要素の解放：その端末に記録して、演出の選択肢を作り直し、派手に知らせる
   function unlockSecret(key) {
     if (!FREE || unlocked(key)) return;
     secretUnlocked.add(key);
     try { localStorage.setItem('destroy-go-unlocks', JSON.stringify([...secretUnlocked])); } catch (e) { /* 無視 */ }
-    buildThemeChips(); renderThemes();
-    document.querySelectorAll('#pv-themes button').forEach((b) => { b.textContent = themeOf(b.dataset.key).label + (unlocked(b.dataset.key) ? '' : '🔒'); });
+    refreshThemeChoices();
     const t = themeOf(key), el = $('#unlock-pop');
     el.innerHTML = `<b>🔓 「${t.label}」が解放された！</b><small>${SECRETS[key]}。演出の選択で使えるようになりました</small>`;
     el.style.setProperty('--tc', t.color);
@@ -493,7 +512,7 @@
       // 相手が使っている演出は飛ばして次へ
       const keys = themeKeys();
       let i = keys.indexOf(themes[color]);
-      do { i = (i + 1) % keys.length; } while (keys[i] === themes[otherColor(color)]);
+      do { i = (i + 1) % keys.length; } while (clash(keys[i], themes[otherColor(color)]));
       setTheme(color, keys[i]);
       if (net) Online.send({ t: 'th', c: color, k: themes[color], g: net.g });
       toast(`${NAMES[color]}の演出：${themeOf(themes[color]).label}`);
@@ -2007,12 +2026,13 @@
   for (const t of FX.themes) {
     const b = document.createElement('button');
     b.dataset.key = t.key; b.textContent = t.label + (unlocked(t.key) ? '' : '🔒'); b.style.setProperty('--tc', t.color);
+    b.hidden = !!SEASON_REWARDS[t.key] && !unlocked(t.key); // シーズン報酬は、取った人のプレビューにだけ出す
     b.onclick = () => {
       if (phase !== 'preview') return;
       const mover = previewColor, other = otherColor(mover);
       if (themes[mover] === t.key) { runPreview(); return; }
       // 相手が使っている演出を選んだときは、相手と入れ替える（黒と白で同じ演出は使えないため）
-      if (themes[other] === t.key) themes[other] = themes[mover];
+      if (clash(themes[other], t.key)) themes[other] = clash(themes[mover], t.key) ? themeKeys().find((k) => !clash(k, t.key)) : themes[mover];
       themes[mover] = t.key;
       renderThemes();
       runPreview();
@@ -2509,7 +2529,10 @@
     if (isDev() && myRating.name !== DEV_NAME) { myRating.name = DEV_NAME; if (!myRating.fresh) saveRating(); }
     return myRating;
   }
-  function saveRating() { const { r, n, name } = myRating; Online.setRating({ r, n, name }).catch(() => {}); }
+  function saveRating() {
+    const { r, n, name, sid, sn } = myRating;
+    Online.setRating(sid ? { r, n, name, sid, sn } : { r, n, name }).catch(() => {});
+  }
   // イロレーティング。最初の 10 局は大きく動かす
   function eloNext(me, opp, win) {
     const k = me.n < 10 ? 40 : 32, e = 1 / (1 + Math.pow(10, (opp.r - me.r) / 400));
@@ -2735,17 +2758,75 @@
     el.className = ''; void el.offsetWidth; el.className = 'show';
     FX.heal();
   }
+  // ---------- シーズン：期間中のランクマッチの最終順位でご褒美（色違いの演出と、名前の横の称号） ----------
+  // 締め切りは GitHub Actions（.github/workflows/season-close.yml）が自動で行い、結果を seasons/s{id} に書く
+  const SEASON = { id: 1, label: 'シーズン1', start: Date.parse('2026-11-01T00:00:00+09:00'), end: Date.parse('2027-01-01T00:00:00+09:00'), endText: '12月31日', startText: '11月1日', minGames: 10 };
+  const SEASON_TIERS = [
+    { max: 3, tag: 'TOP3', fx: ['crimson', 'shimetsu', 'aoen'], cls: 'st-3' },
+    { max: 10, tag: 'TOP10', fx: ['shimetsu', 'aoen'], cls: 'st-10' },
+    { max: 50, tag: 'TOP50', fx: ['aoen'], cls: 'st-50' },
+  ];
+  const seasonTier = (rank) => SEASON_TIERS.find((t) => rank <= t.max);
+  const seasonState = () => (Date.now() < SEASON.start ? 'before' : Date.now() < SEASON.end ? 'on' : 'after');
+  // このシーズンに遊んだランクマッチの数（シーズンが変わったら 0 から）
+  const seasonGames = (r) => (r && r.sid === SEASON.id ? r.sn || 0 : 0);
+  const seasonCount = (before) => (seasonState() === 'on' ? { sid: SEASON.id, sn: seasonGames(before) + 1 } : {});
+  let seasonCache = null, seasonAt = 0;
+  async function loadSeason() {
+    if (seasonState() !== 'after') return null;
+    if (seasonCache && Date.now() - seasonAt < 300000) return seasonCache;
+    try { seasonCache = (await Online.seasonResults(SEASON.id)) || { closed: false }; seasonAt = Date.now(); } catch (e) { /* つながらないときは出さない */ }
+    return seasonCache;
+  }
+  const seasonResult = (res, u) => (res && res.closed && res.results ? res.results[u] : null);
+  function seasonBadge(res, u) {
+    const r = seasonResult(res, u), t = r && seasonTier(r.rank);
+    return t ? `<i class="badge-f badge-season ${t.cls}" title="${SEASON.label} ${r.rank} 位">S${SEASON.id} ${t.tag}</i>` : '';
+  }
+  const SEASON_PRIZE = '1〜3位 紅雷・4〜10位 紫滅・11〜50位 蒼炎（色違いの演出）と称号';
+  function seasonLine(me, res) {
+    const st = seasonState();
+    if (st === 'before') return `🏆 <b>${SEASON.label}</b>は ${SEASON.startText}〜${SEASON.endText}。ランクマッチを ${SEASON.minGames} 局以上遊んだ人の最終順位で、${SEASON_PRIZE}`;
+    if (st === 'on') {
+      const days = Math.max(1, Math.ceil((SEASON.end - Date.now()) / 86400000)), n = seasonGames(me);
+      return `🏆 <b>${SEASON.label} 開催中</b>：あと ${days} 日（${SEASON.endText}まで）。あなたは ${n}／${SEASON.minGames} 局${n >= SEASON.minGames ? '（対象です）' : ''}<br><small>${SEASON_PRIZE}</small>`;
+    }
+    if (!res || !res.closed) return `🏆 <b>${SEASON.label} 終了</b>。結果を集計しています`;
+    const r = seasonResult(res, Online.me()), t = r && seasonTier(r.rank);
+    return t ? `🏆 <b>${SEASON.label} 終了</b>。あなたは <b>${r.rank} 位</b>（S${SEASON.id} ${t.tag}）！` : `🏆 <b>${SEASON.label} 終了</b>。上位 50 人には名前の横に称号が付いています`;
+  }
+  // 締め切りのあと、自分の順位のご褒美を受け取る（1 回だけ）
+  async function claimSeason() {
+    if (seasonState() !== 'after' || lsGet('destroy-go-season-claimed-' + SEASON.id) === '1') return;
+    const res = await loadSeason();
+    if (!res || !res.closed) return;
+    lsSet('destroy-go-season-claimed-' + SEASON.id, '1');
+    const r = seasonResult(res, Online.me()), t = r && seasonTier(r.rank);
+    if (!t) return;
+    for (const k of t.fx) secretUnlocked.add(k);
+    lsSet('destroy-go-unlocks', JSON.stringify([...secretUnlocked]));
+    refreshThemeChoices(); syncProfile();
+    const el = $('#unlock-pop');
+    el.innerHTML = `<b>🏆 ${SEASON.label}で ${r.rank} 位！</b><small>${t.fx.map((k) => `「${themeOf(k).label}」`).join('')}と称号「S${SEASON.id} ${t.tag}」を手に入れた</small>`;
+    el.style.setProperty('--tc', themeOf(t.fx[0]).color);
+    el.className = ''; void el.offsetWidth; el.className = 'show';
+    FX.heal();
+  }
+  // ランクマッチを遊んだことがある人は、締め切りのあとに開いたときに受け取る
+  if (seasonState() === 'after' && lsGet('destroy-go-rank-played') === '1' && Online.available() && !EMBEDDED) setTimeout(() => claimSeason().catch(() => {}), 1500);
   async function showRanking() {
     onlineView('<p class="on-wait">ランキングを読み込んでいます</p>');
     try {
-      const [list, me, f] = await Promise.all([Online.topRatings(50), loadRating(), loadFounders()]);
-      const rows = list.map((v, i) => `<li data-u="${v.u}"${v.u === Online.me() ? ' class="on-mine"' : ''}><span>${i + 1}</span><span class="rk-name">${nameHtml(v.name)}<span class="rk-sub">${tagHtml(v.u)}${v.u === DEV_UID || (v.u === Online.me() && isDev()) ? devBadge : founderBadge(f.list[v.u], true)}</span></span><span>${v.r}</span><small>${v.n || 0}局</small></li>`).join('');
+      const [list, me, f, sr] = await Promise.all([Online.topRatings(50), loadRating(), loadFounders(), loadSeason()]);
+      const rows = list.map((v, i) => `<li data-u="${v.u}"${v.u === Online.me() ? ' class="on-mine"' : ''}><span>${i + 1}</span><span class="rk-name">${nameHtml(v.name)}<span class="rk-sub">${tagHtml(v.u)}${v.u === DEV_UID || (v.u === Online.me() && isDev()) ? devBadge : founderBadge(f.list[v.u], true)}${seasonBadge(sr, v.u)}</span></span><span>${v.r}</span><small>${v.n || 0}局</small></li>`).join('');
       onlineView(`<p class="on-set">ランクマッチ（上級・9路）のレート上位 50 人。名前を押すと、直近 5 局の棋譜が見られます</p>
+        <p class="on-founder on-season">${seasonLine(me, sr)}</p>
         <p class="on-founder">${founderLeft(f)}</p>
         <ol class="on-rank">${rows || '<li class="on-empty">まだ誰もいません</li>'}</ol>
-        <p class="on-me">あなた：${nameHtml(me.name)}${tagHtml(Online.me())}${meIsDev() ? devBadge : founderBadge(f.list[Online.me()] || myFounder)}（レート ${me.r}・${me.n}局）</p>
+        <p class="on-me">あなた：${nameHtml(me.name)}${tagHtml(Online.me())}${meIsDev() ? devBadge : founderBadge(f.list[Online.me()] || myFounder)}${seasonBadge(sr, Online.me())}（レート ${me.r}・${me.n}局）</p>
         ${isDev() ? '' : nameGachaBox(me.name)}<button id="on-back">戻る</button>`);
       bindNameGacha();
+      claimSeason().catch(() => {});
       $('#online-body').querySelectorAll('.on-rank li[data-u]').forEach((li) => { li.onclick = () => showPlayerKifus(li.dataset.u, li.querySelector('b').textContent); });
     } catch (e) { onlineView(`<p class="on-err">${e.message}</p><button id="on-back">戻る</button>`); }
     $('#on-back').onclick = onlineBack;
@@ -2855,6 +2936,13 @@
     if (!net.saved) net.saved = { SIZE, mode, dAdvanced, rules, themes: { ...themes } };
     SIZE = st.size; mode = st.mode; dAdvanced = !!st.adv; rules = st.rules;
     net.waiting = false;
+    // ランダムマッチ・ランクマッチでは、取っていない報酬の演出は使えない（開発者も）
+    rankedNow = net.kind === 'random' || net.kind === 'rank';
+    if (rankedNow) {
+      const ok = themeKeys();
+      for (const c of [BLACK, WHITE]) if (!unlocked(themes[c])) themes[c] = ok.find((k) => k !== themes[otherColor(c)]) || 'default';
+    }
+    buildThemeChips(); renderThemes();
     $('#online-pop').hidden = true; $('#modal').classList.remove('show');
     newGame();
     toast(`${{ random: 'ランダムマッチ', rank: 'ランクマッチ' }[net.kind] || 'オンライン対戦'}：あなたは${NAMES[net.color]}です`);
@@ -2868,6 +2956,7 @@
     Online.leave();
     const sv = net.saved;
     net = null;
+    if (rankedNow) { rankedNow = false; buildThemeChips(); }
     if (sv) { SIZE = sv.SIZE; mode = sv.mode; dAdvanced = sv.dAdvanced; rules = sv.rules; Object.assign(themes, sv.themes); renderThemes(); renderRules(); }
     $('#btn-undo').hidden = $('#btn-pause').hidden = false;
     $('#btn-again').textContent = 'もう一局'; $('#btn-again').disabled = false;
@@ -2889,7 +2978,7 @@
     net.opp = opp; net.before = { ...myRating };
     toast(`相手：${opp.name.replace(/[<>&]/g, '')}${opp.u ? ` #${playerTag(opp.u)}` : ''}（レート ${opp.r}）`);
     myRating.fresh = false;
-    myRating.r = eloNext(net.before, opp, false); myRating.n = net.before.n + 1; saveRating();
+    myRating.r = eloNext(net.before, opp, false); myRating.n = net.before.n + 1; Object.assign(myRating, seasonCount(net.before)); saveRating();
   }
   function onlineGameEnd(winner) {
     if (!net || net.ended === net.g) return;
@@ -2899,7 +2988,8 @@
     if (net.kind === 'random') { try { localStorage.setItem('destroy-go-random-played', randomPlayed() + 1); } catch (e) { /* 無視 */ } syncProfile(); }
     if (net.kind === 'rank' && net.opp && net.before) {
       const win = winner === net.color;
-      myRating.r = eloNext(net.before, net.opp, win); myRating.n = net.before.n + 1; saveRating();
+      myRating.r = eloNext(net.before, net.opp, win); myRating.n = net.before.n + 1; Object.assign(myRating, seasonCount(net.before)); saveRating();
+      lsSet('destroy-go-rank-played', '1');
       // 棋譜をランキングで見られるようにする（名前とレートも残す）
       if (kifu && kifu.moves.length) {
         const foe = otherColor(net.color);
@@ -2968,19 +3058,36 @@
       later(() => $('#btn-calc').onclick(), 1200);
     });
   }
+  // オンライン対戦で、相手と色がかぶったとき：ランキング報酬を使っている人を優先し、もう片方（どちらも同じなら白）が別の演出に変える
+  function resolveThemeClash() {
+    if (!net) return;
+    const mine = net.color, foe = otherColor(mine);
+    if (!clash(themes[mine], themes[foe])) return;
+    const rM = !!SEASON_REWARDS[themes[mine]], rF = !!SEASON_REWARDS[themes[foe]];
+    if (rM && !rF) return; // 自分が優先。相手の画面で相手が変える
+    if (rM === rF && mine === BLACK) return; // どちらも同じなら白が変える
+    themes[mine] = themeKeys().find((k) => !clash(k, themes[foe])) || 'default';
+    Online.send({ t: 'th', c: mine, k: themes[mine], g: net.g });
+    toast(`相手と演出の色がかぶったので、${themeOf(themes[mine]).label}に変えました`);
+  }
   // 相手から届いたものを盤に反映する（自分が送ったものは、もう反映してあるので飛ばす）
   function onlineMove(m) {
     if (!net || !m || m.u === Online.me()) return;
     if (!net.oppU) { // 相手が初代デストロイヤーなら知らせる
       net.oppU = m.u;
       if (m.u === DEV_UID) toast('相手は 🛠 開発者（ROBIT）');
-      else loadFounders().then((f) => { const n = f.list[m.u]; if (n && net && net.oppU === m.u) toast(`相手は 👑 初代デストロイヤー #${String(n).padStart(2, '0')}`); });
+      else Promise.all([loadFounders(), loadSeason()]).then(([f, sr]) => {
+        if (!net || net.oppU !== m.u) return;
+        const n = f.list[m.u], r = seasonResult(sr, m.u), t = r && seasonTier(r.rank);
+        const who = [n ? `👑 初代デストロイヤー #${String(n).padStart(2, '0')}` : '', t ? `🏆 S${SEASON.id} ${t.tag}` : ''].filter(Boolean).join('・');
+        if (who) toast(`相手は ${who}`);
+      });
     }
     if (m.t === 'again') { if (m.g === net.g) { net.again[m.u] = true; onlineAgainCheck(); } return; }
     if (m.t === 'bye') { if (phase === 'over') peerGoneAfterGame(); else if (!net.waiting) toast('相手が対局をやめました'); return; }
     if (m.g !== net.g) return;
     const foe = otherColor(net.color);
-    if (m.t === 'th') { if (m.c === foe) { themes[foe] = m.k; renderThemes(); draw(); } return; }
+    if (m.t === 'th') { if (m.c === foe) { themes[foe] = m.k; resolveThemeClash(); renderThemes(); draw(); } return; }
     if (m.t === 'rt') { rankStart({ r: m.r, n: m.n || 0, name: String(m.name || ''), u: m.u }); return; }
     if (m.t === 'dead') { const d = m.d || []; if (net.deadWait) { net.deadWait(d); net.deadWait = null; } else net.deadIn = d; return; }
     if (phase !== 'play') return;

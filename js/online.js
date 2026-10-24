@@ -112,6 +112,7 @@
       async unlinkGoogle() { sessionStorage.removeItem('destroy-go-local-linked'); },
       async saveProfile(v) { const all = JSON.parse(localStorage.getItem('destroy-go-local-users') || '{}'); all[me] = { ...(all[me] || {}), ...v }; localStorage.setItem('destroy-go-local-users', JSON.stringify(all)); },
       async loadProfile() { return JSON.parse(localStorage.getItem('destroy-go-local-users') || '{}')[me] || null; },
+      async seasonResults(id) { return JSON.parse(localStorage.getItem('destroy-go-local-season-' + id) || 'null'); },
       async founders() { const v = JSON.parse(localStorage.getItem('destroy-go-local-founders') || '{}'); return { count: v.count || 0, list: v.list || {} }; },
       async claimFounder(max) {
         const v = JSON.parse(localStorage.getItem('destroy-go-local-founders') || '{}'); v.list = v.list || {};
@@ -271,6 +272,8 @@
       async switchTo(credential) { await auth.signInWithCredential(credential); }, // 前の記録に切り替える（ページを読み直して使う）
       async saveProfile(v) { db.goOnline(); return db.ref('users/' + me).update({ ...v, t: fb.database.ServerValue.TIMESTAMP }); },
       async loadProfile() { db.goOnline(); return (await db.ref('users/' + me).get()).val(); },
+      // シーズンの結果（締め切りで GitHub Actions が書く）：{ closed, results: { uid: { rank, name, r } } }。まだなら null
+      async seasonResults(id) { db.goOnline(); return (await db.ref('seasons/s' + id).get()).val(); },
       async founders() { db.goOnline(); const v = (await db.ref('founders').get()).val() || {}; return { count: v.count || 0, list: v.list || {} }; },
       // 初代デストロイヤー：番号札（count）を 1 つ進めて、自分の番号を同時に書く。ほかの人と同時だったら読み直してやり直す
       async claimFounder(max) {
@@ -325,6 +328,7 @@
     async topRatings(n = 50) { return withTimeout(transport().then((t) => t.topRatings(n)), LIMIT); },
     async saveKifu(k) { return (await transport()).saveKifu(k); },
     async listKifus(u) { return withTimeout(transport().then((t) => t.listKifus(u)), LIMIT); },
+    async seasonResults(id) { return withTimeout(transport().then((t) => t.seasonResults(id)), LIMIT); },
     // 初代デストロイヤー（ランクマッチを最初に終えた先着の人）
     async founders() { return withTimeout(transport().then((t) => t.founders()), LIMIT); },
     async claimFounder(max) { return withTimeout(transport().then((t) => t.claimFounder(max)), LIMIT); },
