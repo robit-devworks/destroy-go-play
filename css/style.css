@@ -458,6 +458,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #online-body .on-wait::after { content: ''; animation: on-dots 1.2s steps(4) infinite; }
 @keyframes on-dots { 0% { content: ''; } 25% { content: '・'; } 50% { content: '・・'; } 75% { content: '・・・'; } }
 #online-body .on-err { color: #ff6a6a; font-weight: 700; }
+#online-body .on-me { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+#online-body .on-me b { color: var(--accent2); }
+#online-body .on-me button { width: auto; margin: 0; padding: 3px 10px; font-size: 12px; border-radius: 999px; }
+#online-body button:disabled { opacity: 0.4; }
+#online-body .on-rank { list-style: none; margin: 6px 0; padding: 0; max-height: 45vh; overflow-y: auto; }
+#online-body .on-rank li { display: grid; grid-template-columns: 2.2em 1fr 3.5em 3em; gap: 6px; padding: 6px 4px; border-bottom: 1px dashed rgba(255, 255, 255, 0.1); align-items: center; }
+#online-body .on-rank li b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#online-body .on-rank li small { color: var(--muted); text-align: right; }
+#online-body .on-rank li.on-mine { background: rgba(255, 210, 63, 0.12); }
 #kifu-list { list-style: none; margin: 0; padding: 6px 12px 12px; overflow-y: auto; }
 #kifu-list li { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px dashed rgba(255, 255, 255, 0.1); }
 #kifu-list .kf-main { flex: 1; display: flex; flex-direction: column; gap: 2px; font-size: 14px; }

@@ -2,6 +2,9 @@
 //  ・ふだんは Firebase Realtime Database を使う（設定は edition.js の firebase）。「オンライン対戦」を押したときだけ読み込んでつなぐ
 //  ・URL に ?online=local を付けると、同じブラウザの別タブどうしでつなぐ（Firebase なしで試す・自動テスト用）
 // 部屋のデータ：rooms/{合言葉} = { host, guest, created, settings, moves: { 送った順: { u: 送った人, ...中身 } }, on: { 人: true } }
+// ランダムマッチ・ランクマッチ：match/{種類}/lobby に待っている 1 人（{ u, t }）を置く。来た人はその人を取り出して部屋を作り、
+// 合言葉を match/pairs/{待っていた人} に送る。待っていた人はそれを見て部屋に入る。match/{種類}/seek/{人} は探している人の数を出すため
+// レート：ratings/{人} = { r: レート, n: 対局数, name: 名前, t: 更新した時刻 }（自分の分だけ書ける）
 (function (root) {
   'use strict';
   const FB_VER = '10.12.2';
@@ -18,6 +21,7 @@
     });
   }
   const randomCode = () => String(Math.floor(1000 + Math.random() * 9000));
+  const LOBBY_TTL = 60000, HEARTBEAT = 20000; // 待っている人は 20 秒ごとに時刻を更新する。1 分更新がなければいないものとする
   // 決まった時間で返ってこなければあきらめる（無料プランの同時接続の上限を超えると、つながらずに待ち続けるため）
   const BUSY = 'いま混み合っていて、つながりませんでした。少ししてからもう一度試してください';
   function withTimeout(p, ms, onTimeout) {
@@ -61,6 +65,31 @@
       },
       send(v) { const m = { ...v, u: me }; bc.postMessage({ k: 'move', v: m }); return m; },
       leave() { if (bc) { bc.postMessage({ k: 'peer', v: { left: me } }); bc.close(); bc = null; } },
+      seek(onMatch, onCount, queue = 'random') {
+        const LKEY = 'destroy-go-online-lobby-' + queue, pb = new BroadcastChannel('destroy-go-online-pairs');
+        let done = false, hb = 0;
+        const get = () => { try { return JSON.parse(localStorage.getItem(LKEY) || 'null'); } catch (e) { return null; } };
+        const finish = (r) => { done = true; clearInterval(hb); pb.close(); onMatch(r); };
+        const cur = get();
+        if (cur && cur.u !== me && Date.now() - cur.t < LOBBY_TTL) {
+          localStorage.removeItem(LKEY);
+          setTimeout(() => finish({ host: true, partner: cur.u }), 0);
+        } else {
+          localStorage.setItem(LKEY, JSON.stringify({ u: me, t: Date.now() }));
+          hb = setInterval(() => { const c = get(); if (c && c.u === me) localStorage.setItem(LKEY, JSON.stringify({ u: me, t: Date.now() })); }, HEARTBEAT);
+          pb.onmessage = (e) => { if (!done && e.data.to === me) finish({ host: false, code: e.data.code }); };
+        }
+        if (onCount) onCount(1);
+        return () => { if (done) return; done = true; clearInterval(hb); const c = get(); if (c && c.u === me) localStorage.removeItem(LKEY); pb.close(); };
+      },
+      pair(partner, code) { const pb = new BroadcastChannel('destroy-go-online-pairs'); pb.postMessage({ to: partner, code }); pb.close(); },
+      // テストではタブごとに別の人になるので、レートは sessionStorage に置き、ランキングは localStorage にまとめる
+      async getRating() { try { return JSON.parse(sessionStorage.getItem('destroy-go-local-rating') || 'null'); } catch (e) { return null; } },
+      async setRating(v) {
+        sessionStorage.setItem('destroy-go-local-rating', JSON.stringify(v));
+        const all = JSON.parse(localStorage.getItem('destroy-go-local-ratings') || '{}'); all[me] = v; localStorage.setItem('destroy-go-local-ratings', JSON.stringify(all));
+      },
+      async topRatings(n) { const all = JSON.parse(localStorage.getItem('destroy-go-local-ratings') || '{}'); return Object.entries(all).map(([u, v]) => ({ u, ...v })).sort((a, b) => b.r - a.r).slice(0, n); },
     };
   }
 
@@ -71,6 +100,8 @@
     const app = fb.apps.length ? fb.app() : fb.initializeApp(ed.firebase);
     const cred = await app.auth().signInAnonymously();
     const me = cred.user.uid, db = app.database();
+    let offset = 0; // サーバーとの時計のずれ（待っている人がまだいるかの判定に使う）
+    db.ref('.info/serverTimeOffset').on('value', (s) => { offset = s.val() || 0; });
     let ref = null, offs = [];
     const listen = (h) => {
       const moves = ref.child('moves'), on = ref.child('on'), guest = ref.child('guest');
@@ -122,6 +153,49 @@
         return v.settings;
       },
       send(v) { const m = { ...v, u: me }; if (ref) ref.child('moves').push(m); return m; },
+      // ランダムマッチの相手を探す。見つかったら onMatch({ host: true, partner }) か onMatch({ host: false, code })。やめるときは戻り値を呼ぶ
+      seek(onMatch, onCount, queue = 'random') {
+        db.goOnline();
+        const q = 'match/' + queue;
+        const lobby = db.ref(q + '/lobby'), mine = db.ref('match/pairs/' + me), seekRef = db.ref(q + '/seek/' + me), seekAll = db.ref(q + '/seek');
+        let done = false, hb = 0, taken = null;
+        const now = () => Date.now() + offset;
+        mine.remove(); // 前に届いて読まれなかった合言葉が残っていると、新しいものを受け取れないので消しておく
+        seekRef.onDisconnect().remove(); seekRef.set(true);
+        const cnt = (snap) => { if (onCount) onCount(snap.numChildren()); };
+        seekAll.on('value', cnt);
+        const stop = () => { clearInterval(hb); seekAll.off('value', cnt); mine.off('value', got); seekRef.onDisconnect().cancel(); seekRef.remove(); };
+        const got = (snap) => {
+          const v = snap.val();
+          if (done || !v || !v.code) return;
+          done = true; stop(); mine.remove(); onMatch({ host: false, code: v.code });
+        };
+        lobby.transaction((cur) => {
+          taken = null;
+          if (cur && cur.u !== me && now() - cur.t < LOBBY_TTL) { taken = cur.u; return null; } // 待っている人を取り出す
+          return { u: me, t: now() };
+        }, (err, committed) => {
+          if (done) return;
+          if (err || !committed) { done = true; stop(); onMatch({ error: true }); return; }
+          if (taken) { done = true; stop(); onMatch({ host: true, partner: taken }); return; }
+          mine.on('value', got); // 自分が待つ側になった。相手から合言葉が届くのを待つ
+          hb = setInterval(() => lobby.transaction((cur) => (cur && cur.u === me ? { u: me, t: now() } : undefined)), HEARTBEAT);
+        }, false);
+        return () => {
+          if (done) return;
+          done = true; stop();
+          lobby.transaction((cur) => (cur && cur.u === me ? null : undefined));
+        };
+      },
+      pair(partner, code) { return db.ref('match/pairs/' + partner).set({ code, t: fb.database.ServerValue.TIMESTAMP }); },
+      async getRating() { db.goOnline(); return (await db.ref('ratings/' + me).get()).val(); },
+      async setRating(v) { db.goOnline(); return db.ref('ratings/' + me).set({ ...v, t: fb.database.ServerValue.TIMESTAMP }); },
+      async topRatings(n) {
+        db.goOnline();
+        const snap = await db.ref('ratings').orderByChild('r').limitToLast(n).get();
+        const out = []; snap.forEach((c) => { out.push({ u: c.key, ...c.val() }); });
+        return out.reverse();
+      },
       leave() {
         offs.forEach((f) => f()); offs = [];
         if (ref) {
@@ -152,6 +226,13 @@
     async join(code, h) { return withTimeout(transport().then((t) => t.join(code, h)), LIMIT, giveUp); },
     send(v) { return tp ? tp.send(v) : null; },
     leave() { if (tp) tp.leave(); },
+    // ランダムマッチ：相手を探す（戻り値の Promise は、やめるための関数を返す）／見つけた側が合言葉を相手に送る
+    async seek(onMatch, onCount, queue) { return withTimeout(transport().then((t) => t.seek(onMatch, onCount, queue)), LIMIT, giveUp); },
+    pair(partner, code) { return tp ? tp.pair(partner, code) : null; },
+    // レートとランキング（ランクマッチ）
+    async getRating() { return withTimeout(transport().then((t) => t.getRating()), LIMIT); },
+    async setRating(v) { return (await transport()).setRating(v); },
+    async topRatings(n = 50) { return withTimeout(transport().then((t) => t.topRatings(n)), LIMIT); },
   };
   root.Online = Online;
 })(this);

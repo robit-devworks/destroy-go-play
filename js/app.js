@@ -1582,7 +1582,7 @@
     if (phase === 'replay') return;
     phase = 'over'; clock.stop(); cancelCharge();
     saveKifu(title, body, winner);
-    if (net) onlineIdle(); // 結果の画面のまま放置されたら、接続を切る
+    if (net) { onlineIdle(); onlineGameEnd(winner); } // 結果の画面のまま放置されたら、接続を切る
     const show = () => {
       $('.m-title').textContent = title;
       $('.m-body').textContent = body;
@@ -2350,18 +2350,105 @@
   const onlineHandlers = { onMove: (m) => onlineMove(m), onPeer: (e) => onlinePeer(e) };
   const settingText = (st) => `${st.size}路・${st.mode === 'destroy' ? `デストロイ${st.adv ? '上級' : '初級'}` : `ふつうの囲碁（${RULES[st.rules].label}）`}・持ち時間${st.min}分`;
   function onlineView(html) { $('#online-body').innerHTML = html; }
+  // ランダムマッチ（β）のルール。人が少ないうちは分かれないよう 1 つだけ。ランクマッチは上級でレートが動く
+  const RANDOM_RULE = { size: 9, mode: 'destroy', adv: false, rules: 'japanese', min: 3 };
+  const RANK_RULE = { size: 9, mode: 'destroy', adv: true, rules: 'japanese', min: 3 };
+  const RANK_UNLOCK = 3; // ランダムマッチをこれだけ遊ぶとランクマッチが開放される
+  const randomPlayed = () => { try { return +localStorage.getItem('destroy-go-random-played') || 0; } catch (e) { return 0; } };
+  // ---------- レート・ランキング ----------
+  // 名前はゲームが組み合わせて作る（ふさわしくない名前が出ないように）。気に入らなければ引き直せる
+  const NAME_A = ['燃える', '凍える', '光る', '荒ぶる', '静かな', '眠れる', '無敵の', '謎の', '疾風の', '雷鳴の', '孤高の', '見習いの', '伝説の', '爆裂の', '漆黒の', '純白の', '気まぐれな', 'はらぺこの'];
+  const NAME_B = ['碁石', '棋士', '天元', '星', '名人', '大石', '一手', 'コウ', 'アゲハマ', '碁盤', '黒石', '白石', '二眼', '布石', '定石', '打ち手'];
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  const makeName = () => `${pick(NAME_A)}${pick(NAME_B)}${Math.floor(10 + Math.random() * 90)}`;
+  const RATE0 = 1500;
+  let myRating = null; // { r, n, name }（オンライン対戦の画面を開いたときに読む）
+  async function loadRating() {
+    if (myRating) return myRating;
+    try { myRating = await Online.getRating(); } catch (e) { myRating = null; }
+    if (!myRating || typeof myRating.r !== 'number') myRating = { r: RATE0, n: 0, name: makeName(), fresh: true };
+    return myRating;
+  }
+  function saveRating() { const { r, n, name } = myRating; Online.setRating({ r, n, name }).catch(() => {}); }
+  // イロレーティング。最初の 10 局は大きく動かす
+  function eloNext(me, opp, win) {
+    const k = me.n < 10 ? 40 : 32, e = 1 / (1 + Math.pow(10, (opp.r - me.r) / 400));
+    return Math.max(100, Math.round(me.r + k * ((win ? 1 : 0) - e)));
+  }
+  const RANDOM_CPU_AFTER = 45000; // これだけ待っても相手が来なければ、CPU と対戦するボタンを出す
+  let seekStop = null;
+  function stopSeek() { if (seekStop) { seekStop(); seekStop = null; } clearTimeout(stopSeek.t); }
   function openOnline() {
     $('#online-pop').hidden = false;
     const st = { size: SIZE, mode, adv: dAdvanced, rules, min: minutes() };
-    onlineView(`<p>合言葉（4けたの数字）で、友だちとオンラインで対戦できます。</p>
+    const left = Math.max(0, RANK_UNLOCK - randomPlayed());
+    onlineView(`<p class="on-me" id="on-me">　</p>
+      <button class="accent" id="on-random">ランダムマッチ（β）</button>
+      <p class="on-set">知らない人とすぐ対戦：${settingText(RANDOM_RULE)}</p>
+      <button class="accent" id="on-rank"${left ? ' disabled' : ''}>🏆 ランクマッチ（β）</button>
+      <p class="on-set">${left ? `ランダムマッチをあと ${left} 局遊ぶと開放` : `レートをかけて対戦：${settingText(RANK_RULE)}`}</p>
+      <button id="on-ranking">ランキングを見る</button>
+      <div class="on-or">── 友だちと対戦 ──</div>
+      <p>合言葉（4けたの数字）で、友だちとオンラインで対戦できます。</p>
       <button class="accent" id="on-create">部屋を作る</button>
       <p class="on-set">今の設定で対局：${settingText(st)}</p>
       <div class="on-or">── 合言葉を教えてもらったら ──</div>
       <div class="on-join"><input id="on-code" inputmode="numeric" maxlength="4" placeholder="0000" autocomplete="off"><button id="on-join" class="accent">入る</button></div>
       <p class="on-note">β版（テスト中）です。うまく動かないときは、不具合の報告から教えてください。<br>待った・一時停止はできません。対局中にアプリを閉じると、つながりが切れます。</p>`);
+    $('#on-random').onclick = () => onlineRandom('random');
+    $('#on-rank').onclick = () => { if (!left) onlineRandom('rank'); };
+    $('#on-ranking').onclick = showRanking;
+    loadRating().then((r) => {
+      const el = $('#on-me'); if (!el) return;
+      el.innerHTML = `あなた：<b>${r.name}</b>（レート ${r.r}・${r.n}局）<button id="on-rename">名前を変える</button>`;
+      $('#on-rename').onclick = () => { myRating.name = makeName(); if (!myRating.fresh) saveRating(); openOnline(); };
+    });
     $('#on-create').onclick = () => onlineCreate(st);
     $('#on-join').onclick = () => onlineJoin($('#on-code').value.trim());
     $('#on-code').onkeydown = (e) => { if (e.key === 'Enter') $('#on-join').onclick(); };
+  }
+  // ランダムマッチ：相手を探す → 見つけた側が部屋を作って合言葉を送り、待っていた側が入る
+  async function showRanking() {
+    onlineView('<p class="on-wait">ランキングを読み込んでいます</p>');
+    try {
+      const [list, me] = await Promise.all([Online.topRatings(50), loadRating()]);
+      const rows = list.map((v, i) => `<li${v.u === Online.me() ? ' class="on-mine"' : ''}><span>${i + 1}</span><b>${String(v.name || '').replace(/[<>&]/g, '')}</b><span>${v.r}</span><small>${v.n || 0}局</small></li>`).join('');
+      onlineView(`<p class="on-set">ランクマッチ（上級・9路）のレート上位 50 人</p>
+        <ol class="on-rank">${rows || '<li class="on-empty">まだ誰もいません</li>'}</ol>
+        <p class="on-set">あなた：${me.name}（レート ${me.r}・${me.n}局）</p><button id="on-back">戻る</button>`);
+    } catch (e) { onlineView(`<p class="on-err">${e.message}</p><button id="on-back">戻る</button>`); }
+    $('#on-back').onclick = openOnline;
+  }
+  async function onlineRandom(kind = 'random') {
+    const RULE = kind === 'rank' ? RANK_RULE : RANDOM_RULE, label = kind === 'rank' ? 'ランクマッチ' : 'ランダムマッチ';
+    if (kind === 'rank') await loadRating();
+    const view = (n) => onlineView(`<p class="on-wait">相手を探しています</p>
+      <p class="on-set">${label}：${settingText(RULE)}</p><p class="on-set" id="on-count">${n ? `${label}を開いている人：${n}人` : ''}</p>
+      <button id="on-cpu" hidden>待っている間、CPU（Lv1）と対戦する</button><button id="on-cancel">やめる</button>`);
+    view(0);
+    $('#on-cancel').onclick = () => { stopSeek(); Online.leave(); openOnline(); };
+    const showCpu = () => {
+      if (!$('#on-cpu')) return;
+      $('#on-cpu').hidden = false;
+      $('#on-cpu').onclick = () => { stopSeek(); Online.leave(); $('#online-pop').hidden = true; $('#btn-beginner').click(); };
+    };
+    stopSeek.t = setTimeout(showCpu, RANDOM_CPU_AFTER);
+    try {
+      seekStop = await Online.seek(async (m) => {
+        seekStop = null; clearTimeout(stopSeek.t);
+        if (m.error) { onlineError(new Error('相手を探せませんでした。少ししてからもう一度試してください')); return; }
+        if (!m.host) { onlineJoin(m.code, kind); return; }
+        // 見つけた側：部屋を作って合言葉を相手に送る。15 秒たっても相手が入らなければ、探し直す
+        const settings = { ...RULE, hostColor: Math.random() < 0.5 ? BLACK : WHITE };
+        try {
+          const code = await Online.create(settings, onlineHandlers);
+          net = { code, host: true, settings, color: settings.hostColor, g: 1, min: settings.min, waiting: true, kind };
+          Online.pair(m.partner, code);
+          const n = net;
+          setTimeout(() => { if (net === n && net.waiting) { leaveOnline(); onlineRandom(kind); } }, 15000);
+        } catch (e) { onlineError(e); }
+      }, (n) => { const el = $('#on-count'); if (el) el.textContent = `${label}を開いている人：${n}人`; }, kind);
+    } catch (e) { onlineError(e); }
   }
   function onlineError(e) {
     onlineView(`<p class="on-err">${(e && e.message) || 'つながりませんでした'}</p><button id="on-back">戻る</button>`);
@@ -2388,12 +2475,12 @@
       }, IDLE_WAIT);
     } catch (e) { onlineError(e); }
   }
-  async function onlineJoin(code) {
+  async function onlineJoin(code, kind = 'friend') {
     if (!/^\d{4}$/.test(code)) { toast('4けたの数字を入れてください'); return; }
     onlineView('<p class="on-wait">つないでいます</p>');
     try {
       const settings = await Online.join(code, onlineHandlers);
-      net = { code, host: false, settings, color: otherColor(settings.hostColor), g: 1, min: settings.min };
+      net = { code, host: false, settings, color: otherColor(settings.hostColor), g: 1, min: settings.min, kind };
       onlineStart();
     } catch (e) { onlineError(e); }
   }
@@ -2405,9 +2492,11 @@
     net.waiting = false;
     $('#online-pop').hidden = true; $('#modal').classList.remove('show');
     newGame();
-    toast(`オンライン対戦：あなたは${NAMES[net.color]}です`);
+    toast(`${{ random: 'ランダムマッチ', rank: 'ランクマッチ' }[net.kind] || 'オンライン対戦'}：あなたは${NAMES[net.color]}です`);
+    if (net.kind === 'rank' && myRating) Online.send({ t: 'rt', r: myRating.r, n: myRating.n, name: myRating.name, g: net.g });
   }
   function leaveOnline() {
+    stopSeek();
     if (!net) return;
     if (phase === 'play' && !net.waiting) Online.send({ t: 'resign', c: net.color, g: net.g }); // 対局の途中でやめたら投了
     Online.send({ t: 'bye', g: net.g });
@@ -2429,6 +2518,25 @@
       toast('しばらく操作がなかったので、オンライン対戦の接続を切りました');
     }, IDLE_OVER);
   }
+  // ランクマッチ：相手のレートが届いたら、途中で抜けても負けになるよう、先に「負け」で記録しておく（勝てば終局で直す）
+  function rankStart(opp) {
+    if (!net || net.kind !== 'rank' || !myRating || net.opp) return;
+    net.opp = opp; net.before = { ...myRating };
+    toast(`相手：${opp.name.replace(/[<>&]/g, '')}（レート ${opp.r}）`);
+    myRating.fresh = false;
+    myRating.r = eloNext(net.before, opp, false); myRating.n = net.before.n + 1; saveRating();
+  }
+  function onlineGameEnd(winner) {
+    if (!net || net.ended === net.g) return;
+    net.ended = net.g;
+    if (net.kind === 'random') { try { localStorage.setItem('destroy-go-random-played', randomPlayed() + 1); } catch (e) { /* 無視 */ } }
+    if (net.kind === 'rank' && net.opp && net.before) {
+      const win = winner === net.color;
+      myRating.r = eloNext(net.before, net.opp, win); myRating.n = net.before.n + 1; saveRating();
+      const d = myRating.r - net.before.r;
+      setTimeout(() => toast(`レート ${net.before ? net.before.r : ''} → ${myRating.r}（${d >= 0 ? '+' : ''}${d}）`), 1500);
+    }
+  }
   // もう一局：2人とも押したら、色を入れ替えて始める
   function onlineAgain() {
     if (!net || net.again[Online.me()]) return;
@@ -2439,7 +2547,7 @@
   }
   function onlineAgainCheck() {
     if (Object.keys(net.again).length < 2) return;
-    net.g++; net.color = otherColor(net.color);
+    net.g++; net.color = otherColor(net.color); net.opp = null; net.before = null;
     $('#btn-again').textContent = 'もう一局';
     onlineStart();
   }
@@ -2475,6 +2583,7 @@
     if (m.g !== net.g) return;
     const foe = otherColor(net.color);
     if (m.t === 'th') { if (m.c === foe) { themes[foe] = m.k; renderThemes(); draw(); } return; }
+    if (m.t === 'rt') { rankStart({ r: m.r, n: m.n || 0, name: String(m.name || '') }); return; }
     if (m.t === 'dead') { const d = m.d || []; if (net.deadWait) { net.deadWait(d); net.deadWait = null; } else net.deadIn = d; return; }
     if (phase !== 'play') return;
     if (m.t === 'resign') { endGame(`${NAMES[otherColor(m.c)]}の中押し勝ち`, `${NAMES[m.c]}が投了しました`, otherColor(m.c)); return; }
@@ -2487,7 +2596,7 @@
     } finally { net.applying = false; spurtOverride = null; }
     if (typeof m.r === 'number' && net) { clock.remain[foe] = m.r; updatePanels(); } // 持ち時間は相手の画面の値に合わせる
   }
-  $('#online-close').onclick = () => { if (net && net.waiting) leaveOnline(); $('#online-pop').hidden = true; };
+  $('#online-close').onclick = () => { if (seekStop) { stopSeek(); Online.leave(); } if (net && net.waiting) leaveOnline(); $('#online-pop').hidden = true; };
 
   renderThemes();
   renderRules();
