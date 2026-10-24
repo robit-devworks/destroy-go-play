@@ -424,6 +424,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .replaying #replay-controls { display: flex; }
 .replaying #rp-auto { flex: 2; }
 .replaying .p-clock { visibility: hidden; } /* 再生では時計を使わない */
+.online-links { display: flex; gap: 8px; justify-content: center; width: min(460px, 100%); }
+.online-btn { flex: 1; border: 1px solid rgba(255, 255, 255, 0.25); background: linear-gradient(180deg, #2b1b4a, #1a1030); border-radius: 12px; padding: 11px 8px; font-size: 15px; font-weight: 800; color: #fff; box-shadow: 0 0 14px rgba(138, 106, 255, 0.35); }
+.online-btn:active { transform: scale(0.96); }
+.online-btn { line-height: 1.25; font-size: 14px; }
+.online-btn.locked { opacity: 0.45; box-shadow: none; }
+.online-btn.locked::after { content: ' 🔒'; }
+#online-body .on-title { font-size: 16px; font-weight: 800; color: var(--accent2); margin: 6px 0; }
+.beginner[hidden] { display: none; }
 .title-links { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .beginner {
   max-width: 520px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
@@ -635,3 +643,104 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .rule-chip[aria-pressed="true"] { --tc: var(--accent2); }
 #score-live { color: var(--text); font-weight: 800; }
 .p-theme { border: 0; width: 22px; height: 22px; font-size: 12px; padding: 0; }
+
+/* ---------- タイトル：魔法っぽく。枠は使わず、見出しと光る線で分ける ---------- */
+:root { --gold: #ffd23f; --magic: #b066ff; --frost: #5ad8ff; }
+#title { position: relative; isolation: isolate; }
+#title::before { /* 舞う光の粒 */
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: 0.55;
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 18%, #fff6c8, transparent), radial-gradient(1px 1px at 78% 12%, #e0c8ff, transparent),
+    radial-gradient(1.5px 1.5px at 30% 72%, #bff3ff, transparent), radial-gradient(1px 1px at 64% 48%, #fff, transparent),
+    radial-gradient(2px 2px at 88% 66%, #ffd23f, transparent), radial-gradient(1px 1px at 46% 88%, #e0c8ff, transparent),
+    radial-gradient(1.5px 1.5px at 8% 54%, #fff, transparent), radial-gradient(1px 1px at 56% 26%, #bff3ff, transparent);
+  background-size: 320px 420px; animation: sparkle-drift 24s linear infinite;
+}
+@keyframes sparkle-drift { from { background-position: 0 0; } to { background-position: 0 -420px; } }
+.title-wrap { position: relative; }
+.title-wrap::before { /* ロゴのうしろの魔法陣 */
+  content: ''; position: absolute; left: 50%; top: 50%; width: min(70vw, 360px); aspect-ratio: 1; z-index: -1;
+  transform: translate(-50%, -50%); border-radius: 50%; opacity: 0.35;
+  background:
+    radial-gradient(circle, transparent 58%, rgba(176, 102, 255, 0.5) 59%, transparent 60%, transparent 66%, rgba(255, 210, 63, 0.45) 67%, transparent 68%),
+    repeating-conic-gradient(from 0deg, rgba(255, 210, 63, 0.35) 0 2deg, transparent 2deg 15deg);
+  -webkit-mask: radial-gradient(circle, transparent 55%, #000 56%, #000 70%, transparent 71%);
+  mask: radial-gradient(circle, transparent 55%, #000 56%, #000 70%, transparent 71%);
+  animation: rune-spin 40s linear infinite;
+}
+@keyframes rune-spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+.fs-big {
+  margin-top: -6px; border-radius: 999px; padding: 11px 30px; font-size: 16px; font-weight: 800; letter-spacing: 0.08em; color: #fff;
+  border: 1px solid transparent;
+  background: linear-gradient(rgba(20, 10, 30, 0.85), rgba(20, 10, 30, 0.85)) padding-box, linear-gradient(120deg, var(--gold), var(--magic), var(--frost)) border-box;
+  box-shadow: 0 0 18px rgba(176, 102, 255, 0.35);
+}
+.home-sec { width: min(420px, 100%); display: flex; flex-direction: column; gap: 8px; }
+.sec-title { display: flex; align-items: center; gap: 10px; margin: 0 0 2px; font-size: 13px; font-weight: 800; letter-spacing: 0.25em; color: var(--gold); text-shadow: 0 0 10px rgba(255, 210, 63, 0.5); }
+.sec-title::before, .sec-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(255, 210, 63, 0.6), transparent); }
+.sec-title span::before, .sec-title span::after { content: '✦'; margin: 0 8px; font-size: 10px; color: var(--magic); }
+.home-me { margin: -4px 0 0; text-align: center; font-size: 12px; color: var(--muted); }
+.home-me:empty { display: none; }
+.start-item {
+  position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%;
+  border: 0; border-radius: 999px; padding: 13px 20px; color: #fff;
+  background: linear-gradient(180deg, #ff6a3d, #d4001a); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12), 0 8px 30px rgba(255, 40, 20, 0.55);
+}
+.start-item b { font-size: 22px; font-weight: 900; letter-spacing: 0.12em; }
+.start-item small { font-size: 12px; color: #ffe3d8; letter-spacing: 0.02em; }
+.start-item::after { /* ときどき光が走る */
+  content: ''; position: absolute; top: 0; bottom: 0; width: 40%; left: -60%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.35), transparent); animation: shine 4.5s ease-in-out infinite;
+}
+@keyframes shine { 0%, 70% { left: -60%; } 100% { left: 130%; } }
+.start-item:active { transform: scale(0.98); }
+.quick { display: flex; gap: 8px; }
+.quick button, .on-item {
+  border: 1px solid transparent; color: #fff; font-weight: 800;
+  background: linear-gradient(rgba(22, 12, 34, 0.88), rgba(22, 12, 34, 0.88)) padding-box,
+    linear-gradient(120deg, rgba(255, 210, 63, 0.55), rgba(176, 102, 255, 0.55), rgba(90, 216, 255, 0.45)) border-box;
+}
+.quick button { flex: 1; border-radius: 999px; padding: 9px 4px; font-size: 14px; letter-spacing: 0.05em; }
+.quick button[aria-pressed="true"] {
+  background: linear-gradient(rgba(60, 30, 90, 0.9), rgba(60, 30, 90, 0.9)) padding-box, linear-gradient(120deg, var(--gold), var(--magic), var(--frost)) border-box;
+  box-shadow: 0 0 14px rgba(176, 102, 255, 0.5);
+}
+.on-item { display: flex; align-items: baseline; gap: 8px; width: 100%; border-radius: 14px; padding: 12px 16px; text-align: left; font-size: 15px; letter-spacing: 0.04em; }
+.on-item span { margin-left: auto; font-size: 11px; color: #c9b8e8; font-weight: 600; letter-spacing: 0; }
+.on-item::after { content: '›'; color: var(--gold); margin-left: 8px; }
+.on-item.ghost { background: linear-gradient(rgba(22, 12, 34, 0.5), rgba(22, 12, 34, 0.5)) padding-box, linear-gradient(120deg, rgba(255, 210, 63, 0.3), rgba(176, 102, 255, 0.3)) border-box; }
+.on-item.locked { opacity: 0.5; }
+.on-item:active, .quick button:active { transform: scale(0.98); }
+.beginner { width: min(420px, 100%); }
+
+/* ---------- ⚙ 設定（タイトルの上に重ねる） ---------- */
+#settings-pop {
+  position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column;
+  padding: env(safe-area-inset-top) 0 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(255, 60, 30, 0.25), transparent 60%), var(--bg);
+}
+#settings-pop[hidden] { display: none; }
+.sp-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px 4px; }
+.sp-head b { font-size: 18px; color: var(--accent2); }
+.sp-head button { border: 1px solid rgba(255, 255, 255, 0.25); background: transparent; border-radius: 999px; padding: 5px 14px; font-weight: 700; }
+.sp-tabs { display: flex; gap: 4px; margin: 6px 16px; padding: 4px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); }
+.sp-tabs button { flex: 1; border: 0; background: transparent; border-radius: 999px; padding: 8px 0; font-weight: 800; font-size: 14px; color: var(--muted); }
+.sp-tabs button[aria-selected="true"] { background: linear-gradient(180deg, #ff6a3d, #d4001a); color: #fff; }
+.sp-body { flex: 1; overflow-y: auto; padding: 8px 16px 16px; display: flex; flex-direction: column; align-items: center; }
+.sp-panel { width: 100%; max-width: 520px; display: flex; flex-direction: column; gap: 18px; }
+.sp-panel[hidden] { display: none; }
+.sp-panel .rules { max-width: none; }
+.sp-ok { margin: 8px 16px max(14px, env(safe-area-inset-bottom)); border: 0; border-radius: 999px; padding: 13px; font-weight: 900; font-size: 16px; color: #fff; background: linear-gradient(180deg, #ff6a3d, #d4001a); }
+
+
+.title-foot { flex-wrap: wrap; justify-content: center; gap: 4px 12px; }
+.title-foot > * { white-space: nowrap; }
+.sp-panel .preview { justify-content: flex-start; }
+.sp-panel .preview > span { flex-basis: 100%; }
+/* はじめての人向けの案内と、下の小さいボタンも同じ光るふちに */
+#title .beginner { background: transparent; border: 0; padding: 0; }
+#title .sub-btn {
+  border: 1px solid transparent; color: #fff;
+  background: linear-gradient(rgba(22, 12, 34, 0.85), rgba(22, 12, 34, 0.85)) padding-box,
+    linear-gradient(120deg, rgba(255, 210, 63, 0.5), rgba(176, 102, 255, 0.5), rgba(90, 216, 255, 0.4)) border-box;
+}

@@ -27,29 +27,40 @@
         <p class="sublogo">DESTROY GO</p>
       </div>
 
-      <button id="btn-start" class="big-btn">対局開始</button>
+      <button id="btn-fs-title" class="fs-btn fs-big">⛶ 全画面にする</button>
+      <!-- この端末で遊ぶ：CPU 戦・2 人で対局（ルールなどは ⚙ 設定） -->
+      <div class="home-sec">
+        <p class="sec-title"><span>この端末で遊ぶ</span></p>
+        <button id="btn-start" class="start-item"><b>対局開始</b><small id="start-summary"></small></button>
+        <div class="quick"><button id="q-cpu">CPUと</button><button id="q-human">2人で</button><button id="btn-settings">⚙ 設定</button></div>
+      </div>
       <!-- はじめての人向け：押すだけで、コンピューター Lv1・9路で始める -->
       <div class="beginner">
         <span>囲碁を知らなくても大丈夫！ はじめての人は <b>コンピューター Lv1 ＋ 9路</b> で始めてみよう</span>
         <div class="title-links"><button id="btn-tutorial" class="sub-btn">📖 チュートリアル</button><button id="btn-beginner" class="sub-btn">▶ おすすめで始める</button></div>
       </div>
+      <!-- オンライン（β）：ランダムマッチ・ランクマッチ・フレンド対戦・ランキング -->
+      <div class="home-sec">
+        <p class="sec-title"><span>オンライン（β）</span></p>
+        <p class="home-me" id="home-me"></p>
+        <button id="btn-random-top" class="on-item">ランダムマッチ<span>知らない人とすぐ対戦</span></button>
+        <button id="btn-rank-top" class="on-item">ランクマッチ<span id="rank-top-note"></span></button>
+        <button id="btn-friend-top" class="on-item">フレンド対戦<span>合言葉で友だちと</span></button>
+        <button id="btn-ranking-top" class="on-item ghost">ランキング<span>レート上位</span></button>
+      </div>
       <div class="title-links">
-        <button id="btn-fs-title" class="fs-btn sub-btn">⛶ 全画面にする</button>
+        <button id="btn-tutorial-sm" class="sub-btn" hidden>📖 チュートリアル</button>
         <button id="btn-kifu" class="sub-btn">📼 棋譜を見る</button>
       </div>
+      <p class="title-foot"><a id="feedback" href="#" target="_blank" rel="noopener">不具合・感想を送る</a><span id="version"></span><span>© ROBIT</span><span>音楽：魔王魂</span></p>
 
-      <div class="themes">
-        <div class="theme-row" data-color="1">
-          <span class="tr-label"><i class="p-stone black"></i>黒の演出</span>
-          <div class="chips"></div>
-        </div>
-        <div class="theme-row" data-color="2">
-          <span class="tr-label"><i class="p-stone white"></i>白の演出</span>
-          <div class="chips"></div>
-        </div>
-      </div>
-
-      <div class="themes">
+      <!-- ⚙ 設定：対局・演出・音・ルール。選んだ内容は端末に保存される -->
+      <div id="settings-pop" hidden>
+        <div class="sp-head"><b>⚙ 設定</b><button id="settings-close">閉じる</button></div>
+        <div class="sp-tabs" role="tablist"><button data-tab="game" aria-selected="true">対局</button><button data-tab="fx" aria-selected="false">演出</button><button data-tab="sound" aria-selected="false">音</button><button data-tab="rules" aria-selected="false">ルール</button></div>
+        <div class="sp-body">
+          <div class="sp-panel" data-panel="game">
+            <div class="themes">
         <div class="rule-row">
           <span class="tr-label">勝ち負けの決め方</span>
           <div class="chips" id="mode-chips"></div>
@@ -102,6 +113,46 @@
           <span class="tr-label">ルール</span>
           <div class="chips" id="rule-chips"></div>
         </div>
+            </div>
+            <div class="options">
+        <label><input type="checkbox" id="opt-confirm"> 2回タップで着手（誤タップ防止）</label>
+        <label><input type="checkbox" id="opt-face"> 向かい合わせモード（白の表示を反転）</label>
+            </div>
+          </div>
+          <div class="sp-panel" data-panel="fx" hidden>
+      <div class="themes">
+        <div class="theme-row" data-color="1">
+          <span class="tr-label"><i class="p-stone black"></i>黒の演出</span>
+          <div class="chips"></div>
+        </div>
+        <div class="theme-row" data-color="2">
+          <span class="tr-label"><i class="p-stone white"></i>白の演出</span>
+          <div class="chips"></div>
+        </div>
+      </div>
+            <div class="themes">
+        <div class="rule-row">
+          <span class="tr-label">陣地ヒント（打った石のまわりに勢力やつながりを表示）</span>
+          <div class="chips" id="hint-chips"></div>
+        </div>
+            </div>
+      <div class="preview">
+        <span>演出プレビュー（<b id="preview-label">黒</b>・碁盤つき）：</span>
+        <button data-n="1">1子</button>
+        <button data-n="2">2子</button>
+        <button data-n="3">3子</button>
+        <button data-n="5">5子</button>
+        <button data-n="9">9子</button>
+        <button data-n="15">15子</button>
+        <button data-n="25">25子</button>
+      </div>
+            <div class="options">
+        <label><input type="checkbox" id="opt-trace" checked> 石を取った跡を盤にうっすら残す</label>
+        <label><input type="checkbox" id="opt-coords" checked> 碁盤のまわりに座標（A・B・C… と 1・2・3…）を表示</label>
+            </div>
+          </div>
+          <div class="sp-panel" data-panel="sound" hidden>
+            <div class="themes">
         <div class="rule-row">
           <span class="tr-label">音量</span>
           <div class="vol-rows">
@@ -113,35 +164,17 @@
           <span class="tr-label">BGM（音楽：魔王魂）<small class="bgm-now"></small></span>
           <div class="chips bgm-chips" id="bgm-chips"></div>
         </div>
-        <div class="rule-row">
-          <span class="tr-label">陣地ヒント（打った石のまわりに勢力やつながりを表示）</span>
-          <div class="chips" id="hint-chips"></div>
-        </div>
-      </div>
-
-      <div class="options">
-        <label><input type="checkbox" id="opt-confirm"> 2回タップで着手（誤タップ防止）</label>
-        <label><input type="checkbox" id="opt-face"> 向かい合わせモード（白の表示を反転）</label>
-        <label><input type="checkbox" id="opt-trace" checked> 石を取った跡を盤にうっすら残す</label>
-        <label><input type="checkbox" id="opt-coords" checked> 碁盤のまわりに座標（A・B・C… と 1・2・3…）を表示</label>
-      </div>
-
+            </div>
+          </div>
+          <div class="sp-panel" data-panel="rules" hidden>
       <div class="rules">
         <h2>ルール</h2>
         <div id="title-rules" class="rules-body"></div>
       </div>
-
-      <div class="preview">
-        <span>演出プレビュー（<b id="preview-label">黒</b>・碁盤つき）：</span>
-        <button data-n="1">1子</button>
-        <button data-n="2">2子</button>
-        <button data-n="3">3子</button>
-        <button data-n="5">5子</button>
-        <button data-n="9">9子</button>
-        <button data-n="15">15子</button>
-        <button data-n="25">25子</button>
+          </div>
+        </div>
+        <button id="settings-ok" class="sp-ok">この設定で閉じる</button>
       </div>
-      <p class="title-foot"><a id="feedback" href="#" target="_blank" rel="noopener">不具合・感想を送る</a><span id="version"></span><span>© ROBIT</span><span>音楽：魔王魂</span></p>
     </section>
 
     <!-- 対局画面 -->

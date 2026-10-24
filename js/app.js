@@ -93,6 +93,7 @@
   // オンライン対戦（β）の状態。対戦していないときは null
   //   { code, host, color, g: 何局目, min: 持ち時間, settings, applying: 相手の手を再現中, out: 送る手, again: もう一局を押した人, ... }
   let net = null;
+  let homeReady = false; // タイトルのカード（今の設定の 1 行など）を描いてよいか（準備がすべて終わってから）
   try { dAdvanced = localStorage.getItem('destroy-go-dlevel') === 'advanced'; } catch (e) { /* 無視 */ }
   function renderMode() {
     document.querySelectorAll('#dlevel-chips .chip').forEach((c) => c.setAttribute('aria-pressed', (c.dataset.level === 'advanced') === dAdvanced));
@@ -161,7 +162,27 @@
     $('#level-row').hidden = $('#resign-row').hidden = opponent !== 'cpu';
     $('#side-row').hidden = opponent !== 'cpu' || hc > 0; // 置き石があるときは置く側で色が決まる
     $('#hc-who-row').hidden = opponent !== 'cpu' || hc === 0;
+    renderHome();
   }
+  // タイトルの「この端末で遊ぶ」：今の設定を 1 行で出し、CPU と／2人で のボタンに今の相手を出す
+  function renderHome() {
+    if (!homeReady) return;
+    const rule = mode === 'destroy' ? `デストロイ${dAdvanced ? '上級' : '初級'}` : 'ふつうの囲碁';
+    $('#start-summary').textContent = [opponent === 'cpu' ? `CPU Lv${cpuLevel}` : '2人で対局', `${SIZE}路`, rule, `${minutes()}分`].join('・');
+    $('#q-cpu').setAttribute('aria-pressed', opponent === 'cpu');
+    $('#q-human').setAttribute('aria-pressed', opponent !== 'cpu');
+  }
+  $('#q-cpu').onclick = () => $('#opp-chips .chip[data-opp="cpu"]').click();
+  $('#q-human').onclick = () => $('#opp-chips .chip[data-opp="human"]').click();
+  // ⚙ 設定：タブで「対局・演出・音・ルール」を切り替える
+  function showSettingsTab(tab) {
+    document.querySelectorAll('.sp-tabs button').forEach((b) => b.setAttribute('aria-selected', b.dataset.tab === tab));
+    document.querySelectorAll('.sp-panel').forEach((p) => { p.hidden = p.dataset.panel !== tab; });
+    $('.sp-body').scrollTop = 0;
+  }
+  document.querySelectorAll('.sp-tabs button').forEach((b) => { b.onclick = () => showSettingsTab(b.dataset.tab); });
+  $('#btn-settings').onclick = () => { $('#settings-pop').hidden = false; };
+  $('#settings-close').onclick = $('#settings-ok').onclick = () => { $('#settings-pop').hidden = true; };
   const addChip = (box, text, data, onclick) => {
     const chip = document.createElement('button');
     chip.className = 'chip rule-chip'; chip.textContent = text;
@@ -171,12 +192,6 @@
   };
   addChip('#opp-chips', '2人で対局', { opp: 'human' }, () => { opponent = 'human'; });
   addChip('#opp-chips', 'コンピューター', { opp: 'cpu' }, () => { opponent = 'cpu'; });
-  { // オンライン対戦（β）：合言葉で友だちと対戦。通信先の設定がまだなら、お知らせだけ
-    const chip = document.createElement('button');
-    chip.className = 'chip rule-chip online-chip'; chip.textContent = 'オンライン対戦（β）';
-    chip.onclick = () => { if (Online.available()) openOnline(); else toast('オンライン対戦は準備中です。お楽しみに！'); };
-    $('#opp-chips').appendChild(chip);
-  }
   for (let lv = 1; lv <= 9; lv++) addChip('#level-chips', `Lv${lv}`, { level: lv }, () => { cpuLevel = lv; });
   addChip('#side-chips', '黒（先手）', { side: BLACK }, () => { humanColor = BLACK; });
   addChip('#side-chips', '白（後手）', { side: WHITE }, () => { humanColor = WHITE; });
@@ -1623,7 +1638,7 @@
     if (net) { onlineAgain(); return; }
     $('#modal').classList.remove('show'); newGame();
   };
-  $('#btn-home').onclick = () => { leaveOnline(); $('#modal').classList.remove('show'); endReplay(); showScreen('title'); phase = 'title'; stopBgm(); };
+  $('#btn-home').onclick = () => { leaveOnline(); renderBeginner(); renderRankTop(); $('#modal').classList.remove('show'); endReplay(); showScreen('title'); phase = 'title'; stopBgm(); };
 
   // ---------- 時計・パネル ----------
   function fmt(ms) {
@@ -1977,7 +1992,7 @@
     $('#btn-title').classList.remove('accent');
   }
   function goTitle() {
-    leaveOnline();
+    leaveOnline(); renderBeginner(); renderRankTop();
     endReplay(); endTutorial();
     disarmTitle(); disarmResign(); cancelCharge();
     cpuToken++; setThinking(false); gameSerial++;
@@ -2115,6 +2130,15 @@
     if (from > 0 && !confirmFrom(from)) from = 0;
     FX.unlock(); startTutorial(from);
   };
+  $('#btn-tutorial-sm').onclick = () => $('#btn-tutorial').onclick();
+  // はじめての人向けの案内（チュートリアル・おすすめで始める）は、チュートリアルを終えたか 1 局でも遊んだら隠す。
+  // チュートリアルは、下の小さいボタンからいつでも開ける
+  function renderBeginner() {
+    let seen = false;
+    try { seen = localStorage.getItem('destroy-go-tut-done') === '1' || +(localStorage.getItem('destroy-go-played') || 0) > 0; } catch (e) { /* 無視 */ }
+    $('.beginner').hidden = false; $('#btn-tutorial-sm').hidden = true; void seen; // 案内はいつも出す
+  }
+  renderBeginner();
   // 途中まで進めていたら、続きから始めるか聞く（埋め込み環境では confirm が使えないことがあるので、使えなければ続きから）
   function confirmFrom(i) { try { return window.confirm(`前回の続き（${i + 1}問目）から始めますか？\n「キャンセル」で最初から`); } catch (e) { return true; } }
 
@@ -2384,23 +2408,30 @@
   const RANDOM_CPU_AFTER = 45000; // これだけ待っても相手が来なければ、CPU と対戦するボタンを出す
   let seekStop = null;
   function stopSeek() { if (seekStop) { seekStop(); seekStop = null; } clearTimeout(stopSeek.t); }
-  function openOnline() {
+  // view：'menu'（3 つ全部）か 'friend'（フレンド対戦だけ。タイトルの「フレンド対戦」から）
+  function openOnline(view = 'menu') {
     $('#online-pop').hidden = false;
     const st = { size: SIZE, mode, adv: dAdvanced, rules, min: minutes() };
     const left = Math.max(0, RANK_UNLOCK - randomPlayed());
+    const friend = `<p>合言葉（4けたの数字）で、友だちとオンラインで対戦できます。</p>
+      <button class="accent" id="on-create">部屋を作る</button>
+      <p class="on-set">今の設定で対局：${settingText(st)}</p>
+      <div class="on-or">── 合言葉を教えてもらったら ──</div>
+      <div class="on-join"><input id="on-code" inputmode="numeric" maxlength="4" placeholder="0000" autocomplete="off"><button id="on-join" class="accent">入る</button></div>`;
+    const note = '<p class="on-note">β版（テスト中）です。うまく動かないときは、不具合の報告から教えてください。<br>待った・一時停止はできません。対局中にアプリを閉じると、つながりが切れます。</p>';
+    if (view === 'friend') {
+      onlineView(`<p class="on-title">👥 フレンド対戦</p>${friend}${note}`);
+      bindFriend(st);
+      return;
+    }
     onlineView(`<p class="on-me" id="on-me">　</p>
       <button class="accent" id="on-random">ランダムマッチ（β）</button>
       <p class="on-set">知らない人とすぐ対戦：${settingText(RANDOM_RULE)}</p>
       <button class="accent" id="on-rank"${left ? ' disabled' : ''}>🏆 ランクマッチ（β）</button>
       <p class="on-set">${left ? `ランダムマッチをあと ${left} 局遊ぶと開放` : `レートをかけて対戦：${settingText(RANK_RULE)}`}</p>
       <button id="on-ranking">ランキングを見る</button>
-      <div class="on-or">── 友だちと対戦 ──</div>
-      <p>合言葉（4けたの数字）で、友だちとオンラインで対戦できます。</p>
-      <button class="accent" id="on-create">部屋を作る</button>
-      <p class="on-set">今の設定で対局：${settingText(st)}</p>
-      <div class="on-or">── 合言葉を教えてもらったら ──</div>
-      <div class="on-join"><input id="on-code" inputmode="numeric" maxlength="4" placeholder="0000" autocomplete="off"><button id="on-join" class="accent">入る</button></div>
-      <p class="on-note">β版（テスト中）です。うまく動かないときは、不具合の報告から教えてください。<br>待った・一時停止はできません。対局中にアプリを閉じると、つながりが切れます。</p>`);
+      <div class="on-or">── 👥 フレンド対戦 ──</div>
+      ${friend}${note}`);
     $('#on-random').onclick = () => onlineRandom('random');
     $('#on-rank').onclick = () => { if (!left) onlineRandom('rank'); };
     $('#on-ranking').onclick = showRanking;
@@ -2409,6 +2440,9 @@
       el.innerHTML = `あなた：<b>${r.name}</b>（レート ${r.r}・${r.n}局）${isDev() ? '' : '<button id="on-rename">名前を変える</button>'}`;
       if ($('#on-rename')) $('#on-rename').onclick = () => { myRating.name = makeName(); if (!myRating.fresh) saveRating(); openOnline(); };
     });
+    bindFriend(st);
+  }
+  function bindFriend(st) {
     $('#on-create').onclick = () => onlineCreate(st);
     $('#on-join').onclick = () => onlineJoin($('#on-code').value.trim());
     $('#on-code').onkeydown = (e) => { if (e.key === 'Enter') $('#on-join').onclick(); };
@@ -2457,7 +2491,10 @@
     } catch (e) { onlineError(e); }
   }
   function onlineError(e) {
-    onlineView(`<p class="on-err">${(e && e.message) || 'つながりませんでした'}</p><button id="on-back">戻る</button>`);
+    // Firebase の英語のエラー（auth/network-request-failed など）は、日本語の分かりやすい文にする
+    let msg = (e && e.message) || 'つながりませんでした';
+    if (/Firebase|auth\/|network|permission/i.test(msg)) msg = '通信できませんでした。ネットにつながっているか確かめて、もう一度試してください';
+    onlineView(`<p class="on-err">${msg}</p><button id="on-back">戻る</button>`);
     $('#on-back').onclick = openOnline;
     Online.leave(); net = null;
   }
@@ -2603,8 +2640,28 @@
     } finally { net.applying = false; spurtOverride = null; }
     if (typeof m.r === 'number' && net) { clock.remain[foe] = m.r; updatePanels(); } // 持ち時間は相手の画面の値に合わせる
   }
+  // タイトルの「対局開始」の下：ランダムマッチはすぐ探し始め、フレンド対戦は合言葉の画面を開く
+  $('#btn-random-top').onclick = () => { FX.unlock(); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; } openOnline(); onlineRandom('random'); };
+  $('#btn-friend-top').onclick = () => { FX.unlock(); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; } openOnline('friend'); };
+  // ランクマッチはランダムマッチを 3 局遊ぶまで押せない（押すと、あと何局か知らせる）
+  function renderRankTop() {
+    const left = Math.max(0, RANK_UNLOCK - randomPlayed());
+    $('#btn-rank-top').classList.toggle('locked', left > 0);
+    $('#rank-top-note').textContent = left ? `🔒 あと${left}局で開放` : 'レートをかけて対戦';
+    if (myRating && !myRating.fresh) $('#home-me').textContent = `${myRating.name}　レート ${myRating.r}`;
+    $('#btn-rank-top').title = left ? `ランダムマッチをあと ${left} 局遊ぶと開放` : 'デストロイ上級・9路でレートをかけて対戦';
+  }
+  renderRankTop();
+  $('#btn-rank-top').onclick = () => {
+    FX.unlock(); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; }
+    const left = Math.max(0, RANK_UNLOCK - randomPlayed());
+    if (left) { toast(`ランクマッチは、ランダムマッチをあと ${left} 局遊ぶと開放されます`); return; }
+    openOnline(); onlineRandom('rank');
+  };
+  $('#btn-ranking-top').onclick = () => { FX.unlock(); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; } openOnline(); showRanking(); };
   $('#online-close').onclick = () => { if (seekStop) { stopSeek(); Online.leave(); } if (net && net.waiting) leaveOnline(); $('#online-pop').hidden = true; };
 
+  homeReady = true;
   renderThemes();
   renderRules();
   renderHints();

@@ -212,9 +212,12 @@
   // ---------- 外から使う形 ----------
   // Online.create(settings, { onMove, onPeer }) → 合言葉 / Online.join(合言葉, ハンドラ) → 部屋の設定
   // Online.send(中身) / Online.leave()。onMove は自分が送った手も届く（u で見分ける）
-  let tp = null;
+  // 準備（部品の読み込み・ログイン）は 1 回だけ。同時に呼ばれても同じものを待つ（2 回走ると Firebase の初期化がぶつかる）
+  let tp = null, tpWait = null;
   async function transport() {
-    if (!tp) tp = useLocal ? localTransport() : await firebaseTransport();
+    if (tp) return tp;
+    if (!tpWait) tpWait = (useLocal ? Promise.resolve(localTransport()) : firebaseTransport()).catch((e) => { tpWait = null; throw e; });
+    tp = await tpWait;
     return tp;
   }
   const LIMIT = 12000; // 部品の読み込み・ログイン・部屋を作る／入るまでを、これだけ待つ
