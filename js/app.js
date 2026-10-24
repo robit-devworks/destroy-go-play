@@ -2545,7 +2545,7 @@
     const k = me.n < 10 ? 40 : 32, e = 1 / (1 + Math.pow(10, (opp.r - me.r) / 400));
     return Math.max(100, Math.round(me.r + k * ((win ? 1 : 0) - e)));
   }
-  const RANDOM_CPU_AFTER = 45000; // これだけ待っても相手が来なければ、CPU と対戦するボタンを出す
+  const RANDOM_CPU_AFTER = 30000; // これだけ待っても相手が来なければ、CPU と対戦するボタンを出す
   let seekStop = null;
   function stopSeek() { if (seekStop) { seekStop(); seekStop = null; } clearTimeout(stopSeek.t); }
   // view：'friend'（フレンド対戦の画面）か 'blank'（ランダム・ランク・ランキングの入口。中身はすぐ差し替える）
