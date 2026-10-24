@@ -896,10 +896,13 @@
     + h.parts.map((p) => ` ×${fmtMult(p.mult)}（${p.name}）`).join('') + (h.capped ? ` → ${DestroyRule.MAX_MULT}倍まで` : '') + ` ＝ ${h.amount}`;
   function logDamage(entry) { dlog.push({ move: game.moveNumber, ...entry }); if (!$('#log-pop').hidden) renderLog(); }
   function renderLog() {
-    const list = $('#log-list');
-    if (!dlog.length) { list.innerHTML = '<li class="log-empty">まだダメージは起きていません</li>'; return; }
-    list.innerHTML = dlog.slice().reverse().map((e) => `<li class="log-${e.kind}"><span class="log-move">${e.move}手目</span>`
+    const list = $('#log-list'), replay = phase === 'replay' && rpLogAll, items = replay ? rpLogAll : dlog;
+    $('#log-hint').hidden = !replay;
+    if (!items.length) { list.innerHTML = '<li class="log-empty">まだダメージは起きていません</li>'; return; }
+    list.innerHTML = items.slice().reverse().map((e) => `<li class="log-${e.kind}${replay && e.move > rpIdx ? ' log-future' : ''}" data-move="${e.move}"><span class="log-move">${e.move}手目</span>`
       + `<i class="p-stone ${e.color === BLACK ? 'black' : 'white'}"></i><span class="log-text">${e.text}</span></li>`).join('');
+    // ハイライトの再生中は、押すとその手の盤面に飛ぶ
+    if (replay) list.querySelectorAll('li[data-move]').forEach((li) => { li.onclick = () => { if (!rec) rpGoTo(+li.dataset.move); }; });
   }
   // ---------- ？ ルール：対局中もいつでも見られる。ノーマル・初級・上級と、碁盤（9・13・19 路）をタブで切り替える ----------
   const rp = { tab: 'go', size: 19 };
@@ -978,7 +981,7 @@
           ['背水', '×1.2', `自分の HP が最大 HP の 4 分の 1 以下のとき、攻撃が 1.2 倍。HP バーが赤く光る（${n}路なら HP ${Math.floor(c.hp / 4)} 以下）。`, ''],
           ['カウンター', '×1.5', '相手に石を取られた直後に、その取りに来た石ごと取り返すと 1.5 倍（うってがえしなど）。別の場所の石を取り返すだけではならない。', ''],
           ['コンボ', '×1.2〜2', '自分の手番で続けて石を取ると、2 連続 1.2 倍・3 連続 1.4 倍…と上がる（2 倍まで）。取れなかった手やパスで途切れる。', ''],
-          ['ラストスパート', '×1.5', '盤の 7 割が石で埋まるか、打つ側の持ち時間が 1 分以下になると 1.5 倍。最初に入ったとき「LAST SPURT!!」と出る。', ''],
+          ['ラストスパート', '×1.5', '盤の 7 割が石で埋まるか、2 人の残り時間の合計が試合時間の 3 分の 2 以下になると、2 人とも 1.5 倍。一度入ったら最後まで続く。最初に入ったとき「LAST SPURT!!」と出る。', '例：3 分の試合なら、2 人の残りの合計が 2 分（黒が残り 1 分半・白が残り 30 秒など）'],
           ['倍率の上限', '2.5倍まで', 'いくつ重なっても、全部掛け合わせて 2.5 倍まで。', '例：ため撃ち×カウンター×ラストスパート＝3.375 → 2.5倍'],
           ['2眼で回復', '+1', '2 眼ができて取られなくなった石（盾マーク）4子ごとに HP が 1 回復。最大 HP を超えたら最大 HP も増える（最初の 2 倍まで）。', ''],
         ];
@@ -1038,31 +1041,41 @@
     }
   }
   // 石を取ったらダメージ、2 眼で取られなくなった石が増えたら回復。HP が 0 なら演出が終わってから KO
-  let spurtShown = false;
-  // ラストスパート：盤の 7 割が石で埋まるか、打つ側の持ち時間が 1 分以下
+  
+  // ラストスパート：盤の 7 割が石で埋まるか、2 人の残り時間の合計が試合時間（1 人分の持ち時間）の 3 分の 2 以下。2 人とも入り、一度入ったら最後まで
+  //   例：3 分の試合で、黒が残り 1 分半・白が残り 30 秒（合計 2 分）
   let spurtOverride = null; // オンライン対戦で相手の手を再現するときは、相手の画面で決まったラストスパートを使う
   function isSpurt(mover) {
     if (spurtOverride !== null) return spurtOverride;
     if (!dstate || !dstate.advanced) return false;
     let stones = 0; for (const v of game.board) if (v) stones++;
-    return stones >= SIZE * SIZE * DestroyRule.SPURT_FILL || clock.remaining(mover) <= DestroyRule.SPURT_TIME;
+    return dstate.spurtOn || stones >= SIZE * SIZE * DestroyRule.SPURT_FILL || clock.remaining(BLACK) + clock.remaining(WHITE) <= clock.base * DestroyRule.SPURT_TIME;
+  }
+  // ダメージの履歴に残す（対局中と、ハイライトの再生の両方で使う）
+  function logHit(mover, captured, h) {
+    if (!captured) return;
+    const victim = otherColor(mover);
+    if (h.kind === 'ko') logDamage({ color: victim, kind: 'ko', text: `${NAMES[mover]}が ${captured}子 まとめて取って 即 K.O.!!` });
+    else logDamage({ color: victim, kind: h.kind === 'critical' ? 'crit' : 'dmg',
+      text: `${NAMES[mover]}が ${captured}子取り → ${NAMES[victim]} <b>-${h.amount}</b>${h.tags.length ? `（${h.tags.join('・')}）` : ''}<small>${calcText(h, captured)}</small>` });
+    if (h.recoil > 0) logDamage({ color: mover, kind: 'recoil', text: `反動 → ${NAMES[mover]} <b>-${h.recoil}</b><small>${h.amount}（ため撃ち）− ${h.plain}（溜めない）</small>` });
+  }
+  function logHeal(healed) {
+    for (const c of [BLACK, WHITE]) if (healed[c]) logDamage({ color: c, kind: 'heal', text: `2眼で回復 → ${NAMES[c]} <b>+${healed[c]}</b>` });
   }
   function destroyAfterMove(mover, capturedStones, point, maxCharge, hold) {
     const captured = capturedStones.length;
     const spurt = isSpurt(mover);
-    if (spurt && !spurtShown) { // 最初にラストスパートに入ったときに知らせる
-      spurtShown = true;
+    if (spurt && !dstate.spurtOn) { // 最初にラストスパートに入ったときに知らせる（待ったで戻したら、もう一度知らせる）
+      dstate.spurtOn = true;
       later(() => showBigNote('LAST SPURT!! ダメージ1.5倍', '#ff3b3b'), Math.min(hold, 900) + 1200);
     }
     const h = dstate.hit(mover, captured, { maxCharge, spurt, point, stones: capturedStones }); // 取れなかった手も記録する（コンボ・カウンターのため）
     dstate.lastSpurt = spurt; // 棋譜に残す（再生で同じダメージにするため）
     dstate.lastHit = h.kind; // BGM の解放（クリティカル）に使う
+    logHit(mover, captured, h);
     if (captured) {
       const victim = otherColor(mover);
-      if (h.kind === 'ko') logDamage({ color: victim, kind: 'ko', text: `${NAMES[mover]}が ${captured}子 まとめて取って 即 K.O.!!` });
-      else logDamage({ color: victim, kind: h.kind === 'critical' ? 'crit' : 'dmg',
-        text: `${NAMES[mover]}が ${captured}子取り → ${NAMES[victim]} <b>-${h.amount}</b>${h.tags.length ? `（${h.tags.join('・')}）` : ''}<small>${calcText(h, captured)}</small>` });
-      if (h.recoil > 0) logDamage({ color: mover, kind: 'recoil', text: `反動 → ${NAMES[mover]} <b>-${h.recoil}</b><small>${h.amount}（ため撃ち）− ${h.plain}（溜めない）</small>` });
       later(() => {
         if (h.kind === 'ko') popDamage(victim, 'K.O.!!', 'ko');
         else popDamage(victim, `${h.kind === 'critical' ? 'CRITICAL!! ' : ''}-${h.amount}`, h.kind, h.tags);
@@ -1080,7 +1093,7 @@
     }
     const healed = dstate.heal(game.board);
     // 回復は「二眼完成！」（+200ms）より少し遅らせて、表示と音が重ならないようにする
-    for (const c of [BLACK, WHITE]) if (healed[c]) logDamage({ color: c, kind: 'heal', text: `2眼で回復 → ${NAMES[c]} <b>+${healed[c]}</b>` });
+    logHeal(healed);
     for (const c of [BLACK, WHITE]) if (healed[c]) later(() => {
       popDamage(c, `+${healed[c]}`, 'heal'); FX.heal();
       showHealFormula(c, healed[c]);
@@ -1612,7 +1625,7 @@
     phase = 'play';
     layout();
     cpuToken++; setThinking(false); cpuLow = 0; gameSerial++;
-    dstate = mode === 'destroy' ? new DestroyRule.DestroyState(SIZE, net ? { color: BLACK, rate: 0 } : { color: hpBonusColor, rate: hpBonus }, dAdvanced) : null; ruleHist = []; spurtShown = false;
+    dstate = mode === 'destroy' ? new DestroyRule.DestroyState(SIZE, net ? { color: BLACK, rate: 0 } : { color: hpBonusColor, rate: hpBonus }, dAdvanced) : null; ruleHist = [];
     dlog = []; $('#log-pop').hidden = true; $('#rules-pop').hidden = true; $('#btn-log').hidden = !dstate; // 履歴はデストロイルールのときだけ
     const hc = net ? 0 : effectiveHandicap();
     if (hc) { game.setHandicap(hc); toast(`置き石${hc}子・白から打ちます`); }
@@ -2032,6 +2045,7 @@
 
   // 再生：対局の画面をそのまま使い、棋譜の手を 1 手ずつ置き直す（時計は止めたまま）
   let rpk = null, rpIdx = 0, rpTimer = 0, rpSaved = null;
+  let rpLogAll = null; // ハイライトで見る、対局全体のダメージの履歴
   function rpReset() {
     clearTimeout(rpTimer);
     FX.clear(); BoardFX.clear(); BoardFX.resetTraces();
@@ -2039,6 +2053,7 @@
     if (rpk.hc) game.setHandicap(rpk.hc);
     dstate = rpk.mode === 'destroy' ? new DestroyRule.DestroyState(SIZE, rpk.hpb, rpk.adv) : null;
     wiped = new Set(); dead = new Set(); terrGlow = null; rpIdx = 0;
+    dlog = [];
   }
   // 1 手置く。animate なら石を取る演出・ダメージも見せる。演出の長さ（ms）を返す
   function rpApply(animate) {
@@ -2060,6 +2075,7 @@
     if (dstate) {
       const h = dstate.hit(mover, r.captured.length, { maxCharge: !!mv.x, spurt: !!mv.s, point: mv.p, stones: r.captured });
       const healed = dstate.heal(game.board);
+      logHit(mover, r.captured.length, h); logHeal(healed); // 再生でもダメージの履歴を作る（📜 で見られる）
       if (animate && r.captured.length) {
         const victim = otherColor(mover), n = r.captured.length;
         later(() => {
@@ -2074,6 +2090,7 @@
   }
   function rpRender() {
     draw(); renderHp(); updatePanels();
+    if (!$('#log-pop').hidden) renderLog();
     $('#rp-info').textContent = `${rpIdx} / ${rpk.moves.length}手${rpIdx === rpk.moves.length && rpk.result ? `　${rpk.result.title}` : ''}`;
     $('#rp-auto').textContent = rpTimer ? '⏸ 止める' : '▶ ハイライト';
   }
@@ -2108,12 +2125,17 @@
     gameSerial++; cpuToken++; setThinking(false); cpuSide = k.cpu ? k.cpu.side : 0; cpuLevelInGame = k.cpu ? k.cpu.level : 3;
     showScreen('game'); phase = 'replay';
     gameEl.classList.remove('scoring', 'previewing'); gameEl.classList.add('replaying');
-    $('#btn-result').hidden = true; $('#btn-log').hidden = true;
-    layout(); rpReset(); renderNames(); renderThemes(); rpRender();
+    $('#btn-result').hidden = true;
+    $('#btn-log').hidden = k.mode !== 'destroy'; $('#log-pop').hidden = true; // デストロイルールの対局なら、再生中も 📜 履歴が見られる
+    layout(); rpReset();
+    // 履歴は対局全体の分を先に作っておく（まだ再生していない手の分は薄く出す）
+    if (k.mode === 'destroy') { while (rpIdx < k.moves.length) rpApply(false); rpLogAll = dlog; rpReset(); } else rpLogAll = null;
+    renderNames(); renderThemes(); rpRender();
   }
   function endReplay() {
-    stopRec(true);
+    stopRec(true); rpLogAll = null;
     if (!rpSaved) return;
+    $('#log-pop').hidden = true; $('#btn-log').hidden = true;
     rpStop(); SIZE = rpSaved.size; Object.assign(themes, rpSaved.themes); rpSaved = null; rpk = null;
     gameEl.classList.remove('replaying'); renderThemes();
   }

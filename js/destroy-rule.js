@@ -8,7 +8,7 @@
 //  ・カウンター：相手が石を取った直後に、その取りに来た石（相手が直前に打った石）ごと取り返すと 1.5 倍
 //    （うってがえしなどの返り討ち。別の場所の石を取り返すだけならカウンターにしない＝先に取った側が損をしないように）
 //  ・コンボ：自分の手番で続けて取ると、2 連続 1.2 倍・3 連続 1.4 倍…（2 倍まで）。取れなかった手やパスで途切れる
-//  ・ラストスパート：盤の 7 割が石で埋まるか、打つ側の持ち時間が 1 分以下なら 1.5 倍
+//  ・ラストスパート：盤の 7 割が石で埋まるか、2 人の残り時間の合計が試合時間（1 人分の持ち時間）の 3 分の 2 以下になったら（2 人の合計時間の 3 分の 1 が残ったら）、2 人とも 1.5 倍。一度入ったら最後まで
 //  ・倍率は全部掛け合わせるが、合計 2.5 倍までにする（重なりすぎて一撃で終わらないように）
 //  ・HP ハンデ：弱い側の最初の HP を増やせる（+25%・+50%・+100%）
 //  ・HP が 0 で KO 負け。パスで終局したら、お互いに地 1 目につき相手に 1 ダメージを同時に与える。
@@ -126,11 +126,12 @@
       this.credited = { [BLACK]: new Set(), [WHITE]: new Set() }; // 回復済みの石
       this.carry = { [BLACK]: 0, [WHITE]: 0 }; // 回復 1 に満たない端数（取られなくなった石の数）
       this.ko = 0; // KO された側（0 はまだ）
+      this.spurtOn = false; // ラストスパートに入ったか（一度入ったら最後まで）
     }
     snapshot() {
-      return { hp: { ...this.hp }, max: { ...this.max }, carry: { ...this.carry }, combo: { ...this.combo }, last: this.last, credited: { [BLACK]: new Set(this.credited[BLACK]), [WHITE]: new Set(this.credited[WHITE]) }, ko: this.ko };
+      return { hp: { ...this.hp }, max: { ...this.max }, carry: { ...this.carry }, combo: { ...this.combo }, last: this.last, credited: { [BLACK]: new Set(this.credited[BLACK]), [WHITE]: new Set(this.credited[WHITE]) }, ko: this.ko, spurtOn: this.spurtOn };
     }
-    restore(s) { this.hp = { ...s.hp }; this.max = { ...s.max }; this.carry = { ...s.carry }; this.combo = { ...s.combo }; this.last = s.last; this.credited = { [BLACK]: new Set(s.credited[BLACK]), [WHITE]: new Set(s.credited[WHITE]) }; this.ko = s.ko; }
+    restore(s) { this.hp = { ...s.hp }; this.max = { ...s.max }; this.carry = { ...s.carry }; this.combo = { ...s.combo }; this.last = s.last; this.credited = { [BLACK]: new Set(s.credited[BLACK]), [WHITE]: new Set(s.credited[WHITE]) }; this.ko = s.ko; this.spurtOn = !!s.spurtOn; }
     desperate(color) { return this.advanced && this.hp[color] <= this.max[color] / 4; }
     // mover が point に打って n 子取った（0 子でも呼ぶ：コンボとカウンターの記録のため）。
     // stones は取った石の位置。ダメージを相手に与えて結果を返す
@@ -188,7 +189,7 @@
     winnerByHp(territory = {}) { return this.finalAttack(territory).winner; }
   }
 
-  const api = { CONFIG, CONFIG_SIMPLE, config: conf, HEAL_STONES, MAX_MULT, damage, aliveStones, DestroyState, SPURT_FILL: 0.7, SPURT_TIME: 60000 };
+  const api = { CONFIG, CONFIG_SIMPLE, config: conf, HEAL_STONES, MAX_MULT, damage, aliveStones, DestroyState, SPURT_FILL: 0.7, SPURT_TIME: 2 / 3 };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.DestroyRule = api;
 })(this);

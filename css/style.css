@@ -293,6 +293,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .log-head b { color: var(--accent2); font-size: 16px; }
 .log-head button { border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.06); border-radius: 999px; padding: 4px 14px; font-weight: 700; }
 #log-list { list-style: none; margin: 0; padding: 6px 12px 12px; overflow-y: auto; font-size: 14px; }
+#log-hint { margin: 6px 14px 0; font-size: 12px; color: var(--muted); }
+#log-hint[hidden] { display: none; }
+.replaying #log-list li[data-move] { cursor: pointer; }
+#log-list li.log-future { opacity: 0.4; } /* ハイライトでまだ再生していない手 */
 #log-list li { display: grid; grid-template-columns: 4.2em 18px 1fr; gap: 8px; align-items: start; padding: 8px 0; border-bottom: 1px dashed rgba(255, 255, 255, 0.08); }
 #log-list .p-stone { width: 16px; height: 16px; margin-top: 2px; }
 #log-list .log-move { color: var(--muted); font-size: 12px; padding-top: 2px; }
