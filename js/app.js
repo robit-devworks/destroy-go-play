@@ -1684,6 +1684,8 @@
   };
 
   // winner を渡すと、勝った側の演出で負けた側の石を全部消してから結果を出す
+  // ランダムマッチの待ち時間に始めた CPU 戦。勝つと「ランクマッチまでの 1 局」に数える（負けや投了では数えない）
+  let warmupCpu = false;
   function endGame(title, body, winner = 0) {
     if (phase === 'replay') return;
     phase = 'over'; clock.stop(); cancelCharge();
@@ -1700,6 +1702,11 @@
         if (dstate && title.startsWith('K.O.')) later(() => unlockSecret('thunder'), 700);
         if (cpuSide && cpuLevelInGame === 9) later(() => unlockSecret('light'), 700);
         if (cpuSide && cpuLevelInGame >= 5) later(() => unlockBgm('boss03'), 4900); // 演出の解放と重ならないよう後で
+        if (warmupCpu && cpuSide && randomPlayed() < RANK_UNLOCK) {
+          lsSet('destroy-go-random-played', randomPlayed() + 1); syncProfile(); renderRankTop();
+          const left = Math.max(0, RANK_UNLOCK - randomPlayed());
+          later(() => toast(left ? `ランクマッチまで あと ${left} 局（CPU 戦は勝ったときだけ数えます）` : '🏆 ランクマッチが開きました！'), 1200);
+        }
       }
       // 終えた対局の数（BGM の解放に使う）
       let played = 0;
@@ -1729,7 +1736,7 @@
     if (net) { onlineAgain(); return; }
     $('#modal').classList.remove('show'); newGame();
   };
-  $('#btn-home').onclick = () => { leaveOnline(); renderBeginner(); renderRankTop(); $('#modal').classList.remove('show'); endReplay(); showScreen('title'); phase = 'title'; stopBgm(); };
+  $('#btn-home').onclick = () => { warmupCpu = false; leaveOnline(); renderBeginner(); renderRankTop(); $('#modal').classList.remove('show'); endReplay(); showScreen('title'); phase = 'title'; stopBgm(); };
 
   // ---------- 時計・パネル ----------
   function fmt(ms) {
@@ -2084,7 +2091,7 @@
     $('#btn-title').classList.remove('accent');
   }
   function goTitle() {
-    leaveOnline(); renderBeginner(); renderRankTop();
+    warmupCpu = false; leaveOnline(); renderBeginner(); renderRankTop();
     endReplay(); endTutorial();
     disarmTitle(); disarmResign(); cancelCharge();
     cpuToken++; setThinking(false); gameSerial++;
@@ -2870,7 +2877,7 @@
       <p class="on-rule"><b>デストロイ碁オリジナルのルール</b>です。石を取ると相手にダメージ、HPを0にしても勝ち。待っている間にどうぞ<button id="on-rules">ルールを見る</button></p>
       <p class="on-founder" id="on-founder" hidden></p>
       <p class="on-set" id="on-count">${n ? `${label}を開いている人：${n}人` : ''}</p>
-      <button id="on-cpu" hidden>待っている間、CPU（Lv1）と対戦する</button><button id="on-cancel">やめる</button>`);
+      <button id="on-cpu" hidden>待っている間、CPU（Lv1）と対戦する${kind === 'random' && randomPlayed() < RANK_UNLOCK ? '<small>勝つとランクマッチまでの 1 局に数えます</small>' : ''}</button><button id="on-cancel">やめる</button>`);
     view(0);
     $('#on-rules').onclick = () => openRulesFor(kind === 'rank');
     if (kind === 'rank' && !myFounder && !meIsDev()) loadFounders().then((f) => { const el = $('#on-founder'); if (el) { el.innerHTML = founderLeft(f); el.hidden = false; } });
@@ -2878,7 +2885,7 @@
     const showCpu = () => {
       if (!$('#on-cpu')) return;
       $('#on-cpu').hidden = false;
-      $('#on-cpu').onclick = () => { stopSeek(); Online.leave(); $('#online-pop').hidden = true; $('#btn-beginner').click(); };
+      $('#on-cpu').onclick = () => { stopSeek(); Online.leave(); $('#online-pop').hidden = true; $('#btn-beginner').click(); warmupCpu = kind === 'random'; };
     };
     stopSeek.t = setTimeout(showCpu, RANDOM_CPU_AFTER);
     try {

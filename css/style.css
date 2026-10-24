@@ -818,3 +818,4 @@ button { font: inherit; color: inherit; cursor: pointer; }
   animation: nm-rainbow 3s linear infinite; filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.4));
 }
 @keyframes nm-rainbow { to { background-position: -200% 0; } }
+#online-body #on-cpu small { display: block; font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 2px; }
