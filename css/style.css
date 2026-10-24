@@ -311,6 +311,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #share-pop[hidden] { display: none; }
 #share-pop img, #share-pop video { width: 100%; max-height: 60vh; object-fit: contain; border-radius: 10px; margin-bottom: 14px; background: #000; }
 #share-pop [hidden] { display: none; }
+#m-rate { font-family: var(--font-logo); font-size: 22px; margin: 4px 0 8px; text-align: center; }
+#m-rate:empty { display: none; }
+#m-rate.up { color: #5cff8a; } #m-rate.down { color: #ff7a7a; }
 #share-dmg-row { display: flex; align-items: center; justify-content: center; gap: 6px; margin: -6px 0 10px; font-size: 14px; font-weight: 700; }
 #share-dmg-row input { transform: scale(1.2); accent-color: var(--accent); }
 #share-redo { display: block; width: 100%; margin: 0 0 10px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 10px; font-weight: 700; }

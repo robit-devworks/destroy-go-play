@@ -1582,6 +1582,7 @@
     if (phase === 'replay') return;
     phase = 'over'; clock.stop(); cancelCharge();
     saveKifu(title, body, winner);
+    $('#m-rate').textContent = '';
     if (net) { onlineIdle(); onlineGameEnd(winner); } // 結果の画面のまま放置されたら、接続を切る
     const show = () => {
       $('.m-title').textContent = title;
@@ -2362,11 +2363,16 @@
   const pick = (a) => a[Math.floor(Math.random() * a.length)];
   const makeName = () => `${pick(NAME_A)}${pick(NAME_B)}${Math.floor(10 + Math.random() * 90)}`;
   const RATE0 = 1500;
+  // 開発者の端末だけの名前。端末で localStorage の destroy-go-dev を '1' にすると使う
+  // （ほかの人が名乗れないよう、Firebase のルールで「ROBIT」「開発」が入った名前は開発者の端末しか書けない）
+  const DEV_NAME = 'ROBIT（開発者）';
+  const isDev = () => { try { return localStorage.getItem('destroy-go-dev') === '1'; } catch (e) { return false; } };
   let myRating = null; // { r, n, name }（オンライン対戦の画面を開いたときに読む）
   async function loadRating() {
     if (myRating) return myRating;
     try { myRating = await Online.getRating(); } catch (e) { myRating = null; }
     if (!myRating || typeof myRating.r !== 'number') myRating = { r: RATE0, n: 0, name: makeName(), fresh: true };
+    if (isDev() && myRating.name !== DEV_NAME) { myRating.name = DEV_NAME; if (!myRating.fresh) saveRating(); }
     return myRating;
   }
   function saveRating() { const { r, n, name } = myRating; Online.setRating({ r, n, name }).catch(() => {}); }
@@ -2400,8 +2406,8 @@
     $('#on-ranking').onclick = showRanking;
     loadRating().then((r) => {
       const el = $('#on-me'); if (!el) return;
-      el.innerHTML = `あなた：<b>${r.name}</b>（レート ${r.r}・${r.n}局）<button id="on-rename">名前を変える</button>`;
-      $('#on-rename').onclick = () => { myRating.name = makeName(); if (!myRating.fresh) saveRating(); openOnline(); };
+      el.innerHTML = `あなた：<b>${r.name}</b>（レート ${r.r}・${r.n}局）${isDev() ? '' : '<button id="on-rename">名前を変える</button>'}`;
+      if ($('#on-rename')) $('#on-rename').onclick = () => { myRating.name = makeName(); if (!myRating.fresh) saveRating(); openOnline(); };
     });
     $('#on-create').onclick = () => onlineCreate(st);
     $('#on-join').onclick = () => onlineJoin($('#on-code').value.trim());
@@ -2534,7 +2540,8 @@
       const win = winner === net.color;
       myRating.r = eloNext(net.before, net.opp, win); myRating.n = net.before.n + 1; saveRating();
       const d = myRating.r - net.before.r;
-      setTimeout(() => toast(`レート ${net.before ? net.before.r : ''} → ${myRating.r}（${d >= 0 ? '+' : ''}${d}）`), 1500);
+      $('#m-rate').textContent = `レート ${net.before.r} → ${myRating.r}（${d >= 0 ? '+' : ''}${d}）`; // 結果の画面に出す
+      $('#m-rate').className = d >= 0 ? 'up' : 'down';
     }
   }
   // もう一局：2人とも押したら、色を入れ替えて始める
