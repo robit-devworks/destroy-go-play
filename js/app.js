@@ -2117,7 +2117,7 @@
     rpStop(); SIZE = rpSaved.size; Object.assign(themes, rpSaved.themes); rpSaved = null; rpk = null;
     gameEl.classList.remove('replaying'); renderThemes();
   }
-  // ---------- 🎬 ハイライトを動画にする：最初から自動再生しながら、📷 と同じ画面（720×900）に描いて録画する ----------
+  // ---------- 📤 共有：ハイライトを動画にする：最初から自動再生しながら、📷 と同じ画面（720×900）に描いて録画する ----------
   // 音は効果音だけ入れる（BGM は入れない）。X に載せられる長さ（2 分 20 秒）を超えないよう 2 分 15 秒で止める
   let rec = null;
   const REC_MAX = 135000;
@@ -2149,6 +2149,7 @@
     mr.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
     rec = { mr, dest, actx, chunks, type, xOk: rt.x, t0: performance.now(), endAt: 0 };
     gameEl.classList.add('recording'); $('#rp-rec').textContent = '■ やめる';
+    toast('ハイライトを動画にしています。終わったら共有できます');
     mr.start(250);
     rpGoTo(0); FX.clear(); rpAutoStep();
     const frame = () => {
@@ -2164,7 +2165,7 @@
   function stopRec(cancel) {
     if (!rec) return;
     const r = rec; rec = null;
-    gameEl.classList.remove('recording'); $('#rp-rec').textContent = '🎬 動画';
+    gameEl.classList.remove('recording'); $('#rp-rec').textContent = '📤 共有';
     r.mr.onstop = () => {
       if (r.dest) try { r.actx.master.disconnect(r.dest); } catch (e) { /* 無視 */ }
       if (cancel || !r.chunks.length) return;
