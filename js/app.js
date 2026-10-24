@@ -1369,12 +1369,71 @@
       x.lineWidth = 12; x.strokeStyle = '#1a0005'; x.fillStyle = '#ffd23f';
       x.strokeText(note.textContent, Wd / 2, by + B * 0.62); x.fillText(note.textContent, Wd / 2, by + B * 0.62);
     }
+    // ダメージ・回復の計算式（盤の真ん中に出ているもの）と、HP の横に出る「-6」「+1」も描く（動画・画像でも分かるように）
+    drawFormula(x, Wd, by + B * 0.8);
+    drawPops(x, Wd, by + B + 14);
     // 下：HP（デストロイルール）と、遊べる場所
     x.font = "bold 40px sans-serif"; x.fillStyle = '#fff';
     if (dstate) x.fillText(`黒 HP ${dstate.hp[BLACK]}　／　白 HP ${dstate.hp[WHITE]}`, Wd / 2, by + B + 60);
     x.font = "bold 34px sans-serif"; x.fillStyle = '#ffd23f';
     x.fillText(PLAY_URL, Wd / 2, Ht - 70);
     x.font = "26px sans-serif"; x.fillStyle = 'rgba(255,255,255,0.6)'; x.fillText('#デストロイ碁　© ROBIT', Wd / 2, Ht - 28);
+  }
+  const alphaOf = (el) => +getComputedStyle(el).opacity || 0;
+  function fitFont(x, text, size, face, maxW) {
+    x.font = `${size}px ${face}`;
+    const w = x.measureText(text).width;
+    if (w > maxW) x.font = `${Math.floor(size * maxW / w)}px ${face}`;
+  }
+  function drawFormula(x, Wd, cy) {
+    const f = $('#dmg-formula');
+    if (!f.className.startsWith('show')) return;
+    const a = alphaOf(f);
+    if (a < 0.05) return;
+    // 上から順に 1 行ずつ。反動・回復は区切りの中に同じ形で入っている
+    const lines = [];
+    const add = (el, group) => {
+      for (const c of el.children) {
+        if (c.classList.contains('f-recoil')) { add(c, c.classList.contains('f-heal') ? 'heal' : 'recoil'); continue; }
+        const kind = c.classList.contains('f-tags') ? 'tags' : c.classList.contains('f-calc') ? 'calc' : 'dmg';
+        if (c.textContent.trim()) lines.push({ text: c.textContent.trim(), kind, group });
+      }
+    };
+    add(f, f.classList.contains('heal') ? 'heal' : 'dmg');
+    if (!lines.length) return;
+    const SZ = { tags: 50, calc: 38, dmg: 30 }, GAP = 14;
+    const h = lines.reduce((t, l) => t + SZ[l.kind] + GAP, 0) + 30;
+    let y = cy - h / 2;
+    x.save(); x.globalAlpha = a;
+    x.fillStyle = 'rgba(10, 4, 14, 0.78)'; x.strokeStyle = 'rgba(255, 255, 255, 0.25)'; x.lineWidth = 3;
+    x.beginPath(); if (x.roundRect) x.roundRect(60, y, Wd - 120, h, 24); else x.rect(60, y, Wd - 120, h); x.fill(); x.stroke();
+    y += 15;
+    for (const l of lines) {
+      const col = l.kind === 'tags' ? (l.group === 'heal' ? '#7dffa4' : l.group === 'recoil' ? '#ff6a6a' : '#ffd23f')
+        : l.kind === 'calc' ? '#fff' : (l.group === 'heal' ? '#b8ffcc' : '#ffb4a0');
+      fitFont(x, l.text, SZ[l.kind], l.kind === 'tags' ? "'Dela Gothic One', sans-serif" : 'bold sans-serif', Wd - 180);
+      x.fillStyle = col; x.lineWidth = 8; x.strokeStyle = '#000';
+      x.strokeText(l.text, Wd / 2, y + SZ[l.kind] / 2); x.fillText(l.text, Wd / 2, y + SZ[l.kind] / 2);
+      y += SZ[l.kind] + GAP;
+    }
+    x.restore();
+  }
+  function drawPops(x, Wd, y) {
+    const COL = { heal: '#5cff8a', ko: '#fff', critical: '#ffd23f', recoil: '#ff7a7a' };
+    for (const [c, px0] of [[BLACK, Wd * 0.28], [WHITE, Wd * 0.72]]) {
+      const pops = $('#p' + c).querySelectorAll('.dmg-pop');
+      const el = pops[pops.length - 1];
+      if (!el) continue;
+      const a = alphaOf(el);
+      if (a < 0.05) continue;
+      const text = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('');
+      const cls = Object.keys(COL).find((k) => el.classList.contains(k));
+      x.save(); x.globalAlpha = a;
+      fitFont(x, `${NAMES[c]} ${text}`, 52, "'Dela Gothic One', sans-serif", Wd * 0.42);
+      x.lineWidth = 10; x.strokeStyle = '#1a0005'; x.fillStyle = COL[cls] || '#ff3b3b';
+      x.strokeText(`${NAMES[c]} ${text}`, px0, y); x.fillText(`${NAMES[c]} ${text}`, px0, y);
+      x.restore();
+    }
   }
   let shareFile = null, shareUrl = null;
   const SHARE_TEXT = `デストロイ碁で遊んだ！ https://${PLAY_URL}/ #デストロイ碁`;
@@ -2056,7 +2115,10 @@
     dlog = [];
   }
   // 1 手置く。animate なら石を取る演出・ダメージも見せる。演出の長さ（ms）を返す
-  function rpApply(animate) {
+  // showHeal：石を取らない手でも、2 眼の回復は見せる（ハイライトの自動再生で使う）。回復したかは rpHealed に残す
+  let rpHealed = false;
+  function rpApply(animate, showHeal = animate) {
+    rpHealed = false;
     const mv = rpk.moves[rpIdx++], mover = game.turn;
     if (mv.p < 0) { game.pass(); if (dstate) dstate.pass(mover); if (animate) toast(`${NAMES[mover]}がパス`); return 0; }
     if (mv.t) themes[mover] = mv.t;
@@ -2084,7 +2146,8 @@
         }, Math.min(hold, 900));
         if (h.recoil > 0) later(() => { popDamage(mover, `反動 -${h.recoil}`, 'recoil'); showRecoilFormula(mover, h); }, Math.min(hold, 900) + 450);
       }
-      if (animate) for (const c of [BLACK, WHITE]) if (healed[c]) later(() => { popDamage(c, `+${healed[c]}`, 'heal'); FX.heal(); showHealFormula(c, healed[c]); }, Math.min(hold, 900) + 650);
+      rpHealed = !!(healed[BLACK] || healed[WHITE]);
+      if (showHeal) for (const c of [BLACK, WHITE]) if (healed[c]) later(() => { popDamage(c, `+${healed[c]}`, 'heal'); FX.heal(); showHealFormula(c, healed[c]); renderHp(); }, Math.min(hold, 900) + 650);
     }
     return hold;
   }
@@ -2105,9 +2168,10 @@
     if (rpIdx >= rpk.moves.length) { rpTimer = 0; rpFinish(); rpRender(); return; }
     const mv = rpk.moves[rpIdx];
     const t = mv.p >= 0 ? game.tryPlay(mv.p) : null, event = t && t.ok && t.captured.length > 0;
-    const hold = rpApply(event);
+    const hold = rpApply(event, true);
     rpRender();
-    rpTimer = setTimeout(rpAutoStep, event ? Math.max(1800, hold + 1500) : 110);
+    // 石を取った手と、2 眼で回復した手は止まって見せる。何も起きない手は速く進む
+    rpTimer = setTimeout(rpAutoStep, event ? Math.max(1800, hold + 1500) : rpHealed ? 1800 : 110);
   }
   function rpFinish() {
     const res = rpk.result;
