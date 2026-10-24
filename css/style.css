@@ -458,6 +458,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #online-body { padding: 4px 16px 16px; font-size: 14px; line-height: 1.6; }
 #online-body p { margin: 8px 0; }
 #online-body .on-note { color: var(--muted); font-size: 12px; }
+#online-body .on-box { margin: 10px 0; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.12); }
+#online-body .on-box-title { margin: 0 0 4px; font-weight: 800; color: var(--accent2); }
+#online-body .on-box .on-set b { color: var(--accent2); }
+#online-body .on-tcode { margin: 6px 0; padding: 8px; border-radius: 10px; text-align: center; font: 800 20px/1.4 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.08em; color: #fff; background: rgba(0, 0, 0, 0.35); user-select: all; -webkit-user-select: all; }
+#online-body .on-note a { color: var(--accent2); }
+#online-body #on-tin { font-size: 15px; letter-spacing: 0.06em; font-family: ui-monospace, Menlo, Consolas, monospace; }
 #online-body .on-list { margin: 6px 0 10px; padding-left: 20px; font-size: 13px; line-height: 1.7; color: #e6dcf2; }
 #online-body .on-list b { color: var(--gold); }
 #online-body .on-set { color: var(--muted); font-size: 13px; }

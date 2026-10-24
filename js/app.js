@@ -1561,7 +1561,7 @@
     $('#a2hs-title').textContent = save ? '記録が消えないように' : '全画面で遊ぶには';
     const canLink = save && Online.available() && !EMBEDDED, phone = isIOS || isAndroid;
     $('#a2hs-lead').innerHTML = lead; $('#a2hs-lead').hidden = !lead;
-    // 記録を守るとき：① Google 連携（おすすめ）② ホーム画面に追加（スマホだけ。パソコンは閉じても消えないので要らない）
+    // 記録を守るとき：① 引き継ぎコード（おすすめ）② ホーム画面に追加（スマホだけ。パソコンは閉じても消えないので要らない）
     $('#a2hs-s1').hidden = !canLink;
     $('#a2hs-s2').hidden = !save || !phone;
     $('#a2hs-s2').textContent = canLink ? '② ホーム画面に追加する（さらに安心）' : 'ホーム画面に追加する';
@@ -1596,8 +1596,8 @@
     }
     el.className = '';
     $('#save-note-text').innerHTML = isIOS || isAndroid
-      ? '解放した演出・レート・ランキングは、この端末のブラウザに保存されます。<b>ホーム画面に追加</b>や<b>Google 連携</b>で消えにくくなります'
-      : '解放した演出・レート・ランキングは、このブラウザに保存されます。<b>Google と連携</b>すると、データを消しても戻せます';
+      ? '解放した演出・レート・ランキングは、この端末のブラウザに保存されます。<b>引き継ぎコード</b>や<b>ホーム画面に追加</b>で守れます'
+      : '解放した演出・レート・ランキングは、このブラウザに保存されます。<b>引き継ぎコード</b>を発行しておくと、データを消しても戻せます';
     $('#save-note-how').hidden = false; $('#save-note-how').textContent = isIOS || isAndroid ? '消えないようにする' : '記録を守る';
     el.hidden = lsGet('destroy-go-save-note') === '1';
   }
@@ -2462,7 +2462,7 @@
   // 開発者の端末だけの名前。端末で localStorage の destroy-go-dev を '1' にすると使う
   // （ほかの人が名乗れないよう、Firebase のルールで「ROBIT」「開発」が入った名前は開発者の端末しか書けない）
   const DEV_NAME = 'ROBIT（開発者）';
-  // 開発者：この端末で destroy-go-dev を '1' にしたか、Google 連携で開発者の記録に切り替えた端末
+  // 開発者：この端末で destroy-go-dev を '1' にしたか、引き継ぎコードで開発者の記録に切り替えた端末
   const isDev = () => { try { if (localStorage.getItem('destroy-go-dev') === '1') return true; } catch (e) { /* 無視 */ } return Online.me() === 'RBJU7o2rpuTScawapNfCBFPXHhj2'; };
   let myRating = null; // { r, n, name }（オンライン対戦の画面を開いたときに読む）
   async function loadRating() {
@@ -2547,9 +2547,9 @@
     el.className = ''; void el.offsetWidth; el.className = 'show';
     FX.heal();
   }
-  // ---------- 記録の引き継ぎ（Google 連携）----------
+  // ---------- 記録の引き継ぎ（引き継ぎコード）----------
   // レート・名前・初代デストロイヤーは Firebase にある。解放した演出・BGM などもここに写しておき、
-  // 別の端末や製品版で同じ Google アカウントと連携すれば戻せるようにする
+  // 別の端末や製品版で引き継ぎコードを入れれば戻せるようにする
   const linked = () => lsGet('destroy-go-linked') === '1';
   const profileData = () => ({ fx: [...secretUnlocked], bgm: [...bgmUnlocked], founder: myFounder || 0, random: randomPlayed() });
   function syncProfile() { if (linked() && Online.available()) Online.saveProfile(profileData()).catch(() => {}); }
@@ -2578,23 +2578,63 @@
       syncProfile();
     } catch (e) { /* つながらないときは、この端末の記録のまま */ }
   }
+  // Google 連携を出すか。個人情報（メールアドレス）を持たないため、引き継ぎコードだけにしている。
+  // 前に Google と連携した人には「Google 連携を外す」を出す
+  const GOOGLE_LINK = false;
+  const PRIVACY_URL = 'privacy.html';
   async function openAccount() {
     $('#online-pop').hidden = false; onlineEntry = 'blank';
     onlineView('<p class="on-wait">準備しています</p>');
     try { await Online.ready(); } catch (e) { onlineError(e); return; }
     const a = Online.account();
-    if (a.linked && !linked()) lsSet('destroy-go-linked', '1');
-    const body = a.linked
-      ? `<p class="on-title">🔗 記録の引き継ぎ</p>
-        <p>✅ <b>Google と連携しています</b>${a.email ? `（${esc(a.email)}）` : ''}</p>
-        <p class="on-set">レート・名前・初代デストロイヤー・解放した演出と BGM は、この Google アカウントに保存されます。別の端末や製品版でも、同じ Google アカウントで連携すれば戻ります。</p>`
-      : `<p class="on-title">🔗 記録の引き継ぎ</p>
-        <p>Google と連携すると、記録を Google アカウントに保存できます。</p>
-        <ul class="on-list"><li>ブラウザのデータを消しても戻せる</li><li>別の端末や<b>製品版</b>でも、同じ Google アカウントで連携すれば引き継げる</li><li>保存するのは レート・名前・初代デストロイヤー・解放した演出と BGM</li></ul>
-        <button class="accent" id="on-link">Google で連携する</button>
-        <p class="on-note">連携しなくても、今までどおり遊べます。メールアドレスなどがほかの人に見えることはありません。</p>`;
-    onlineView(`${body}<button id="on-back">戻る</button>`);
+    if ((a.linked || a.code) && !linked()) lsSet('destroy-go-linked', '1');
+    const saved = lsGet('destroy-go-transfer-code') || '';
+    const codeBox = a.code
+      ? `<div class="on-box"><p class="on-box-title">🔑 引き継ぎコード</p>
+          ${saved ? `<div class="on-tcode">${esc(saved)}</div><button id="on-copy">コピーする</button>` : '<p class="on-set">この記録には引き継ぎコードがあります（この端末では表示できません）。</p>'}
+          <p class="on-set">別の端末や製品版で「コードを入れて記録を戻す」に入力すると、この記録が戻ります。<b>ほかの人には教えないでください。</b></p>
+          <button id="on-recode">コードを作り直す</button></div>`
+      : `<div class="on-box"><p class="on-box-title">🔑 引き継ぎコード（個人情報なし）</p>
+          <p class="on-set">16文字のコードを発行します。メールアドレスなどは使いません。コードはメモやスクショで保存してください。</p>
+          <button class="accent" id="on-issue">引き継ぎコードを発行する</button></div>`;
+    const googleBox = !GOOGLE_LINK ? (a.linked ? `<div class="on-box"><p class="on-box-title">Google 連携</p>
+          <p class="on-set">この記録は Google アカウントとつながっています。デストロイ碁はメールアドレスなどの個人情報を持たないことにしたので、外せます（先に引き継ぎコードを発行しておくと安心です）。</p>
+          <button id="on-unlink">Google 連携を外す</button></div>` : '') : a.linked
+      ? `<div class="on-box"><p class="on-box-title">Google 連携</p><p>✅ <b>Google と連携しています</b>${a.email ? `（${esc(a.email)}）` : ''}</p></div>`
+      : `<div class="on-box"><p class="on-box-title">Google 連携</p>
+          <p class="on-set">コードを覚えておかなくても、Google アカウントで記録を戻せます。メールアドレスは記録をつなぐためだけに使います。ほかのプレイヤーには見えません（運営の管理画面には表示されます）。</p>
+          <button id="on-link">Google で連携する</button></div>`;
+    onlineView(`<p class="on-title">🔗 記録の引き継ぎ</p>
+      <p class="on-set">レート・名前・初代デストロイヤー・解放した演出と BGM を、別の端末や<b>製品版</b>に引き継げます。データを消してしまったときも戻せます。</p>
+      ${codeBox}${googleBox}
+      <div class="on-box"><p class="on-box-title">コードを入れて記録を戻す</p>
+        <div class="on-join"><input id="on-tin" maxlength="19" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters"><button id="on-use" class="accent">戻す</button></div></div>
+      <p class="on-note">コードを発行しなくても、今までどおり遊べます。<a href="${PRIVACY_URL}" target="_blank" rel="noopener">プライバシーポリシー</a></p>
+      <button id="on-back">戻る</button>`);
     $('#on-back').onclick = onlineBack;
+    const showCode = (code) => { lsSet('destroy-go-transfer-code', code); lsSet('destroy-go-linked', '1'); Online.saveProfile(profileData()).catch(() => {}); openAccount(); };
+    const fail = (e) => toast(e && e.code === 'auth/operation-not-allowed' ? '引き継ぎコードはまだ準備中です'
+      : e && e.code === 'auth/requires-recent-login' ? 'コードを作り直せませんでした。この端末でもう一度コードを入れて戻してから試してください'
+      : `うまくいきませんでした（${(e && (e.code || e.message)) || '不明'}）`);
+    if ($('#on-issue')) $('#on-issue').onclick = () => Online.issueCode().then(showCode).catch(fail);
+    if ($('#on-recode')) $('#on-recode').onclick = () => { if (confirm('コードを作り直すと、前のコードは使えなくなります。作り直しますか？')) Online.issueCode().then(showCode).catch(fail); };
+    if ($('#on-copy')) $('#on-copy').onclick = () => { try { navigator.clipboard.writeText(saved).then(() => toast('コピーしました')); } catch (e) { toast('コピーできませんでした。手で書き写してください'); } };
+    $('#on-use').onclick = async () => {
+      const code = $('#on-tin').value;
+      if (!confirm('コードの記録に切り替えますか？\n\n・レートと名前は、コードの記録のものになります\n・解放した演出と BGM は、両方を合わせます')) return;
+      try {
+        await Online.useCode(code);
+        lsSet('destroy-go-linked', '1'); lsSet('destroy-go-founder', '0');
+        lsSet('destroy-go-transfer-code', code.toUpperCase().replace(/[^A-Z0-9]/g, '').match(/.{4}/g).join('-'));
+        location.reload();
+      } catch (e) {
+        toast(e && (e.code === 'bad-code' || /user-not-found|wrong-password|invalid-credential|invalid-login|invalid-email/.test(e.code || '')) ? 'コードがちがいます。もう一度確かめてください' : `戻せませんでした（${(e && (e.code || e.message)) || '不明'}）`);
+      }
+    };
+    if ($('#on-unlink')) $('#on-unlink').onclick = () => {
+      if (!confirm('Google 連携を外しますか？\n（レートなどの記録はそのまま残ります）')) return;
+      Online.unlinkGoogle().then(() => { toast('Google 連携を外しました'); openAccount(); }).catch(fail);
+    };
     if (!$('#on-link')) return;
     $('#on-link').onclick = () => {
       // ログイン画面は、押してすぐ開かないとブラウザに止められるので、待たずに呼ぶ

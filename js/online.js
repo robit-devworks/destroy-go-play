@@ -14,6 +14,17 @@
   const ed = root.EDITION || {};
   const useLocal = /[?&]online=local\b/.test(location.search);
 
+  // 引き継ぎコード：XXXX-XXXX-XXXX-XXXX（前の 8 文字が ID、うしろの 8 文字がパスワード。読み間違えやすい文字は使わない）
+  const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const randCode = (n) => { const a = new Uint32Array(n); crypto.getRandomValues(a); return Array.from(a, (x) => CODE_CHARS[x % CODE_CHARS.length]).join(''); };
+  const codeMail = (id) => `t-${id.toLowerCase()}@destroy-go.invalid`;
+  const codeOf = (mail, pass) => (mail.slice(2, 10).toUpperCase() + pass).match(/.{4}/g).join('-');
+  function splitCode(code) {
+    const c = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (c.length !== 16) throw Object.assign(new Error('コードは16文字です'), { code: 'bad-code' });
+    return { id: c.slice(0, 8), pass: c.slice(8) };
+  }
+
   function loadScript(src) {
     return new Promise((res, rej) => {
       const s = document.createElement('script');
@@ -93,9 +104,12 @@
       async topRatings(n) { const all = JSON.parse(localStorage.getItem('destroy-go-local-ratings') || '{}'); return Object.entries(all).map(([u, v]) => ({ u, ...v })).sort((a, b) => b.r - a.r).slice(0, n); },
       async saveKifu(k) { const all = JSON.parse(localStorage.getItem('destroy-go-local-kifus') || '{}'); all[me] = [...(all[me] || []), k].slice(-5); localStorage.setItem('destroy-go-local-kifus', JSON.stringify(all)); },
       async listKifus(u) { const all = JSON.parse(localStorage.getItem('destroy-go-local-kifus') || '{}'); return (all[u] || []).slice().reverse(); },
-      account() { return { linked: sessionStorage.getItem('destroy-go-local-linked') === '1', email: 'test@example.com' }; },
+      account() { return { linked: sessionStorage.getItem('destroy-go-local-linked') === '1', email: 'test@example.com', code: sessionStorage.getItem('destroy-go-local-code') === '1' }; },
+      async issueCode() { sessionStorage.setItem('destroy-go-local-code', '1'); return codeOf(codeMail(randCode(8)), randCode(8)); },
+      async useCode(code) { splitCode(code); },
       async linkGoogle() { sessionStorage.setItem('destroy-go-local-linked', '1'); return { ok: true }; },
       async switchTo() {},
+      async unlinkGoogle() { sessionStorage.removeItem('destroy-go-local-linked'); },
       async saveProfile(v) { const all = JSON.parse(localStorage.getItem('destroy-go-local-users') || '{}'); all[me] = { ...(all[me] || {}), ...v }; localStorage.setItem('destroy-go-local-users', JSON.stringify(all)); },
       async loadProfile() { return JSON.parse(localStorage.getItem('destroy-go-local-users') || '{}')[me] || null; },
       async founders() { const v = JSON.parse(localStorage.getItem('destroy-go-local-founders') || '{}'); return { count: v.count || 0, list: v.list || {} }; },
@@ -230,7 +244,20 @@
         return out.reverse(); // 新しい順
       },
       // ---- 記録の引き継ぎ（Google 連携）----
-      account() { const u = auth.currentUser, g = u && u.providerData.find((p) => p.providerId === 'google.com'); return { linked: !!g, email: g ? g.email : '' }; },
+      account() {
+        const u = auth.currentUser, pd = (u && u.providerData) || [], g = pd.find((p) => p.providerId === 'google.com');
+        return { linked: !!g, email: g ? g.email : '', code: pd.some((p) => p.providerId === 'password') };
+      },
+      // 引き継ぎコード：個人情報を使わず、ランダムな ID とパスワードで今の記録につなぐ（中身はメール・パスワードのログイン。メールは送らない）
+      async issueCode() {
+        const u = auth.currentUser, has = u.providerData.some((p) => p.providerId === 'password');
+        const pass = randCode(8);
+        if (has) { await u.updatePassword(pass); return codeOf(u.providerData.find((p) => p.providerId === 'password').email, pass); }
+        const id = randCode(8);
+        await u.linkWithCredential(fb.auth.EmailAuthProvider.credential(codeMail(id), pass));
+        return codeOf(codeMail(id), pass);
+      },
+      async useCode(code) { const c = splitCode(code); await auth.signInWithEmailAndPassword(codeMail(c.id), c.pass); },
       // 今の匿名の記録を Google アカウントにつなぐ（ID は変わらない）。
       // その Google アカウントが別の記録とつながっていたら { other: 資格情報 } を返す（切り替えるかは app.js で聞く）
       async linkGoogle() {
@@ -240,6 +267,7 @@
           throw e;
         }
       },
+      async unlinkGoogle() { await auth.currentUser.unlink('google.com'); },
       async switchTo(credential) { await auth.signInWithCredential(credential); }, // 前の記録に切り替える（ページを読み直して使う）
       async saveProfile(v) { db.goOnline(); return db.ref('users/' + me).update({ ...v, t: fb.database.ServerValue.TIMESTAMP }); },
       async loadProfile() { db.goOnline(); return (await db.ref('users/' + me).get()).val(); },
@@ -305,6 +333,9 @@
     account() { return tp ? tp.account() : { linked: false, email: '' }; },
     linkGoogle() { return tp.linkGoogle(); },
     async switchTo(c) { return tp.switchTo(c); },
+    issueCode() { return tp.issueCode(); },
+    unlinkGoogle() { return tp.unlinkGoogle(); },
+    useCode(code) { return tp.useCode(code); },
     async saveProfile(v) { return (await transport()).saveProfile(v); },
     async loadProfile() { return withTimeout(transport().then((t) => t.loadProfile()), LIMIT); },
   };
