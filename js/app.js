@@ -2462,7 +2462,8 @@
   // 開発者の端末だけの名前。端末で localStorage の destroy-go-dev を '1' にすると使う
   // （ほかの人が名乗れないよう、Firebase のルールで「ROBIT」「開発」が入った名前は開発者の端末しか書けない）
   const DEV_NAME = 'ROBIT（開発者）';
-  const isDev = () => { try { return localStorage.getItem('destroy-go-dev') === '1'; } catch (e) { return false; } };
+  // 開発者：この端末で destroy-go-dev を '1' にしたか、Google 連携で開発者の記録に切り替えた端末
+  const isDev = () => { try { if (localStorage.getItem('destroy-go-dev') === '1') return true; } catch (e) { /* 無視 */ } return Online.me() === 'RBJU7o2rpuTScawapNfCBFPXHhj2'; };
   let myRating = null; // { r, n, name }（オンライン対戦の画面を開いたときに読む）
   async function loadRating() {
     if (myRating) return myRating;
