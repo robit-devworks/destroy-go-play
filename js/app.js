@@ -1152,11 +1152,15 @@
   // パスで終局したとき：デストロイルールなら「地の総攻撃」。地 1 目につき相手に 1 ダメージを同時に与える。
   // 計算は同時だが、見せるのは地の少ないほうから（逆転があるかどうかを最後まで引っぱる）。同じなら地で計算
   // 地は、死に石をコンピューターに推定させてから数える
+  // ランダムマッチ・ランクマッチのデストロイは、死に石を判定しない（盤の石はすべて生きとして数える。判定のまちがいでもめないように）。
+  // 死んでいる石は、パスする前に自分で取りきる（取ればダメージにもなる）
+  const noDeadJudge = () => !!(net && dstate && (net.kind === 'random' || net.kind === 'rank'));
   function endByPasses() {
     if (!dstate) { if (net) onlineScore(); else enterScoring(); return; }
     phase = 'over'; clock.stop();
     const serial = gameSerial;
-    deadStones().then((deadList) => {
+    if (noDeadJudge()) toast('死に石の判定なし：盤の石はすべて生きているものとして地を数えます');
+    (noDeadJudge() ? Promise.resolve([]) : deadStones()).then((deadList) => {
       if (serial !== gameSerial) return;
       const sc = game.score(new Set(deadList));
       const terr = { [BLACK]: sc.detail[BLACK].territory, [WHITE]: sc.detail[WHITE].territory };
@@ -1300,6 +1304,11 @@
   // ---------- ボタン ----------
   $('#btn-pass').onclick = () => {
     if (phase !== 'play' || performance.now() < lockUntil || notMyTurn()) return;
+    // ランダム・ランクマッチのデストロイは死に石を判定しないので、初めてパスするときに 1 回だけ知らせる
+    if (noDeadJudge() && lsGet('destroy-go-pass-tip') !== '1') {
+      lsSet('destroy-go-pass-tip', '1');
+      if (!confirm('ランダムマッチ・ランクマッチでは、死に石を判定しません。\n盤の石はすべて生きているものとして地を数えます。\n\n相手の地に残った死んでいる石は、パスする前に取りきろう（取ればダメージにもなる）。\n\nパスしますか？')) return;
+    }
     cancelCharge();
     doPass();
   };
@@ -1703,14 +1712,14 @@
         if (dstate && title.startsWith('K.O.')) later(() => unlockSecret('thunder'), 700);
         if (cpuSide && cpuLevelInGame === 9) later(() => unlockSecret('light'), 700);
         if (cpuSide && cpuLevelInGame >= 5) later(() => unlockBgm('boss03'), 4900); // 演出の解放と重ならないよう後で
-        if (warmupCpu && cpuSide && !rankOpen() && randomPlayed() < RANK_RANDOM) {
+        if (warmupCpu && cpuSide && randomPlayed() < RANK_UNLOCK) {
           lsSet('destroy-go-random-played', randomPlayed() + 1); syncProfile(); renderRankTop();
-          later(() => toast(rankOpen() ? '🏆 ランクマッチが開きました！' : `ランクマッチまで：${rankLockText()}（CPU 戦は勝ったときだけ数えます）`), 1200);
+          later(() => toast(rankButtonOpen() ? '🏆 ランクマッチのボタンが押せるようになりました！' : `ランクマッチまで：あと ${rankRandomLeft()} 局（CPU 戦は勝ったときだけ数えます）`), 1200);
         }
         // 上級ルールの CPU 戦で勝った（ランクマッチの開放の条件）
         if (cpuSide && dstate && dstate.advanced && !advCpuWon()) {
           lsSet('destroy-go-adv-cpu-win', '1'); syncProfile(); renderRankTop();
-          later(() => toast(rankOpen() ? '🏆 上級ルールで勝った！ランクマッチが開きました' : `上級ルールで勝った！ランクマッチまで：${rankLockText()}`), 1400);
+          later(() => toast(rankOpen() ? '🏆 上級ルールで勝った！ランクマッチに入れます' : `上級ルールで勝った！あとはランダムマッチ ${rankRandomLeft()} 局`), 1400);
         }
       }
       // 終えた対局の数（BGM の解放に使う）
@@ -2480,17 +2489,21 @@
   const settingText = (st) => `${st.size}路・${st.mode === 'destroy' ? `デストロイ${st.adv ? '上級' : '初級'}` : `ふつうの囲碁（${RULES[st.rules].label}）`}・持ち時間${st.min}分`;
   function onlineView(html) { $('#online-body').innerHTML = html; }
   // ランダムマッチ（β）のルール。人が少ないうちは分かれないよう 1 つだけ。ランクマッチは上級でレートが動く
-  const RANDOM_RULE = { size: 9, mode: 'destroy', adv: false, rules: 'japanese', min: 3 };
+  // ランダムマッチ：ふだんは 9 路・3 分、週末（日本時間の土日）は 13 路・5 分。待合室は 1 つのまま（ルールは部屋を作った側のものになる）
+  const isWeekend = () => [0, 6].includes(new Date(Date.now() + 9 * 3600000).getUTCDay());
+  const randomRule = () => (isWeekend() ? { size: 13, mode: 'destroy', adv: false, rules: 'japanese', min: 5 } : { size: 9, mode: 'destroy', adv: false, rules: 'japanese', min: 3 });
   const RANK_RULE = { size: 9, mode: 'destroy', adv: true, rules: 'japanese', min: 3 };
-  // ランクマッチの開放：ランダムマッチ（待ち時間の CPU 戦の勝ちも含む）を 2 局 ＋ 上級ルールの CPU 戦で 1 勝。
-  // 上級ルールを一度体験してからランクマッチ（上級）に入れるようにする。前の決まり（ランダムマッチ 3 局）で開いた人はそのまま
-  const RANK_UNLOCK = 3, RANK_RANDOM = 2;
+  // ランクマッチの開放：ランダムマッチ（待ち時間の CPU 戦の勝ちも含む）を 3 局でボタンが押せるようになり、
+  // 押すと、上級ルールの CPU 戦で 1 勝するよう案内する（上級を一度体験してからランクマッチに入る）。前にランクマッチを遊んだ人はそのまま
+  const RANK_UNLOCK = 3;
   const advCpuWon = () => lsGet('destroy-go-adv-cpu-win') === '1';
-  const rankOpen = () => randomPlayed() >= RANK_UNLOCK || (randomPlayed() >= RANK_RANDOM && advCpuWon());
-  const rankRandomLeft = () => (rankOpen() ? 0 : Math.max(0, RANK_RANDOM - randomPlayed()));
+  const rankPlayedBefore = () => lsGet('destroy-go-rank-played') === '1';
+  const rankButtonOpen = () => rankPlayedBefore() || randomPlayed() >= RANK_UNLOCK;
+  const rankOpen = () => rankPlayedBefore() || (randomPlayed() >= RANK_UNLOCK && advCpuWon());
+  const rankRandomLeft = () => (rankButtonOpen() ? 0 : RANK_UNLOCK - randomPlayed());
   function rankLockText() {
-    const r = rankRandomLeft(), a = !rankOpen() && !advCpuWon();
-    return [r ? `ランダムマッチ あと ${r} 局` : '', a ? '上級ルールの CPU 戦で 1 勝' : ''].filter(Boolean).join('・');
+    const r = rankRandomLeft();
+    return r ? `ランダムマッチ（または待ち時間の CPU 戦の勝ち）あと ${r} 局` : !rankOpen() ? '上級ルールの CPU 戦で 1 勝' : '';
   }
   const randomPlayed = () => { try { return +localStorage.getItem('destroy-go-random-played') || 0; } catch (e) { return 0; } };
   // ---------- レート・ランキング ----------
@@ -2885,22 +2898,24 @@
     });
   }
   async function onlineRandom(kind = 'random') {
-    const RULE = kind === 'rank' ? RANK_RULE : RANDOM_RULE, label = kind === 'rank' ? 'ランクマッチ' : 'ランダムマッチ';
+    const RULE = kind === 'rank' ? RANK_RULE : randomRule(), label = kind === 'rank' ? 'ランクマッチ' : 'ランダムマッチ';
     if (kind === 'rank') await loadRating();
     const view = (n) => onlineView(`<p class="on-wait">相手を探しています</p>
       <p class="on-set">${label}：${settingText(RULE)}</p>
-      <p class="on-rule"><b>デストロイ碁オリジナルのルール</b>です。石を取ると相手にダメージ、HPを0にしても勝ち。待っている間にどうぞ<button id="on-rules">ルールを見る</button></p>
+      <p class="on-rule"><b>デストロイ碁オリジナルのルール</b>です。石を取ると相手にダメージ、HPを0にしても勝ち。<b>死に石は判定しない</b>ので、終わる前に取りきろう。待っている間にどうぞ<button id="on-rules">ルールを見る</button></p>
       <p class="on-founder" id="on-founder" hidden></p>
       <p class="on-set" id="on-count">${n ? `${label}を開いている人：${n}人` : ''}</p>
-      <button id="on-cpu" hidden>待っている間、CPU（Lv1）と対戦する${kind === 'random' && !rankOpen() && randomPlayed() < RANK_RANDOM ? '<small>勝つとランクマッチまでの 1 局に数えます</small>' : ''}</button><button id="on-cancel">やめる</button>`);
+      <div id="on-cpu-box" hidden>${cpuLevelRow()}</div>
+      <button id="on-cpu" hidden>待っている間、CPU と対戦する${kind === 'random' && randomPlayed() < RANK_UNLOCK ? '<small>勝つとランクマッチまでの 1 局に数えます</small>' : ''}</button><button id="on-cancel">やめる</button>`);
     view(0);
     $('#on-rules').onclick = () => openRulesFor(kind === 'rank');
     if (kind === 'rank' && !myFounder && !meIsDev()) loadFounders().then((f) => { const el = $('#on-founder'); if (el) { el.innerHTML = founderLeft(f); el.hidden = false; } });
     $('#on-cancel').onclick = () => { stopSeek(); Online.leave(); onlineBack(); };
     const showCpu = () => {
       if (!$('#on-cpu')) return;
-      $('#on-cpu').hidden = false;
-      $('#on-cpu').onclick = () => { stopSeek(); Online.leave(); $('#online-pop').hidden = true; $('#btn-beginner').click(); warmupCpu = kind === 'random'; };
+      $('#on-cpu').hidden = false; $('#on-cpu-box').hidden = false; bindCpuLevelRow();
+      // ランダムマッチの待ち時間は初級、ランクマッチの待ち時間は上級で
+      $('#on-cpu').onclick = () => { stopSeek(); Online.leave(); startOnlineCpu(kind === 'rank'); warmupCpu = kind === 'random'; };
     };
     stopSeek.t = setTimeout(showCpu, RANDOM_CPU_AFTER);
     try {
@@ -3137,10 +3152,10 @@
   $('#btn-friend-top').onclick = () => { FX.unlock(); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; } openOnline('friend'); };
   // ランクマッチは開放の条件をそろえるまで押せない（押すと、あと何が必要か案内する）
   function renderRankTop() {
-    const open = rankOpen();
-    $('#btn-rank-top').classList.toggle('locked', !open);
-    const r = rankRandomLeft(), a = !open && !advCpuWon();
-    $('#rank-top-note').textContent = open ? 'レートをかけて対戦' : `🔒 ${[r ? `あと${r}局` : '', a ? '上級CPUで1勝' : ''].filter(Boolean).join('＋')}`;
+    $('#btn-random-top span').textContent = isWeekend() ? '🔥 週末は13路！' : '知らない人とすぐ対戦';
+    const open = rankOpen(), btn = rankButtonOpen();
+    $('#btn-rank-top').classList.toggle('locked', !btn);
+    $('#rank-top-note').textContent = !btn ? `🔒 あと${rankRandomLeft()}局で開放` : open ? 'レートをかけて対戦' : 'まず上級をCPUで1勝';
     if (myRating && !myRating.fresh) $('#home-me').innerHTML = `${nameHtml(myRating.name)}${isDev() ? devBadge : founderBadge(myFounder)}　レート ${myRating.r}`;
     $('#btn-rank-top').title = open ? 'デストロイ上級・9路でレートをかけて対戦' : `ランクマッチまで：${rankLockText()}`;
   }
@@ -3150,6 +3165,25 @@
     if (!rankOpen() || lsGet('destroy-go-rank-intro') !== '1') { rankGuide(); return; }
     openOnline(); onlineRandom('rank');
   };
+  // オンラインの画面から始める CPU 戦（待ち時間の CPU 戦・上級の練習）。強さは選べて、選んだ強さを覚えておく
+  const onlineCpuLevel = () => Math.min(9, Math.max(1, +lsGet('destroy-go-online-cpu-level') || 1));
+  const cpuLevelRow = () => `<div class="on-lv"><span>CPU の強さ</span>${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((lv) => `<button data-lv="${lv}" aria-pressed="${lv === onlineCpuLevel()}">${lv}</button>`).join('')}</div>`;
+  function bindCpuLevelRow() {
+    $('#online-body').querySelectorAll('.on-lv button').forEach((b) => {
+      b.onclick = () => { lsSet('destroy-go-online-cpu-level', b.dataset.lv); $('#online-body').querySelectorAll('.on-lv button').forEach((x) => x.setAttribute('aria-pressed', x === b)); };
+    });
+  }
+  // adv：上級ルールにするか。9 路・置き石なしで始める
+  function startOnlineCpu(adv) {
+    $('#online-pop').hidden = true;
+    $('#opp-chips .chip[data-opp="cpu"]').click();
+    $(`#level-chips .chip[data-level="${onlineCpuLevel()}"]`).click();
+    $('#hc-chips .chip[data-hc="0"]').click();
+    $('#size-chips .chip[data-size="9"]').click();
+    $('#mode-chips .chip[data-mode="destroy"]').click();
+    $(`#dlevel-chips .chip[data-level="${adv ? 'advanced' : 'simple'}"]`).click();
+    FX.unlock(); newGame();
+  }
   // ランクマッチの案内：開くまでの条件と、上級ルールで加わること。初めて入る前にも 1 回出す
   const ADV_POINTS = [
     ['ため撃ち', '長押しで溜めてから打つと、取ったときのダメージが増える（溜めすぎると反動で自分も減る）'],
@@ -3159,24 +3193,24 @@
     ['2眼で回復', '2 眼で取られなくなった石が増えると HP が回復する'],
   ];
   function rankGuide() {
-    const open = rankOpen();
+    const open = rankOpen(), btn = rankButtonOpen(), won = advCpuWon();
     openOnline();
+    const head = !btn ? `<p class="on-rule">ランクマッチまで：<b>${rankLockText()}</b></p>`
+      : !open ? '<p class="on-rule">あと 1 つ！<b>上級ルールの CPU 戦で 1 勝</b>すると、ランクマッチに入れます。</p>' : '';
     onlineView(`<p class="on-title">🏆 ランクマッチ（デストロイ上級）</p>
-      ${open ? '<p>ランクマッチは<b>上級ルール</b>です。ランダムマッチ（初級）に、次のルールが加わります。</p>'
-        : `<p class="on-rule">ランクマッチまで：<b>${rankLockText()}</b></p><p>ランクマッチは<b>上級ルール</b>です。初級に、次のルールが加わります。</p>`}
+      ${head}<p>ランクマッチは<b>上級ルール</b>です。ランダムマッチ（初級）に、次のルールが加わります。</p>
       <ul class="on-list">${ADV_POINTS.map(([k, d]) => `<li><b>${k}</b>：${d}</li>`).join('')}</ul>
+      <p class="on-rule">ランクマッチ・ランダムマッチでは<b>死に石を判定しません</b>。相手の地に残った死んでいる石は、パスする前に取りきろう（取ればダメージにもなる）。</p>
       ${open ? '<button class="accent" id="on-rank-go">わかった、ランクマッチへ</button>' : ''}
-      <button ${open ? '' : 'class="accent" '}id="on-adv-cpu">先に CPU で上級を試す${!advCpuWon() ? '<small>勝つとランクマッチの条件の 1 つになります</small>' : ''}</button>
+      ${btn && !open ? '<button class="accent" id="on-adv-cpu">上級ルールで CPU と戦う<small>勝つとランクマッチに入れます</small></button>'
+        : `<button id="on-adv-cpu">${won ? 'CPU で上級を練習する' : '先に CPU で上級を試す'}</button>`}
+      ${cpuLevelRow()}
       <button id="on-adv-rules">ルールを詳しく見る</button>
       <p class="on-note">β版のため、シーズンの合間にバランスを調整することがあります。</p>
       <button id="on-back">戻る</button>`);
+    bindCpuLevelRow();
     if ($('#on-rank-go')) $('#on-rank-go').onclick = () => { lsSet('destroy-go-rank-intro', '1'); onlineRandom('rank'); };
-    $('#on-adv-cpu').onclick = () => {
-      $('#online-pop').hidden = true;
-      $('#mode-chips .chip[data-mode="destroy"]').click();
-      $('#dlevel-chips .chip[data-level="advanced"]').click();
-      $('#btn-beginner').click(); // CPU Lv1・9 路で始める
-    };
+    $('#on-adv-cpu').onclick = () => startOnlineCpu(true);
     $('#on-adv-rules').onclick = () => openRulesFor(true);
     $('#on-back').onclick = onlineBack;
   }
