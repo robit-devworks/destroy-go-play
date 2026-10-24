@@ -2575,7 +2575,12 @@
   let foundersCache = null, foundersAt = 0;
   async function loadFounders() {
     if (foundersCache && Date.now() - foundersAt < 60000) return foundersCache;
-    try { foundersCache = await Online.founders(); foundersAt = Date.now(); } catch (e) { foundersCache = foundersCache || { count: 0, list: {} }; }
+    try {
+      foundersCache = await Online.founders(); foundersAt = Date.now();
+      // サーバーの記録に合わせる（運営が番号を取り消したときなど、この端末にだけ古い番号が残らないように）
+      const n = foundersCache.list[Online.me()] || 0;
+      if (n !== myFounder) { myFounder = n; try { localStorage.setItem('destroy-go-founder', String(n)); } catch (e) { /* 無視 */ } renderRankTop(); }
+    } catch (e) { foundersCache = foundersCache || { count: 0, list: {} }; }
     return foundersCache;
   }
   const DEV_UID = 'RBJU7o2rpuTScawapNfCBFPXHhj2'; // 開発者（ROBIT）。初代デストロイヤーはもらわず、開発者の印をつける
