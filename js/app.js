@@ -2454,10 +2454,47 @@
   const randomPlayed = () => { try { return +localStorage.getItem('destroy-go-random-played') || 0; } catch (e) { return 0; } };
   // ---------- レート・ランキング ----------
   // 名前はゲームが組み合わせて作る（ふさわしくない名前が出ないように）。気に入らなければ引き直せる
-  const NAME_A = ['燃える', '凍える', '光る', '荒ぶる', '静かな', '眠れる', '無敵の', '謎の', '疾風の', '雷鳴の', '孤高の', '見習いの', '伝説の', '爆裂の', '漆黒の', '純白の', '気まぐれな', 'はらぺこの'];
-  const NAME_B = ['碁石', '棋士', '天元', '星', '名人', '大石', '一手', 'コウ', 'アゲハマ', '碁盤', '黒石', '白石', '二眼', '布石', '定石', '打ち手'];
+  // 名前ガチャ：「〇〇の」＋「△△」＋2けたの数字。たまにレアな言葉が出て、片方なら金色（レア）、両方なら虹色（伝説）になる。
+  // レアかどうかは名前の言葉で決まるので、ほかの人の画面でも同じ色で見える
+  const NAME_A = ['燃える', '凍える', '光る', '荒ぶる', '静かな', '眠れる', '無敵の', '謎の', '疾風の', '雷鳴の', '孤高の', '見習いの', '伝説の', '爆裂の', '漆黒の', '純白の', '気まぐれな', 'はらぺこの',
+    '暴走する', '怒れる', '笑う', '踊る', '泣き虫の', '真夜中の', '真紅の', '蒼き', '黄金の', '鋼の', '紅蓮の', '氷結の', '灼熱の', '電光の', '轟く', '砕ける', '崩れる', '目覚めた',
+    '迷える', 'のんびり', 'せっかちな', 'ねむい', 'まったり', '期待の', '最強の', '最弱の', '隠れた', '流浪の', '天才', '秘密の', '週末の', '雨の日の', '月夜の', 'ひらめきの'];
+  const NAME_B = ['碁石', '棋士', '天元', '星', '名人', '大石', '一手', 'コウ', 'アゲハマ', '碁盤', '黒石', '白石', '二眼', '布石', '定石', '打ち手',
+    '小目', '三々', 'シチョウ', 'ゲタ', 'ハネ', 'ノビ', 'ツケ', 'ノゾキ', 'ワタリ', 'セキ', '地', '模様', '厚み', '中押し', 'ヨセ', '手筋',
+    'ゴリラ', 'ドラゴン', '侍', '忍者', '魔王', '勇者', '騎士', '狼', '虎', '龍', 'タヌキ', 'ペンギン', 'カラス', 'ハムスター', '爆弾', '隕石', '火山', 'ロボ'];
+  const RARE_A = ['覇王の', '神域の', '終焉の', '天下無双の', '破壊神の', '幻の', '永劫の', '星喰いの'];
+  const RARE_B = ['デストロイヤー', '神の一手', '千年碁石', '碁神', '破壊王', '天地開闢', '黒龍', '流星'];
+  const RARE_P = 0.02; // それぞれの言葉がレアになる確率（金色はおよそ 4%、虹色は 0.04%）
   const pick = (a) => a[Math.floor(Math.random() * a.length)];
-  const makeName = () => `${pick(NAME_A)}${pick(NAME_B)}${Math.floor(10 + Math.random() * 90)}`;
+  const makeName = () => `${Math.random() < RARE_P ? pick(RARE_A) : pick(NAME_A)}${Math.random() < RARE_P ? pick(RARE_B) : pick(NAME_B)}${Math.floor(10 + Math.random() * 90)}`;
+  // 0：ふつう、1：レア（金色）、2：伝説（虹色）
+  const nameRank = (n) => (RARE_A.some((w) => String(n).startsWith(w)) ? 1 : 0) + (RARE_B.some((w) => String(n).includes(w)) ? 1 : 0);
+  // 引き直しは 1 日 3 回まで。引いたレアな名前は「キープ」に残り、あとでいつでも戻せる（回数は使わない）
+  const NAME_ROLLS = 3, KEEP_MAX = 8;
+  const today = () => new Date().toLocaleDateString('sv-SE'); // 2026-10-24 の形（端末の日付）
+  function rollsLeft() {
+    let v = null; try { v = JSON.parse(localStorage.getItem('destroy-go-name-rolls') || 'null'); } catch (e) { /* 無視 */ }
+    return v && v.d === today() ? Math.max(0, NAME_ROLLS - v.n) : NAME_ROLLS;
+  }
+  function useRoll() { try { localStorage.setItem('destroy-go-name-rolls', JSON.stringify({ d: today(), n: NAME_ROLLS - rollsLeft() + 1 })); } catch (e) { /* 無視 */ } }
+  function keptNames() { try { return JSON.parse(localStorage.getItem('destroy-go-name-keep') || '[]'); } catch (e) { return []; } }
+  function keepName(n) {
+    if (!nameRank(n)) return;
+    const k = keptNames().filter((x) => x !== n); k.unshift(n);
+    // 多すぎたら、ふつうのレアから古い順に外す（伝説は残す）
+    while (k.length > KEEP_MAX) { const i = k.map(nameRank).lastIndexOf(1); k.splice(i >= 0 ? i : k.length - 1, 1); }
+    try { localStorage.setItem('destroy-go-name-keep', JSON.stringify(k)); } catch (e) { /* 無視 */ }
+  }
+  // プレイヤータグ：ID から作る 4 文字。名前を引き直しても変わらないので、同じ人だと分かる
+  function playerTag(u) {
+    if (!u) return '';
+    let h = 2166136261; for (let i = 0; i < u.length; i++) { h ^= u.charCodeAt(i); h = Math.imul(h, 16777619); }
+    const C = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let t = ''; h >>>= 0;
+    for (let i = 0; i < 4; i++) { t += C[h % C.length]; h = Math.floor(h / C.length); }
+    return t;
+  }
+  const tagHtml = (u) => (u ? `<small class="ptag" title="プレイヤータグ（名前を変えても変わりません）">#${playerTag(u)}</small>` : '');
+  const nameHtml = (n) => { const r = nameRank(n); return `<b class="nm${r === 2 ? ' nm-legend' : r === 1 ? ' nm-rare' : ''}"${r ? ` title="${r === 2 ? '伝説の名前' : 'レアな名前'}"` : ''}>${esc(n)}</b>`; };
   const RATE0 = 1500;
   // 開発者の端末だけの名前。端末で localStorage の destroy-go-dev を '1' にすると使う
   // （ほかの人が名乗れないよう、Firebase のルールで「ROBIT」「開発」が入った名前は開発者の端末しか書けない）
@@ -2551,7 +2588,7 @@
   // レート・名前・初代デストロイヤーは Firebase にある。解放した演出・BGM などもここに写しておき、
   // 別の端末や製品版で引き継ぎコードを入れれば戻せるようにする
   const linked = () => lsGet('destroy-go-linked') === '1';
-  const profileData = () => ({ fx: [...secretUnlocked], bgm: [...bgmUnlocked], founder: myFounder || 0, random: randomPlayed() });
+  const profileData = () => ({ fx: [...secretUnlocked], bgm: [...bgmUnlocked], founder: myFounder || 0, random: randomPlayed(), keep: keptNames() });
   function syncProfile() { if (linked() && Online.available()) Online.saveProfile(profileData()).catch(() => {}); }
   // サーバーの記録と、この端末の記録を合わせる（どちらかで解放したものは全部使える）
   function mergeProfile(pf) {
@@ -2564,6 +2601,7 @@
       buildThemeChips(); renderThemes(); buildBgmChips();
     }
     if ((pf.random || 0) > randomPlayed()) lsSet('destroy-go-random-played', pf.random);
+    for (const n of (pf.keep || []).slice().reverse()) if (!keptNames().includes(n)) keepName(String(n));
     renderRankTop();
   }
   // 連携している人は、開いたときにサーバーの記録を読む（初代デストロイヤーの番号も、今の ID のものに合わせる）
@@ -2665,16 +2703,49 @@
   $('#btn-account').hidden = !Online.available() || EMBEDDED;
   $('#btn-account').onclick = () => { FX.unlock(); openAccount(); };
   restoreProfile();
+  // ランキングの下の「名前ガチャ」：引き直し（1 日 3 回）とキープした名前
+  function nameGachaBox(cur) {
+    const left = rollsLeft(), keep = keptNames().filter((n) => n !== cur);
+    return `<div class="on-gacha">
+      <button id="on-rename"${left ? '' : ' disabled'}>🎲 名前を引き直す（今日あと${left}回）</button>
+      <small>${left ? '今の名前は消えます。レアな名前は自動でキープされます' : '明日また引けます'}</small>
+      ${keep.length ? `<div class="on-keep"><span>キープ中：</span>${keep.map((n, i) => `<button data-keep="${i}">${nameHtml(n)}</button>`).join('')}</div>` : ''}
+    </div>`;
+  }
+  function bindNameGacha() {
+    const setName = (n) => { myRating.name = n; if (!myRating.fresh) saveRating(); syncProfile(); renderRankTop(); };
+    if ($('#on-rename')) $('#on-rename').onclick = () => {
+      if (!rollsLeft()) return;
+      keepName(myRating.name); useRoll();
+      const n = makeName(); keepName(n); setName(n); nameGachaFx(n); showRanking();
+    };
+    const keep = keptNames().filter((n) => n !== myRating.name);
+    $('#online-body').querySelectorAll('[data-keep]').forEach((b) => {
+      b.onclick = () => { keepName(myRating.name); setName(keep[+b.dataset.keep]); toast(`名前を「${keep[+b.dataset.keep]}」にしました`); showRanking(); };
+    });
+  }
+  // 名前を引き直したときの知らせ。レアなら解放の知らせと同じ形で出す
+  function nameGachaFx(n) {
+    const r = nameRank(n);
+    if (!r) { toast(`新しい名前：${n}`); return; }
+    const el = $('#unlock-pop');
+    el.innerHTML = r === 2 ? `<b>🌈 伝説の名前！</b><small>「${esc(n)}」 虹色に光ります（およそ 2500 回に 1 回）</small>`
+      : `<b>✨ レアな名前！</b><small>「${esc(n)}」 金色に光ります</small>`;
+    el.style.setProperty('--tc', r === 2 ? '#ff7ad9' : '#ffd23f');
+    el.className = ''; void el.offsetWidth; el.className = 'show';
+    FX.heal();
+  }
   async function showRanking() {
     onlineView('<p class="on-wait">ランキングを読み込んでいます</p>');
     try {
       const [list, me, f] = await Promise.all([Online.topRatings(50), loadRating(), loadFounders()]);
-      const rows = list.map((v, i) => `<li data-u="${v.u}"${v.u === Online.me() ? ' class="on-mine"' : ''}><span>${i + 1}</span><span class="rk-name"><b>${esc(v.name)}</b>${v.u === DEV_UID || (v.u === Online.me() && isDev()) ? devBadge : founderBadge(f.list[v.u], true)}</span><span>${v.r}</span><small>${v.n || 0}局</small></li>`).join('');
+      const rows = list.map((v, i) => `<li data-u="${v.u}"${v.u === Online.me() ? ' class="on-mine"' : ''}><span>${i + 1}</span><span class="rk-name">${nameHtml(v.name)}<span class="rk-sub">${tagHtml(v.u)}${v.u === DEV_UID || (v.u === Online.me() && isDev()) ? devBadge : founderBadge(f.list[v.u], true)}</span></span><span>${v.r}</span><small>${v.n || 0}局</small></li>`).join('');
       onlineView(`<p class="on-set">ランクマッチ（上級・9路）のレート上位 50 人。名前を押すと、直近 5 局の棋譜が見られます</p>
         <p class="on-founder">${founderLeft(f)}</p>
         <ol class="on-rank">${rows || '<li class="on-empty">まだ誰もいません</li>'}</ol>
-        <p class="on-me">あなた：<b>${esc(me.name)}</b>${meIsDev() ? devBadge : founderBadge(f.list[Online.me()] || myFounder)}（レート ${me.r}・${me.n}局）${isDev() ? '' : '<button id="on-rename">名前を変える</button>'}</p><button id="on-back">戻る</button>`);
-      if ($('#on-rename')) $('#on-rename').onclick = () => { myRating.name = makeName(); if (!myRating.fresh) saveRating(); showRanking(); };
+        <p class="on-me">あなた：${nameHtml(me.name)}${tagHtml(Online.me())}${meIsDev() ? devBadge : founderBadge(f.list[Online.me()] || myFounder)}（レート ${me.r}・${me.n}局）</p>
+        ${isDev() ? '' : nameGachaBox(me.name)}<button id="on-back">戻る</button>`);
+      bindNameGacha();
       $('#online-body').querySelectorAll('.on-rank li[data-u]').forEach((li) => { li.onclick = () => showPlayerKifus(li.dataset.u, li.querySelector('b').textContent); });
     } catch (e) { onlineView(`<p class="on-err">${e.message}</p><button id="on-back">戻る</button>`); }
     $('#on-back').onclick = onlineBack;
@@ -2688,7 +2759,7 @@
     const rows = list.map((k, i) => {
       const me = k.owner, foe = otherColor(me), win = k.result && k.result.winner === me;
       const date = k.date ? new Date(k.date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }) : '';
-      return `<li data-i="${i}"><span>${date}</span><b>vs ${esc(k.names && k.names[foe])}</b><span class="${win ? 'on-win' : 'on-lose'}">${win ? '勝ち' : '負け'}</span><small>${(k.moves || []).length}手</small></li>`;
+      return `<li data-i="${i}"><span>${date}</span><b>vs ${esc(k.names && k.names[foe])}${k.tags && k.tags[foe] ? ` <small class="ptag">#${esc(k.tags[foe])}</small>` : ''}</b><span class="${win ? 'on-win' : 'on-lose'}">${win ? '勝ち' : '負け'}</span><small>${(k.moves || []).length}手</small></li>`;
     }).join('');
     onlineView(`<p class="on-title">${esc(name)} の直近の棋譜</p>
       <ol class="on-rank">${rows || '<li class="on-empty">まだ棋譜がありません</li>'}</ol>
@@ -2816,7 +2887,7 @@
   function rankStart(opp) {
     if (!net || net.kind !== 'rank' || !myRating || net.opp) return;
     net.opp = opp; net.before = { ...myRating };
-    toast(`相手：${opp.name.replace(/[<>&]/g, '')}（レート ${opp.r}）`);
+    toast(`相手：${opp.name.replace(/[<>&]/g, '')}${opp.u ? ` #${playerTag(opp.u)}` : ''}（レート ${opp.r}）`);
     myRating.fresh = false;
     myRating.r = eloNext(net.before, opp, false); myRating.n = net.before.n + 1; saveRating();
   }
@@ -2833,7 +2904,8 @@
       if (kifu && kifu.moves.length) {
         const foe = otherColor(net.color);
         const k = JSON.parse(JSON.stringify({ ...kifu, cpu: null, names: { [net.color]: myRating.name, [foe]: net.opp.name },
-          rates: { [net.color]: net.before.r, [foe]: net.opp.r }, owner: net.color }));
+          rates: { [net.color]: net.before.r, [foe]: net.opp.r }, owner: net.color,
+          tags: { [net.color]: playerTag(Online.me()), [foe]: playerTag(net.opp.u || net.oppU) } }));
         Online.saveKifu(k).catch(() => {});
       }
       const d = myRating.r - net.before.r;
@@ -2909,7 +2981,7 @@
     if (m.g !== net.g) return;
     const foe = otherColor(net.color);
     if (m.t === 'th') { if (m.c === foe) { themes[foe] = m.k; renderThemes(); draw(); } return; }
-    if (m.t === 'rt') { rankStart({ r: m.r, n: m.n || 0, name: String(m.name || '') }); return; }
+    if (m.t === 'rt') { rankStart({ r: m.r, n: m.n || 0, name: String(m.name || ''), u: m.u }); return; }
     if (m.t === 'dead') { const d = m.d || []; if (net.deadWait) { net.deadWait(d); net.deadWait = null; } else net.deadIn = d; return; }
     if (phase !== 'play') return;
     if (m.t === 'resign') { endGame(`${NAMES[otherColor(m.c)]}の中押し勝ち`, `${NAMES[m.c]}が投了しました`, otherColor(m.c)); return; }
@@ -2931,7 +3003,7 @@
     const left = Math.max(0, RANK_UNLOCK - randomPlayed());
     $('#btn-rank-top').classList.toggle('locked', left > 0);
     $('#rank-top-note').textContent = left ? `🔒 あと${left}局で開放` : 'レートをかけて対戦';
-    if (myRating && !myRating.fresh) $('#home-me').innerHTML = `${esc(myRating.name)}${isDev() ? devBadge : founderBadge(myFounder)}　レート ${myRating.r}`;
+    if (myRating && !myRating.fresh) $('#home-me').innerHTML = `${nameHtml(myRating.name)}${isDev() ? devBadge : founderBadge(myFounder)}　レート ${myRating.r}`;
     $('#btn-rank-top').title = left ? `ランダムマッチをあと ${left} 局遊ぶと開放` : 'デストロイ上級・9路でレートをかけて対戦';
   }
   renderRankTop();

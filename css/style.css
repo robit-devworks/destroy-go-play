@@ -479,21 +479,31 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #online-body .on-err { color: #ff6a6a; font-weight: 700; }
 #online-body .on-me { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 #online-body .on-me b { color: var(--accent2); }
+#online-body .on-me b.nm { color: var(--text); } /* ふつうの名前は白。レアは金、伝説は虹 */
+#online-body .on-gacha { margin: 4px 0 10px; display: flex; flex-direction: column; gap: 4px; }
+#online-body .on-gacha #on-rename { margin: 0; padding: 8px; font-size: 14px; }
+#online-body .on-gacha small { color: var(--muted); font-size: 11px; text-align: center; }
+#online-body .on-keep { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); margin-top: 4px; }
+#online-body .on-keep button { width: auto; margin: 0; padding: 3px 10px; font-size: 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 210, 63, 0.4); }
 #online-body .on-me button { width: auto; margin: 0; padding: 3px 10px; font-size: 12px; border-radius: 999px; }
 #online-body button:disabled { opacity: 0.4; }
 #online-body .on-rank { list-style: none; margin: 6px 0; padding: 0; max-height: 45vh; overflow-y: auto; }
 #online-body .on-rank li { display: grid; grid-template-columns: 2.2em 1fr 3.5em 3em; gap: 6px; padding: 6px 4px; border-bottom: 1px dashed rgba(255, 255, 255, 0.1); align-items: center; }
 #online-body .on-rank li b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#online-body .on-rank .rk-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+#online-body .on-rank .rk-name { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; line-height: 1.35; }
+#online-body .on-rank .rk-name > b { max-width: 100%; }
+#online-body .on-rank .rk-sub { display: flex; align-items: center; gap: 4px; }
+#online-body .on-rank .rk-sub .badge-f { margin: 0; }
+#online-body .on-rank .rk-sub .ptag { margin: 0; }
 #online-body .on-founder { font-size: 12px; color: #e6dcf2; padding: 6px 10px; border-radius: 10px; background: rgba(255, 210, 63, 0.08); border: 1px solid rgba(255, 210, 63, 0.3); }
 #online-body .on-founder b { color: var(--gold); }
-/* 初代デストロイヤーの印 */
+/* 初代デストロイヤーの印（名前の横に控えめに。文字と細いふちだけ） */
 .badge-f {
-  flex: none; display: inline-block; font-style: normal; font-size: 10px; font-weight: 800; line-height: 1.5; letter-spacing: 0.02em; white-space: nowrap;
-  padding: 0 7px; margin: 0 4px; border-radius: 999px; color: #2a1600; vertical-align: middle;
-  background: linear-gradient(180deg, #fff1a8, #ffc928 55%, #e08a00); box-shadow: 0 0 8px rgba(255, 200, 40, 0.55);
+  flex: none; display: inline-block; font-style: normal; font-size: 10px; font-weight: 700; line-height: 1.45; letter-spacing: 0.02em; white-space: nowrap;
+  padding: 0 6px; margin: 0 4px; border-radius: 4px; vertical-align: middle;
+  color: #ffd23f; background: rgba(255, 210, 63, 0.1); border: 1px solid rgba(255, 210, 63, 0.45);
 }
-.badge-f.badge-dev { color: #fff; background: linear-gradient(180deg, #7fe3ff, #3a7bff 55%, #2a3fc0); box-shadow: 0 0 8px rgba(90, 170, 255, 0.6); }
+.badge-f.badge-dev { color: #7fc8ff; background: rgba(90, 170, 255, 0.1); border-color: rgba(90, 170, 255, 0.5); }
 #online-body .on-rank li small { color: var(--muted); text-align: right; }
 #online-body .on-rank li.on-mine { background: rgba(255, 210, 63, 0.12); }
 #online-body .on-rank li[data-u], #online-body .on-rank li[data-i] { cursor: pointer; }
@@ -787,3 +797,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #save-note #save-note-close { border: 0; background: transparent; color: var(--muted); font-size: 16px; padding: 0 4px; margin-left: auto; }
 #save-note.warn { background: rgba(255, 59, 47, 0.16); border-color: rgba(255, 90, 60, 0.7); color: #fff; }
 #save-note.warn b { color: #ffcc33; }
+
+/* プレイヤータグ（名前の横の #K7P2） */
+.ptag { flex: none; font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; margin-left: 2px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+/* 名前ガチャ：レア＝金色、伝説＝虹色 */
+.nm-rare { color: #ffd23f !important; text-shadow: 0 0 8px rgba(255, 210, 63, 0.7); }
+.nm-legend {
+  background: linear-gradient(90deg, #ff5a5a, #ffd23f, #5affa0, #5ad8ff, #c77dff, #ff5a5a); background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent !important; -webkit-text-fill-color: transparent;
+  animation: nm-rainbow 3s linear infinite; filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.4));
+}
+@keyframes nm-rainbow { to { background-position: -200% 0; } }
