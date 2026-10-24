@@ -2512,13 +2512,17 @@
   const DEV_UID = 'RBJU7o2rpuTScawapNfCBFPXHhj2'; // 開発者（ROBIT）。初代デストロイヤーはもらわず、開発者の印をつける
   const devBadge = '<i class="badge-f badge-dev" title="デストロイ碁の開発者">🛠 開発者</i>';
   const meIsDev = () => isDev() || Online.me() === DEV_UID;
+  // テスト用の端末（?tester=1 で一度開くと覚える）。初代デストロイヤーの番号を取らない
+  try { if (/[?&]tester=1\b/.test(location.search)) localStorage.setItem('destroy-go-tester', '1'); } catch (e) { /* 無視 */ }
+  const isTester = () => lsGet('destroy-go-tester') === '1';
   const founderBadge = (n, short) => (n ? `<i class="badge-f" title="初代デストロイヤー：ランクマッチを最初に終えた先着 ${FOUNDER_MAX} 人">${short ? '初代' : '👑 初代デストロイヤー '}#${String(n).padStart(2, '0')}</i>` : '');
-  const founderLeft = (f) => (meIsDev() ? `🛠 開発者は初代デストロイヤーをもらいません（先着${FOUNDER_MAX}人・残り${Math.max(0, FOUNDER_MAX - f.count)}枠）`
+  const founderLeft = (f) => (isTester() && !meIsDev() ? `🧪 テスト用の端末なので、初代デストロイヤーはもらいません（先着${FOUNDER_MAX}人・残り${Math.max(0, FOUNDER_MAX - f.count)}枠）`
+    : meIsDev() ? `🛠 開発者は初代デストロイヤーをもらいません（先着${FOUNDER_MAX}人・残り${Math.max(0, FOUNDER_MAX - f.count)}枠）`
     : f.list[Online.me()] || myFounder ? `👑 あなたは<b>初代デストロイヤー #${String(f.list[Online.me()] || myFounder).padStart(2, '0')}</b>です（先着${FOUNDER_MAX}人・残り${Math.max(0, FOUNDER_MAX - f.count)}枠）`
     : f.count >= FOUNDER_MAX ? '👑 初代デストロイヤー（先着100人）は締め切りました'
     : `👑 ランクマッチを1局終えると<b>初代デストロイヤー</b>の印がもらえます（先着${FOUNDER_MAX}人・残り${FOUNDER_MAX - f.count}枠）`);
   async function claimFounder() {
-    if (myFounder || meIsDev()) return;
+    if (myFounder || meIsDev() || isTester()) return;
     let n = 0;
     try { n = await Online.claimFounder(FOUNDER_MAX); } catch (e) { return; }
     if (!n) return;
