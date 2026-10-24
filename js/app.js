@@ -90,6 +90,9 @@
   try { const h = JSON.parse(localStorage.getItem('destroy-go-hpbonus') || '{}'); if ([0.25, 0.5, 1].includes(h.rate)) hpBonus = h.rate; if (h.color === WHITE) hpBonusColor = WHITE; } catch (e) { /* 無視 */ }
   // デストロイルールの種類：初級（基本だけ。中ではシンプル版と呼ぶ）か上級（倍率・反動あり）
   let dAdvanced = false;
+  // オンライン対戦（β）の状態。対戦していないときは null
+  //   { code, host, color, g: 何局目, min: 持ち時間, settings, applying: 相手の手を再現中, out: 送る手, again: もう一局を押した人, ... }
+  let net = null;
   try { dAdvanced = localStorage.getItem('destroy-go-dlevel') === 'advanced'; } catch (e) { /* 無視 */ }
   function renderMode() {
     document.querySelectorAll('#dlevel-chips .chip').forEach((c) => c.setAttribute('aria-pressed', (c.dataset.level === 'advanced') === dAdvanced));
@@ -168,10 +171,10 @@
   };
   addChip('#opp-chips', '2人で対局', { opp: 'human' }, () => { opponent = 'human'; });
   addChip('#opp-chips', 'コンピューター', { opp: 'cpu' }, () => { opponent = 'cpu'; });
-  { // オンライン対戦は製品版で準備中（押してもお知らせだけ）
+  { // オンライン対戦（β）：合言葉で友だちと対戦。通信先の設定がまだなら、お知らせだけ
     const chip = document.createElement('button');
-    chip.className = 'chip rule-chip soon'; chip.textContent = 'オンライン対戦（製品版）【coming soon】';
-    chip.onclick = () => toast('オンライン対戦は製品版で準備中です。お楽しみに！');
+    chip.className = 'chip rule-chip online-chip'; chip.textContent = 'オンライン対戦（β）';
+    chip.onclick = () => { if (Online.available()) openOnline(); else toast('オンライン対戦は準備中です。お楽しみに！'); };
     $('#opp-chips').appendChild(chip);
   }
   for (let lv = 1; lv <= 9; lv++) addChip('#level-chips', `Lv${lv}`, { level: lv }, () => { cpuLevel = lv; });
@@ -469,11 +472,13 @@
   }
   for (const color of [BLACK, WHITE]) {
     $('#p' + color + ' .p-theme').onclick = () => {
+      if (net && color !== net.color) return; // オンライン対戦では、相手の演出は変えられない
       // 相手が使っている演出は飛ばして次へ
       const keys = themeKeys();
       let i = keys.indexOf(themes[color]);
       do { i = (i + 1) % keys.length; } while (keys[i] === themes[otherColor(color)]);
       setTheme(color, keys[i]);
+      if (net) Online.send({ t: 'th', c: color, k: themes[color], g: net.g });
       toast(`${NAMES[color]}の演出：${themeOf(themes[color]).label}`);
     };
   }
@@ -738,7 +743,7 @@
     if (p < 0) return;
     if (phase === 'scoring') { toggleDead(p); return; }
     if (phase === 'tutorial') { tutTap(p); return; }
-    if (phase !== 'play' || performance.now() < lockUntil || isCpuTurn()) return;
+    if (phase !== 'play' || performance.now() < lockUntil || notMyTurn()) return;
     if (opt.confirm.checked && e.pointerType !== 'mouse' && p !== pending) {
       const r = game.tryPlay(p);
       if (!r.ok) { toast(r.reason); FX.blip(140, 0.12, 'sawtooth', 0.08); return; }
@@ -846,8 +851,9 @@
     }
     if (dstate) destroyAfterMove(mover, r.captured, i, maxCharge, hold);
     if (kifu) kifu.moves.push({ p: i, c: chargeLv, x: maxCharge ? 1 : 0, s: dstate && dstate.lastSpurt ? 1 : 0, t: themes[mover] });
-    if (r.captured.length >= 20 && !(cpuSide && mover === cpuSide)) later(() => unlockSecret('dark'), hold); // 隠し要素
-    if (dstate && dstate.lastHit === 'critical' && !(cpuSide && mover === cpuSide)) later(() => unlockBgm('lastboss01'), hold + 4500);
+    if (r.captured.length >= 20 && isMine(mover)) later(() => unlockSecret('dark'), hold); // 隠し要素
+    if (dstate && dstate.lastHit === 'critical' && isMine(mover)) later(() => unlockBgm('lastboss01'), hold + 4500);
+    if (net && mover === net.color && !net.applying) net.out = { t: 'p', p: i, c: chargeLv, x: maxCharge ? 1 : 0, s: dstate && dstate.lastSpurt ? 1 : 0 };
     checkNewEyes(Math.min(hold, 900) + 200);
     finishTurn(mover, hold);
   }
@@ -1034,7 +1040,9 @@
   // 石を取ったらダメージ、2 眼で取られなくなった石が増えたら回復。HP が 0 なら演出が終わってから KO
   let spurtShown = false;
   // ラストスパート：盤の 7 割が石で埋まるか、打つ側の持ち時間が 1 分以下
+  let spurtOverride = null; // オンライン対戦で相手の手を再現するときは、相手の画面で決まったラストスパートを使う
   function isSpurt(mover) {
+    if (spurtOverride !== null) return spurtOverride;
     if (!dstate || !dstate.advanced) return false;
     let stones = 0; for (const v of game.board) if (v) stones++;
     return stones >= SIZE * SIZE * DestroyRule.SPURT_FILL || clock.remaining(mover) <= DestroyRule.SPURT_TIME;
@@ -1093,12 +1101,12 @@
   // 計算は同時だが、見せるのは地の少ないほうから（逆転があるかどうかを最後まで引っぱる）。同じなら地で計算
   // 地は、死に石をコンピューターに推定させてから数える
   function endByPasses() {
-    if (!dstate) { enterScoring(); return; }
+    if (!dstate) { if (net) onlineScore(); else enterScoring(); return; }
     phase = 'over'; clock.stop();
     const serial = gameSerial;
-    askAI({ type: 'dead', state: aiState() }).then((r) => {
+    deadStones().then((deadList) => {
       if (serial !== gameSerial) return;
-      const sc = game.score(new Set(r.dead));
+      const sc = game.score(new Set(deadList));
       const terr = { [BLACK]: sc.detail[BLACK].territory, [WHITE]: sc.detail[WHITE].territory };
       const hp0 = { ...dstate.hp };
       const { left, winner: w, ko } = dstate.finalAttack(terr);
@@ -1148,6 +1156,7 @@
   let fxHoldStart = 0;
   function finishTurn(mover, hold = 0) {
     const delta = clock.endTurn(game.turn, hold);
+    if (net && net.out) { Online.send({ ...net.out, g: net.g, r: clock.remain[mover] }); net.out = null; } // 打った手と、打ったあとの持ち時間を相手に送る
     lockUntil = performance.now() + hold;
     fxHoldStart = hold > 0 ? performance.now() : 0;
     showDelta(mover, delta);
@@ -1171,10 +1180,14 @@
   }
   const aiState = () => ({ size: SIZE, board: Array.from(game.board), turn: game.turn, ko: game.koPoint, komi: game.komi, opponentPassed: game.passes > 0 });
   const isCpuTurn = () => cpuSide && phase === 'play' && game && game.turn === cpuSide;
+  // 自分では打てない手番（コンピューターか、オンライン対戦の相手の番）
+  const notMyTurn = () => isCpuTurn() || (net && game && game.turn !== net.color);
+  // 隠し要素などを数える「自分の手」か（コンピューターやオンラインの相手の手は数えない）
+  const isMine = (c) => (net ? c === net.color : !(cpuSide && c === cpuSide));
   function setThinking(on) { for (const c of [BLACK, WHITE]) $('#p' + c).classList.toggle('thinking', on && c === cpuSide); }
   function renderNames() {
     for (const c of [BLACK, WHITE]) {
-      const who = !cpuSide ? '' : c === cpuSide ? `（CPU Lv${cpuLevelInGame}）` : '（あなた）';
+      const who = net ? (c === net.color ? '（あなた）' : '（相手）') : !cpuSide ? '' : c === cpuSide ? `（CPU Lv${cpuLevelInGame}）` : '（あなた）';
       $('#p' + c + ' .p-name').firstChild.nodeValue = NAMES[c] + who + ' ';
     }
   }
@@ -1211,17 +1224,18 @@
     const hp = dstate.hp[foe];
     return DestroyRule.damage(n, SIZE, opts).amount < hp && DestroyRule.damage(n, SIZE, { ...opts, maxCharge: true }).amount >= hp;
   }
+  function doPass(who = '') {
+    const mover = game.turn;
+    if (dstate) { ruleHist.push(dstate.snapshot()); dstate.pass(mover); }
+    const r = game.pass(); if (kifu) kifu.moves.push({ p: -1 });
+    toast(`${NAMES[mover]}${who}がパスしました`);
+    if (net && mover === net.color && !net.applying) net.out = { t: 'pass' };
+    finishTurn(mover);
+    if (r.ended) endByPasses();
+  }
   function cpuPlay(move) {
     const t = move >= 0 ? game.tryPlay(move) : null;
-    if (!t || !t.ok) { // パス
-      const mover = game.turn;
-      if (dstate) { ruleHist.push(dstate.snapshot()); dstate.pass(mover); }
-      const r = game.pass(); if (kifu) kifu.moves.push({ p: -1 });
-      toast(`${NAMES[mover]}（CPU）がパスしました`);
-      finishTurn(mover);
-      if (r.ended) endByPasses();
-      return;
-    }
+    if (!t || !t.ok) { doPass('（CPU）'); return; } // パス
     // 取れる手ならため撃ちで煽る（強いほど長くためる。レベル 1〜3 はためない）
     const steps = chargeSteps(t.captured.length);
     let target = cpuLevelInGame <= 3 ? 0 : cpuLevelInGame <= 6 ? 1 : steps.length;
@@ -1233,14 +1247,9 @@
 
   // ---------- ボタン ----------
   $('#btn-pass').onclick = () => {
-    if (phase !== 'play' || performance.now() < lockUntil || isCpuTurn()) return;
+    if (phase !== 'play' || performance.now() < lockUntil || notMyTurn()) return;
     cancelCharge();
-    const mover = game.turn;
-    if (dstate) { ruleHist.push(dstate.snapshot()); dstate.pass(mover); }
-    const r = game.pass(); if (kifu) kifu.moves.push({ p: -1 });
-    toast(`${NAMES[mover]}がパスしました`);
-    finishTurn(mover);
-    if (r.ended) endByPasses();
+    doPass();
   };
 
   function undoOne() {
@@ -1248,7 +1257,7 @@
     dlog = dlog.filter((e) => e.move <= game.moveNumber); // 待ったした手の履歴も消す
   }
   $('#btn-undo').onclick = () => {
-    if (phase !== 'play' || !game.history.length) return;
+    if (phase !== 'play' || !game.history.length || net) return;
     cancelCharge();
     if (cpuSide) {
       // コンピューター戦：考え中ならやめて自分の手だけ戻す。自分の手番なら、コンピューターの手と自分の手を戻す
@@ -1289,7 +1298,7 @@
   }
   $('#btn-resign').onclick = () => {
     if (phase !== 'play') return;
-    const loser = game.turn;
+    const loser = net ? net.color : game.turn; // オンライン対戦では、相手の手番でも自分が投了する
     if (performance.now() > resignArmed) {
       resignArmed = performance.now() + 3000;
       $('#btn-resign').textContent = 'もう一度で投了';
@@ -1298,6 +1307,7 @@
       return;
     }
     disarmResign();
+    if (net) Online.send({ t: 'resign', c: loser, g: net.g });
     endGame(`${NAMES[otherColor(loser)]}の中押し勝ち`, `${NAMES[loser]}が投了しました`, otherColor(loser));
   };
 
@@ -1455,7 +1465,7 @@
       $('#modal').classList.add('show');
       FX.boom(0.6);
       // 隠し要素：人が勝ったとき（コンピューター戦なら人の側）
-      if (winner && (!cpuSide || winner !== cpuSide)) {
+      if (winner && isMine(winner)) {
         if (dstate && title.startsWith('K.O.')) later(() => unlockSecret('thunder'), 700);
         if (cpuSide && cpuLevelInGame === 9) later(() => unlockSecret('light'), 700);
         if (cpuSide && cpuLevelInGame >= 5) later(() => unlockBgm('boss03'), 4900); // 演出の解放と重ならないよう後で
@@ -1484,8 +1494,11 @@
     $('#btn-result').hidden = false;
   };
   $('#btn-result').onclick = () => { $('#modal').classList.add('show'); $('#btn-result').hidden = true; };
-  $('#btn-again').onclick = () => { $('#modal').classList.remove('show'); newGame(); };
-  $('#btn-home').onclick = () => { $('#modal').classList.remove('show'); endReplay(); showScreen('title'); phase = 'title'; stopBgm(); };
+  $('#btn-again').onclick = () => {
+    if (net) { onlineAgain(); return; }
+    $('#modal').classList.remove('show'); newGame();
+  };
+  $('#btn-home').onclick = () => { leaveOnline(); $('#modal').classList.remove('show'); endReplay(); showScreen('title'); phase = 'title'; stopBgm(); };
 
   // ---------- 時計・パネル ----------
   function fmt(ms) {
@@ -1526,9 +1539,12 @@
     }
     gameEl.classList.toggle('fx-hold', phase === 'play' && fxHoldStart > 0);
     if (phase === 'play' || phase === 'paused') {
-      if (phase === 'play' && clock.isTimeUp()) {
-        const loser = game.turn;
+      const loser = game.turn;
+      // オンライン対戦で相手の時間が切れたときは、相手からの知らせを少し待つ（届かなければこちらで決める）
+      const waitPeer = net && phase === 'play' && clock.isTimeUp() && loser !== net.color && (net.zeroAt = net.zeroAt || performance.now()) > performance.now() - 5000;
+      if (phase === 'play' && clock.isTimeUp() && !waitPeer) {
         updatePanels();
+        if (net) Online.send({ t: 'timeout', c: loser, g: net.g });
         endGame(`${NAMES[otherColor(loser)]}の時間切れ勝ち`, `${NAMES[loser]}の持ち時間がなくなりました`, otherColor(loser));
       } else updatePanels();
     }
@@ -1553,8 +1569,10 @@
   function newGame() {
     bgmPick = null; playBgm(); // ランダムなら対局ごとに選び直す
     game = new GoGame(SIZE, rules);
-    clock = new GoClock({ base: minutes() * 60 * 1000 });
+    clock = new GoClock({ base: (net ? net.min : minutes()) * 60 * 1000 });
     $('#btn-result').hidden = true;
+    $('#btn-undo').hidden = $('#btn-pause').hidden = !!net; // オンライン対戦では待った・一時停止はなし
+    if (net) Object.assign(net, { zeroAt: 0, again: {}, out: null, deadIn: null, deadWait: null });
     dead = new Set(); wiped = new Set(); terrGlow = null; pending = -1; hover = -1; lockUntil = 0;
     BoardFX.clear();
     BoardFX.resetTraces();
@@ -1565,11 +1583,11 @@
     phase = 'play';
     layout();
     cpuToken++; setThinking(false); cpuLow = 0; gameSerial++;
-    dstate = mode === 'destroy' ? new DestroyRule.DestroyState(SIZE, { color: hpBonusColor, rate: hpBonus }, dAdvanced) : null; ruleHist = []; spurtShown = false;
+    dstate = mode === 'destroy' ? new DestroyRule.DestroyState(SIZE, net ? { color: BLACK, rate: 0 } : { color: hpBonusColor, rate: hpBonus }, dAdvanced) : null; ruleHist = []; spurtShown = false;
     dlog = []; $('#log-pop').hidden = true; $('#rules-pop').hidden = true; $('#btn-log').hidden = !dstate; // 履歴はデストロイルールのときだけ
-    const hc = effectiveHandicap();
+    const hc = net ? 0 : effectiveHandicap();
     if (hc) { game.setHandicap(hc); toast(`置き石${hc}子・白から打ちます`); }
-    cpuSide = opponent === 'cpu' ? otherColor(gameHumanColor()) : 0;
+    cpuSide = !net && opponent === 'cpu' ? otherColor(gameHumanColor()) : 0;
     // 棋譜（終わったら端末に保存して、あとで見返せる）
     kifu = { date: Date.now(), size: SIZE, rules, mode, adv: dAdvanced, hc, hpb: { color: hpBonusColor, rate: hpBonus },
       cpu: cpuSide ? { side: cpuSide, level: cpuLevel } : null, moves: [], result: null };
@@ -1578,6 +1596,7 @@
     clock.start(game.turn);
     updatePanels();
     FX.gameStart();
+    if (net) Online.send({ t: 'th', c: net.color, k: themes[net.color], g: net.g }); // 自分の演出を相手に知らせる
     maybeCpuTurn(); // コンピューターが黒なら先に打つ
   }
 
@@ -1811,6 +1830,7 @@
     $('#btn-title').classList.remove('accent');
   }
   function goTitle() {
+    leaveOnline();
     endReplay(); endTutorial();
     disarmTitle(); disarmResign(); cancelCharge();
     cpuToken++; setThinking(false); gameSerial++;
@@ -2085,10 +2105,137 @@
   };
 
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && phase === 'play') $('#btn-pause').onclick();
+    if (document.hidden && phase === 'play' && !net) $('#btn-pause').onclick(); // オンライン対戦は止められない
     // 別のアプリやタブに移ったら BGM も止める（戻ったら続きから）
     if (document.hidden) stopBgm(); else if (phase !== 'title' && phase !== 'preview') playBgm();
   });
+
+  // ---------- オンライン対戦（β）：合言葉の部屋で、打った手を送り合う ----------
+  // 部屋を作った人の設定（碁盤・ルール・持ち時間）で対局する。色は部屋を作った人がランダムに決め、もう一局ごとに入れ替える。
+  // 待った・一時停止はなし。パスで終局したら死に石は自動で判定する（部屋を作った人の画面で判定して送る）
+  const onlineHandlers = { onMove: (m) => onlineMove(m), onPeer: (e) => onlinePeer(e) };
+  const settingText = (st) => `${st.size}路・${st.mode === 'destroy' ? `デストロイ${st.adv ? '上級' : '初級'}` : `ふつうの囲碁（${RULES[st.rules].label}）`}・持ち時間${st.min}分`;
+  function onlineView(html) { $('#online-body').innerHTML = html; }
+  function openOnline() {
+    $('#online-pop').hidden = false;
+    const st = { size: SIZE, mode, adv: dAdvanced, rules, min: minutes() };
+    onlineView(`<p>合言葉（4けたの数字）で、友だちとオンラインで対戦できます。</p>
+      <button class="accent" id="on-create">部屋を作る</button>
+      <p class="on-set">今の設定で対局：${settingText(st)}</p>
+      <div class="on-or">── 合言葉を教えてもらったら ──</div>
+      <div class="on-join"><input id="on-code" inputmode="numeric" maxlength="4" placeholder="0000" autocomplete="off"><button id="on-join" class="accent">入る</button></div>
+      <p class="on-note">β版（テスト中）です。うまく動かないときは、不具合の報告から教えてください。<br>待った・一時停止はできません。対局中にアプリを閉じると、つながりが切れます。</p>`);
+    $('#on-create').onclick = () => onlineCreate(st);
+    $('#on-join').onclick = () => onlineJoin($('#on-code').value.trim());
+    $('#on-code').onkeydown = (e) => { if (e.key === 'Enter') $('#on-join').onclick(); };
+  }
+  function onlineError(e) {
+    onlineView(`<p class="on-err">${(e && e.message) || 'つながりませんでした'}</p><button id="on-back">戻る</button>`);
+    $('#on-back').onclick = openOnline;
+    Online.leave(); net = null;
+  }
+  async function onlineCreate(st) {
+    onlineView('<p class="on-wait">部屋を作っています</p>');
+    const settings = { ...st, hostColor: Math.random() < 0.5 ? BLACK : WHITE };
+    try {
+      const code = await Online.create(settings, onlineHandlers);
+      net = { code, host: true, settings, color: settings.hostColor, g: 1, min: settings.min, waiting: true };
+      onlineView(`<p>相手にこの合言葉を伝えてください</p><div class="on-code">${code}</div>
+        <p class="on-set">${settingText(settings)}</p><p class="on-wait">相手が入るのを待っています</p>
+        ${navigator.share ? '<button id="on-share">合言葉を送る</button>' : ''}<button id="on-cancel">やめる</button>`);
+      if ($('#on-share')) $('#on-share').onclick = () => navigator.share({ text: `デストロイ碁で対戦しよう！「オンライン対戦（β）」で合言葉 ${code} を入れてね\nhttps://${PLAY_URL}/` }).catch(() => {});
+      $('#on-cancel').onclick = () => { leaveOnline(); openOnline(); };
+    } catch (e) { onlineError(e); }
+  }
+  async function onlineJoin(code) {
+    if (!/^\d{4}$/.test(code)) { toast('4けたの数字を入れてください'); return; }
+    onlineView('<p class="on-wait">つないでいます</p>');
+    try {
+      const settings = await Online.join(code, onlineHandlers);
+      net = { code, host: false, settings, color: otherColor(settings.hostColor), g: 1, min: settings.min };
+      onlineStart();
+    } catch (e) { onlineError(e); }
+  }
+  // 部屋の設定で対局を始める（自分の保存した設定は変えない。タイトルに戻ったら元に戻す）
+  function onlineStart() {
+    const st = net.settings;
+    if (!net.saved) net.saved = { SIZE, mode, dAdvanced, rules, themes: { ...themes } };
+    SIZE = st.size; mode = st.mode; dAdvanced = !!st.adv; rules = st.rules;
+    net.waiting = false;
+    $('#online-pop').hidden = true; $('#modal').classList.remove('show');
+    newGame();
+    toast(`オンライン対戦：あなたは${NAMES[net.color]}です`);
+  }
+  function leaveOnline() {
+    if (!net) return;
+    if (phase === 'play' && !net.waiting) Online.send({ t: 'resign', c: net.color, g: net.g }); // 対局の途中でやめたら投了
+    Online.send({ t: 'bye', g: net.g });
+    Online.leave();
+    const sv = net.saved;
+    net = null;
+    if (sv) { SIZE = sv.SIZE; mode = sv.mode; dAdvanced = sv.dAdvanced; rules = sv.rules; Object.assign(themes, sv.themes); renderThemes(); renderRules(); }
+    $('#btn-undo').hidden = $('#btn-pause').hidden = false;
+    $('#btn-again').textContent = 'もう一局';
+  }
+  // もう一局：2人とも押したら、色を入れ替えて始める
+  function onlineAgain() {
+    if (!net || net.again[Online.me()]) return;
+    net.again[Online.me()] = true;
+    Online.send({ t: 'again', g: net.g });
+    $('#btn-again').textContent = '相手を待っています…';
+    onlineAgainCheck();
+  }
+  function onlineAgainCheck() {
+    if (Object.keys(net.again).length < 2) return;
+    net.g++; net.color = otherColor(net.color);
+    $('#btn-again').textContent = 'もう一局';
+    onlineStart();
+  }
+  function onlinePeer(e) {
+    if (!net) return;
+    if (e.joined && net.host && net.waiting) { net.peer = e.joined; onlineStart(); return; }
+    if (e.left && !net.waiting) { net.gone = true; toast('相手の接続が切れました'); }
+    if (e.back && net.gone) { net.gone = false; toast('相手が戻ってきました'); }
+  }
+  // 死に石：部屋を作った人の画面で判定して送る（判定にはばらつきがあるので、2人で同じ結果を使う）
+  function deadStones() {
+    const ask = () => askAI({ type: 'dead', state: aiState() }).then((r) => r.dead);
+    if (!net) return ask();
+    if (net.host) return ask().then((d) => { Online.send({ t: 'dead', d, g: net.g }); return d; });
+    return new Promise((res) => { if (net.deadIn) res(net.deadIn); else net.deadWait = res; });
+  }
+  // ふつうの囲碁で 2 人がパスしたら、死に石を自動で判定してそのまま計算する
+  function onlineScore() {
+    phase = 'over'; clock.stop();
+    toast('死に石を自動で判定して計算します');
+    const serial = gameSerial;
+    deadStones().then((d) => {
+      if (serial !== gameSerial) return;
+      dead = new Set(d); draw();
+      later(() => $('#btn-calc').onclick(), 1200);
+    });
+  }
+  // 相手から届いたものを盤に反映する（自分が送ったものは、もう反映してあるので飛ばす）
+  function onlineMove(m) {
+    if (!net || !m || m.u === Online.me()) return;
+    if (m.t === 'again') { if (m.g === net.g) { net.again[m.u] = true; onlineAgainCheck(); } return; }
+    if (m.t === 'bye') { if (!net.waiting) toast('相手が対局をやめました'); return; }
+    if (m.g !== net.g) return;
+    const foe = otherColor(net.color);
+    if (m.t === 'th') { if (m.c === foe) { themes[foe] = m.k; renderThemes(); draw(); } return; }
+    if (m.t === 'dead') { const d = m.d || []; if (net.deadWait) { net.deadWait(d); net.deadWait = null; } else net.deadIn = d; return; }
+    if (phase !== 'play') return;
+    if (m.t === 'resign') { endGame(`${NAMES[otherColor(m.c)]}の中押し勝ち`, `${NAMES[m.c]}が投了しました`, otherColor(m.c)); return; }
+    if (m.t === 'timeout') { updatePanels(); endGame(`${NAMES[otherColor(m.c)]}の時間切れ勝ち`, `${NAMES[m.c]}の持ち時間がなくなりました`, otherColor(m.c)); return; }
+    if (game.turn !== foe) return; // 手番がずれた手は使わない
+    net.applying = true; net.zeroAt = 0;
+    try {
+      if (m.t === 'pass') doPass('（相手）');
+      else if (m.t === 'p') { spurtOverride = !!m.s; playAt(m.p, m.c || 0, !!m.x); }
+    } finally { net.applying = false; spurtOverride = null; }
+    if (typeof m.r === 'number' && net) { clock.remain[foe] = m.r; updatePanels(); } // 持ち時間は相手の画面の値に合わせる
+  }
+  $('#online-close').onclick = () => { if (net && net.waiting) leaveOnline(); $('#online-pop').hidden = true; };
 
   renderThemes();
   renderRules();

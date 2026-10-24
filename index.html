@@ -234,6 +234,11 @@
     <div class="log-head"><b>棋譜（最近の20局）</b><button id="kifu-close">閉じる</button></div>
     <ol id="kifu-list"></ol>
   </div>
+  <!-- オンライン対戦（β）：合言葉の部屋を作る・入る -->
+  <div id="online-pop" hidden>
+    <div class="log-head"><b>オンライン対戦（β）</b><button id="online-close">閉じる</button></div>
+    <div id="online-body"></div>
+  </div>
   <!-- 対局中に見るルール（？ ルール） -->
   <div id="rules-pop" hidden>
     <div class="log-head"><b>ルール</b><button id="rules-close">閉じる</button></div>
@@ -298,6 +303,7 @@
   <script src="js/boardfx.js"></script>
   <script src="js/destroy-rule.js"></script>
   <script src="js/ai.js"></script>
+  <script src="js/online.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

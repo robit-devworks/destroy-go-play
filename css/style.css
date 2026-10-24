@@ -101,6 +101,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .title-foot a { color: var(--accent2); }
 .chip.locked { opacity: 0.45; }
 .chip.soon { opacity: 0.55; border-style: dashed; }
+.chip.online-chip { border-style: dashed; }
 .chip.locked::after { content: '🔒製品版（準備中）'; font-size: 10px; font-weight: 700; margin-left: 2px; color: var(--muted); }
 
 .options { display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--muted); }
@@ -424,6 +425,25 @@ button { font: inherit; color: inherit; cursor: pointer; }
   display: flex; flex-direction: column; border-radius: 14px; background: var(--panel); border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
 }
 #kifu-pop[hidden] { display: none; }
+#online-pop {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 33; width: min(420px, calc(100% - 24px)); max-height: 85vh; overflow-y: auto;
+  border-radius: 14px; background: var(--panel); border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+}
+#online-pop[hidden] { display: none; }
+#online-body { padding: 4px 16px 16px; font-size: 14px; line-height: 1.6; }
+#online-body p { margin: 8px 0; }
+#online-body .on-note { color: var(--muted); font-size: 12px; }
+#online-body .on-set { color: var(--muted); font-size: 13px; }
+#online-body button { width: 100%; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 11px; font-size: 15px; font-weight: 800; margin-top: 6px; }
+#online-body button.accent { background: linear-gradient(180deg, #ff6a3d, #d4001a); border-color: transparent; }
+#online-body .on-or { text-align: center; color: var(--muted); font-size: 12px; margin: 14px 0 4px; }
+#online-body .on-join { display: flex; gap: 8px; }
+#online-body .on-join input { flex: 1; min-width: 0; font-size: 22px; font-weight: 800; letter-spacing: 0.3em; text-align: center; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(0, 0, 0, 0.3); color: var(--text); padding: 6px; }
+#online-body .on-join button { width: auto; margin: 0; padding: 0 18px; }
+#online-body .on-code { font-family: var(--font-en); font-size: 54px; letter-spacing: 0.15em; text-align: center; color: var(--accent2); margin: 6px 0; user-select: text; -webkit-user-select: text; }
+#online-body .on-wait::after { content: ''; animation: on-dots 1.2s steps(4) infinite; }
+@keyframes on-dots { 0% { content: ''; } 25% { content: '・'; } 50% { content: '・・'; } 75% { content: '・・・'; } }
+#online-body .on-err { color: #ff6a6a; font-weight: 700; }
 #kifu-list { list-style: none; margin: 0; padding: 6px 12px 12px; overflow-y: auto; }
 #kifu-list li { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px dashed rgba(255, 255, 255, 0.1); }
 #kifu-list .kf-main { flex: 1; display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
