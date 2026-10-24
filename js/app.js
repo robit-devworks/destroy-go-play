@@ -1732,9 +1732,9 @@
     bgmPick = null; playBgm(); // ランダムなら対局ごとに選び直す
     game = new GoGame(SIZE, rules);
     clock = new GoClock({ base: (net ? net.min : minutes()) * 60 * 1000 });
-    $('#btn-result').hidden = true; $('#btn-again').hidden = false;
+    $('#btn-result').hidden = true; $('#btn-again').hidden = false; $('#btn-again').disabled = false;
     $('#btn-undo').hidden = $('#btn-pause').hidden = !!net; // オンライン対戦では待った・一時停止はなし
-    if (net) Object.assign(net, { zeroAt: 0, again: {}, out: null, deadIn: null, deadWait: null });
+    if (net) Object.assign(net, { zeroAt: 0, again: {}, out: null, deadIn: null, deadWait: null, peerLeft: false, gone: false, nextOnly: false });
     dead = new Set(); wiped = new Set(); terrGlow = null; pending = -1; hover = -1; lockUntil = 0;
     BoardFX.clear();
     BoardFX.resetTraces();
@@ -2428,7 +2428,7 @@
       <button class="accent" id="on-random">ランダムマッチ（β）</button>
       <p class="on-set">知らない人とすぐ対戦：${settingText(RANDOM_RULE)}</p>
       <button class="accent" id="on-rank"${left ? ' disabled' : ''}>🏆 ランクマッチ（β）</button>
-      <p class="on-set">${left ? `ランダムマッチをあと ${left} 局遊ぶと開放` : `レートをかけて対戦：${settingText(RANK_RULE)}`}</p>
+      <p class="on-set">${left ? `ランダムマッチをあと ${left} 局遊ぶと開放` : `レートをかけて対戦：${settingText(RANK_RULE)}（棋譜はランキングで公開されます）`}</p>
       <button id="on-ranking">ランキングを見る</button>
       <div class="on-or">── 👥 フレンド対戦 ──</div>
       ${friend}${note}`);
@@ -2452,12 +2452,39 @@
     onlineView('<p class="on-wait">ランキングを読み込んでいます</p>');
     try {
       const [list, me] = await Promise.all([Online.topRatings(50), loadRating()]);
-      const rows = list.map((v, i) => `<li${v.u === Online.me() ? ' class="on-mine"' : ''}><span>${i + 1}</span><b>${String(v.name || '').replace(/[<>&]/g, '')}</b><span>${v.r}</span><small>${v.n || 0}局</small></li>`).join('');
-      onlineView(`<p class="on-set">ランクマッチ（上級・9路）のレート上位 50 人</p>
+      const rows = list.map((v, i) => `<li data-u="${v.u}"${v.u === Online.me() ? ' class="on-mine"' : ''}><span>${i + 1}</span><b>${esc(v.name)}</b><span>${v.r}</span><small>${v.n || 0}局</small></li>`).join('');
+      onlineView(`<p class="on-set">ランクマッチ（上級・9路）のレート上位 50 人。名前を押すと、直近 5 局の棋譜が見られます</p>
         <ol class="on-rank">${rows || '<li class="on-empty">まだ誰もいません</li>'}</ol>
         <p class="on-set">あなた：${me.name}（レート ${me.r}・${me.n}局）</p><button id="on-back">戻る</button>`);
+      $('#online-body').querySelectorAll('.on-rank li[data-u]').forEach((li) => { li.onclick = () => showPlayerKifus(li.dataset.u, li.querySelector('b').textContent); });
     } catch (e) { onlineView(`<p class="on-err">${e.message}</p><button id="on-back">戻る</button>`); }
     $('#on-back').onclick = openOnline;
+  }
+  const esc = (t) => String(t || '').replace(/[<>&"]/g, '');
+  // ランキングの人の直近 5 局。選ぶとハイライトの画面で見られる
+  async function showPlayerKifus(u, name) {
+    onlineView('<p class="on-wait">棋譜を読み込んでいます</p>');
+    let list = [];
+    try { list = await Online.listKifus(u); } catch (e) { onlineView(`<p class="on-err">${e.message}</p><button id="on-back">戻る</button>`); $('#on-back').onclick = showRanking; return; }
+    const rows = list.map((k, i) => {
+      const me = k.owner, foe = otherColor(me), win = k.result && k.result.winner === me;
+      const date = k.date ? new Date(k.date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }) : '';
+      return `<li data-i="${i}"><span>${date}</span><b>vs ${esc(k.names && k.names[foe])}</b><span class="${win ? 'on-win' : 'on-lose'}">${win ? '勝ち' : '負け'}</span><small>${(k.moves || []).length}手</small></li>`;
+    }).join('');
+    onlineView(`<p class="on-title">${esc(name)} の直近の棋譜</p>
+      <ol class="on-rank">${rows || '<li class="on-empty">まだ棋譜がありません</li>'}</ol>
+      <p class="on-note">押すと、ハイライトの画面で見られます（早送り・1手ずつ・ダメージの履歴も使えます）</p><button id="on-back">ランキングに戻る</button>`);
+    $('#on-back').onclick = showRanking;
+    $('#online-body').querySelectorAll('.on-rank li[data-i]').forEach((li) => {
+      li.onclick = () => {
+        const k = list[+li.dataset.i];
+        if (!k || !k.moves || !k.moves.length) return;
+        k.moves = Array.isArray(k.moves) ? k.moves : Object.values(k.moves); // Firebase は配列をオブジェクトで返すことがある
+        $('#online-pop').hidden = true;
+        startReplay(k);
+        toast(`${esc(k.names && k.names[BLACK])}（黒） vs ${esc(k.names && k.names[WHITE])}（白）`);
+      };
+    });
   }
   async function onlineRandom(kind = 'random') {
     const RULE = kind === 'rank' ? RANK_RULE : RANDOM_RULE, label = kind === 'rank' ? 'ランクマッチ' : 'ランダムマッチ';
@@ -2548,7 +2575,7 @@
     net = null;
     if (sv) { SIZE = sv.SIZE; mode = sv.mode; dAdvanced = sv.dAdvanced; rules = sv.rules; Object.assign(themes, sv.themes); renderThemes(); renderRules(); }
     $('#btn-undo').hidden = $('#btn-pause').hidden = false;
-    $('#btn-again').textContent = 'もう一局';
+    $('#btn-again').textContent = 'もう一局'; $('#btn-again').disabled = false;
   }
   // 放置対策：結果の画面で 3 分、相手を待つ画面で 10 分たったら接続を切る（無料プランの同時接続の枠を空けるため）
   const IDLE_OVER = 3 * 60 * 1000, IDLE_WAIT = 10 * 60 * 1000;
@@ -2572,17 +2599,41 @@
   function onlineGameEnd(winner) {
     if (!net || net.ended === net.g) return;
     net.ended = net.g;
+    // ランダム・ランクマッチは同じ相手と続けて対戦しない（同じ相手とレートを動かし合う不正を防ぐ）。終わったら次の相手を探す
+    if (net.kind === 'random' || net.kind === 'rank') { net.nextOnly = true; $('#btn-again').textContent = '次の相手を探す'; }
     if (net.kind === 'random') { try { localStorage.setItem('destroy-go-random-played', randomPlayed() + 1); } catch (e) { /* 無視 */ } }
     if (net.kind === 'rank' && net.opp && net.before) {
       const win = winner === net.color;
       myRating.r = eloNext(net.before, net.opp, win); myRating.n = net.before.n + 1; saveRating();
+      // 棋譜をランキングで見られるようにする（名前とレートも残す）
+      if (kifu && kifu.moves.length) {
+        const foe = otherColor(net.color);
+        const k = JSON.parse(JSON.stringify({ ...kifu, cpu: null, names: { [net.color]: myRating.name, [foe]: net.opp.name },
+          rates: { [net.color]: net.before.r, [foe]: net.opp.r }, owner: net.color }));
+        Online.saveKifu(k).catch(() => {});
+      }
       const d = myRating.r - net.before.r;
       $('#m-rate').textContent = `レート ${net.before.r} → ${myRating.r}（${d >= 0 ? '+' : ''}${d}）`; // 結果の画面に出す
       $('#m-rate').className = d >= 0 ? 'up' : 'down';
     }
   }
   // もう一局：2人とも押したら、色を入れ替えて始める
+  // 相手が抜けたら「もう一局」は待たない。ランダム・ランクマッチなら次の相手を探すボタンにする
+  function peerGoneAfterGame() {
+    if (!net || phase !== 'over' || net.peerLeft) return;
+    net.peerLeft = true;
+    const btn = $('#btn-again');
+    if (net.kind === 'random' || net.kind === 'rank') { btn.textContent = '次の相手を探す'; btn.disabled = false; return; } // もともと次の相手を探す
+    btn.textContent = '相手が抜けました'; btn.disabled = true;
+    toast('相手が抜けました');
+  }
   function onlineAgain() {
+    if (net && (net.peerLeft || net.nextOnly)) { // 次の相手を探す
+      const kind = net.kind;
+      leaveOnline(); $('#modal').classList.remove('show');
+      openOnline(); onlineRandom(kind);
+      return;
+    }
     if (!net || net.again[Online.me()]) return;
     net.again[Online.me()] = true;
     Online.send({ t: 'again', g: net.g });
@@ -2598,7 +2649,7 @@
   function onlinePeer(e) {
     if (!net) return;
     if (e.joined && net.host && net.waiting) { net.peer = e.joined; onlineStart(); return; }
-    if (e.left && !net.waiting) { net.gone = true; toast('相手の接続が切れました'); }
+    if (e.left && !net.waiting) { net.gone = true; if (phase === 'over') peerGoneAfterGame(); else toast('相手の接続が切れました'); }
     if (e.back && net.gone) { net.gone = false; toast('相手が戻ってきました'); }
   }
   // 死に石：部屋を作った人の画面で判定して送る（判定にはばらつきがあるので、2人で同じ結果を使う）
@@ -2623,7 +2674,7 @@
   function onlineMove(m) {
     if (!net || !m || m.u === Online.me()) return;
     if (m.t === 'again') { if (m.g === net.g) { net.again[m.u] = true; onlineAgainCheck(); } return; }
-    if (m.t === 'bye') { if (!net.waiting) toast('相手が対局をやめました'); return; }
+    if (m.t === 'bye') { if (phase === 'over') peerGoneAfterGame(); else if (!net.waiting) toast('相手が対局をやめました'); return; }
     if (m.g !== net.g) return;
     const foe = otherColor(net.color);
     if (m.t === 'th') { if (m.c === foe) { themes[foe] = m.k; renderThemes(); draw(); } return; }

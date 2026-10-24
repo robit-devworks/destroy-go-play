@@ -5,6 +5,7 @@
 // ランダムマッチ・ランクマッチ：match/{種類}/lobby に待っている 1 人（{ u, t }）を置く。来た人はその人を取り出して部屋を作り、
 // 合言葉を match/pairs/{待っていた人} に送る。待っていた人はそれを見て部屋に入る。match/{種類}/seek/{人} は探している人の数を出すため
 // レート：ratings/{人} = { r: レート, n: 対局数, name: 名前, t: 更新した時刻 }（自分の分だけ書ける）
+// ランクマッチの棋譜：kifus/{人}/{送った順} = 棋譜（新しい 5 局だけ残す。ランキングから誰でも見られる）
 (function (root) {
   'use strict';
   const FB_VER = '10.12.2';
@@ -90,6 +91,8 @@
         const all = JSON.parse(localStorage.getItem('destroy-go-local-ratings') || '{}'); all[me] = v; localStorage.setItem('destroy-go-local-ratings', JSON.stringify(all));
       },
       async topRatings(n) { const all = JSON.parse(localStorage.getItem('destroy-go-local-ratings') || '{}'); return Object.entries(all).map(([u, v]) => ({ u, ...v })).sort((a, b) => b.r - a.r).slice(0, n); },
+      async saveKifu(k) { const all = JSON.parse(localStorage.getItem('destroy-go-local-kifus') || '{}'); all[me] = [...(all[me] || []), k].slice(-5); localStorage.setItem('destroy-go-local-kifus', JSON.stringify(all)); },
+      async listKifus(u) { const all = JSON.parse(localStorage.getItem('destroy-go-local-kifus') || '{}'); return (all[u] || []).slice().reverse(); },
     };
   }
 
@@ -196,6 +199,21 @@
         const out = []; snap.forEach((c) => { out.push({ u: c.key, ...c.val() }); });
         return out.reverse();
       },
+      // 自分の棋譜を足して、新しい 5 局だけ残す
+      async saveKifu(k) {
+        db.goOnline();
+        const ref = db.ref('kifus/' + me);
+        await ref.push({ ...k, t: fb.database.ServerValue.TIMESTAMP });
+        const snap = await ref.orderByKey().get();
+        const keys = []; snap.forEach((c) => { keys.push(c.key); });
+        await Promise.all(keys.slice(0, Math.max(0, keys.length - 5)).map((key) => ref.child(key).remove()));
+      },
+      async listKifus(u) {
+        db.goOnline();
+        const snap = await db.ref('kifus/' + u).orderByKey().limitToLast(5).get();
+        const out = []; snap.forEach((c) => { out.push(c.val()); });
+        return out.reverse(); // 新しい順
+      },
       leave() {
         offs.forEach((f) => f()); offs = [];
         if (ref) {
@@ -236,6 +254,8 @@
     async getRating() { return withTimeout(transport().then((t) => t.getRating()), LIMIT); },
     async setRating(v) { return (await transport()).setRating(v); },
     async topRatings(n = 50) { return withTimeout(transport().then((t) => t.topRatings(n)), LIMIT); },
+    async saveKifu(k) { return (await transport()).saveKifu(k); },
+    async listKifus(u) { return withTimeout(transport().then((t) => t.listKifus(u)), LIMIT); },
   };
   root.Online = Online;
 })(this);
