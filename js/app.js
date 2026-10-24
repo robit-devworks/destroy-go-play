@@ -1011,6 +1011,8 @@
     e.stopPropagation();
     if ($('#rules-pop').hidden) { rp.tab = dstate ? (dstate.advanced ? 'adv' : 'basic') : 'go'; rp.size = SIZE; } // 開くときは今の対局に合わせる
     renderRulesPop(); $('#rules-pop').hidden = !$('#rules-pop').hidden; $('#log-pop').hidden = true; };
+  // オンライン対戦の前に、デストロイ碁のルールを見る（上級＝ランクマッチ、初級＝ランダムマッチ）
+  function openRulesFor(adv) { rp.tab = adv ? 'adv' : 'basic'; rp.size = 9; renderRulesPop(); $('#rules-pop').hidden = false; $('#log-pop').hidden = true; }
   $('#rules-close').onclick = () => { $('#rules-pop').hidden = true; };
   $('#btn-log').onclick = (e) => { e.stopPropagation(); renderLog(); $('#log-pop').hidden = !$('#log-pop').hidden; $('#rules-pop').hidden = true; };
   $('#log-close').onclick = () => { $('#log-pop').hidden = true; };
@@ -2408,39 +2410,26 @@
   const RANDOM_CPU_AFTER = 45000; // これだけ待っても相手が来なければ、CPU と対戦するボタンを出す
   let seekStop = null;
   function stopSeek() { if (seekStop) { seekStop(); seekStop = null; } clearTimeout(stopSeek.t); }
-  // view：'menu'（3 つ全部）か 'friend'（フレンド対戦だけ。タイトルの「フレンド対戦」から）
-  function openOnline(view = 'menu') {
+  // view：'friend'（フレンド対戦の画面）か 'blank'（ランダム・ランク・ランキングの入口。中身はすぐ差し替える）
+  let onlineEntry = 'blank';
+  function openOnline(view = 'blank') {
     $('#online-pop').hidden = false;
+    onlineEntry = view;
+    if (view !== 'friend') { onlineView(''); return; }
     const st = { size: SIZE, mode, adv: dAdvanced, rules, min: minutes() };
-    const left = Math.max(0, RANK_UNLOCK - randomPlayed());
-    const friend = `<p>合言葉（4けたの数字）で、友だちとオンラインで対戦できます。</p>
+    onlineView(`<p class="on-title">👥 フレンド対戦</p>
+      <p>合言葉（4けたの数字）で、友だちとオンラインで対戦できます。</p>
       <button class="accent" id="on-create">部屋を作る</button>
       <p class="on-set">今の設定で対局：${settingText(st)}</p>
       <div class="on-or">── 合言葉を教えてもらったら ──</div>
-      <div class="on-join"><input id="on-code" inputmode="numeric" maxlength="4" placeholder="0000" autocomplete="off"><button id="on-join" class="accent">入る</button></div>`;
-    const note = '<p class="on-note">β版（テスト中）です。うまく動かないときは、不具合の報告から教えてください。<br>待った・一時停止はできません。対局中にアプリを閉じると、つながりが切れます。</p>';
-    if (view === 'friend') {
-      onlineView(`<p class="on-title">👥 フレンド対戦</p>${friend}${note}`);
-      bindFriend(st);
-      return;
-    }
-    onlineView(`<p class="on-me" id="on-me">　</p>
-      <button class="accent" id="on-random">ランダムマッチ（β）</button>
-      <p class="on-set">知らない人とすぐ対戦：${settingText(RANDOM_RULE)}</p>
-      <button class="accent" id="on-rank"${left ? ' disabled' : ''}>🏆 ランクマッチ（β）</button>
-      <p class="on-set">${left ? `ランダムマッチをあと ${left} 局遊ぶと開放` : `レートをかけて対戦：${settingText(RANK_RULE)}（棋譜はランキングで公開されます）`}</p>
-      <button id="on-ranking">ランキングを見る</button>
-      <div class="on-or">── 👥 フレンド対戦 ──</div>
-      ${friend}${note}`);
-    $('#on-random').onclick = () => onlineRandom('random');
-    $('#on-rank').onclick = () => { if (!left) onlineRandom('rank'); };
-    $('#on-ranking').onclick = showRanking;
-    loadRating().then((r) => {
-      const el = $('#on-me'); if (!el) return;
-      el.innerHTML = `あなた：<b>${r.name}</b>（レート ${r.r}・${r.n}局）${isDev() ? '' : '<button id="on-rename">名前を変える</button>'}`;
-      if ($('#on-rename')) $('#on-rename').onclick = () => { myRating.name = makeName(); if (!myRating.fresh) saveRating(); openOnline(); };
-    });
+      <div class="on-join"><input id="on-code" inputmode="numeric" maxlength="4" placeholder="0000" autocomplete="off"><button id="on-join" class="accent">入る</button></div>
+      <p class="on-note">β版（テスト中）です。うまく動かないときは、不具合の報告から教えてください。<br>待った・一時停止はできません。対局中にアプリを閉じると、つながりが切れます。</p>`);
     bindFriend(st);
+  }
+  // 「戻る」：フレンド対戦から来たらその画面へ、それ以外はタイトルへ
+  function onlineBack() {
+    if (onlineEntry === 'friend') { openOnline('friend'); return; }
+    $('#online-pop').hidden = true; renderRankTop();
   }
   function bindFriend(st) {
     $('#on-create').onclick = () => onlineCreate(st);
@@ -2455,10 +2444,11 @@
       const rows = list.map((v, i) => `<li data-u="${v.u}"${v.u === Online.me() ? ' class="on-mine"' : ''}><span>${i + 1}</span><b>${esc(v.name)}</b><span>${v.r}</span><small>${v.n || 0}局</small></li>`).join('');
       onlineView(`<p class="on-set">ランクマッチ（上級・9路）のレート上位 50 人。名前を押すと、直近 5 局の棋譜が見られます</p>
         <ol class="on-rank">${rows || '<li class="on-empty">まだ誰もいません</li>'}</ol>
-        <p class="on-set">あなた：${me.name}（レート ${me.r}・${me.n}局）</p><button id="on-back">戻る</button>`);
+        <p class="on-me">あなた：<b>${esc(me.name)}</b>（レート ${me.r}・${me.n}局）${isDev() ? '' : '<button id="on-rename">名前を変える</button>'}</p><button id="on-back">戻る</button>`);
+      if ($('#on-rename')) $('#on-rename').onclick = () => { myRating.name = makeName(); if (!myRating.fresh) saveRating(); showRanking(); };
       $('#online-body').querySelectorAll('.on-rank li[data-u]').forEach((li) => { li.onclick = () => showPlayerKifus(li.dataset.u, li.querySelector('b').textContent); });
     } catch (e) { onlineView(`<p class="on-err">${e.message}</p><button id="on-back">戻る</button>`); }
-    $('#on-back').onclick = openOnline;
+    $('#on-back').onclick = onlineBack;
   }
   const esc = (t) => String(t || '').replace(/[<>&"]/g, '');
   // ランキングの人の直近 5 局。選ぶとハイライトの画面で見られる
@@ -2490,10 +2480,13 @@
     const RULE = kind === 'rank' ? RANK_RULE : RANDOM_RULE, label = kind === 'rank' ? 'ランクマッチ' : 'ランダムマッチ';
     if (kind === 'rank') await loadRating();
     const view = (n) => onlineView(`<p class="on-wait">相手を探しています</p>
-      <p class="on-set">${label}：${settingText(RULE)}</p><p class="on-set" id="on-count">${n ? `${label}を開いている人：${n}人` : ''}</p>
+      <p class="on-set">${label}：${settingText(RULE)}</p>
+      <p class="on-rule"><b>デストロイ碁オリジナルのルール</b>です。石を取ると相手にダメージ、HPを0にしても勝ち。待っている間にどうぞ<button id="on-rules">ルールを見る</button></p>
+      <p class="on-set" id="on-count">${n ? `${label}を開いている人：${n}人` : ''}</p>
       <button id="on-cpu" hidden>待っている間、CPU（Lv1）と対戦する</button><button id="on-cancel">やめる</button>`);
     view(0);
-    $('#on-cancel').onclick = () => { stopSeek(); Online.leave(); openOnline(); };
+    $('#on-rules').onclick = () => openRulesFor(kind === 'rank');
+    $('#on-cancel').onclick = () => { stopSeek(); Online.leave(); onlineBack(); };
     const showCpu = () => {
       if (!$('#on-cpu')) return;
       $('#on-cpu').hidden = false;
@@ -2522,7 +2515,7 @@
     let msg = (e && e.message) || 'つながりませんでした';
     if (/Firebase|auth\/|network|permission/i.test(msg)) msg = '通信できませんでした。ネットにつながっているか確かめて、もう一度試してください';
     onlineView(`<p class="on-err">${msg}</p><button id="on-back">戻る</button>`);
-    $('#on-back').onclick = openOnline;
+    $('#on-back').onclick = onlineBack;
     Online.leave(); net = null;
   }
   async function onlineCreate(st) {
@@ -2535,13 +2528,13 @@
         <p class="on-set">${settingText(settings)}</p><p class="on-wait">相手が入るのを待っています</p>
         ${navigator.share ? '<button id="on-share">合言葉を送る</button>' : ''}<button id="on-cancel">やめる</button>`);
       if ($('#on-share')) $('#on-share').onclick = () => navigator.share({ text: `デストロイ碁で対戦しよう！「オンライン対戦（β）」で合言葉 ${code} を入れてね\nhttps://${PLAY_URL}/` }).catch(() => {});
-      $('#on-cancel').onclick = () => { leaveOnline(); openOnline(); };
+      $('#on-cancel').onclick = () => { leaveOnline(); onlineBack(); };
       const n = net;
       setTimeout(() => {
         if (net !== n || !net.waiting) return;
         leaveOnline();
         onlineView('<p>相手が来なかったので、部屋を閉じました。</p><button id="on-back">戻る</button>');
-        $('#on-back').onclick = openOnline;
+        $('#on-back').onclick = onlineBack;
       }, IDLE_WAIT);
     } catch (e) { onlineError(e); }
   }
@@ -2693,6 +2686,7 @@
   }
   // タイトルの「対局開始」の下：ランダムマッチはすぐ探し始め、フレンド対戦は合言葉の画面を開く
   $('#btn-random-top').onclick = () => { FX.unlock(); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; } openOnline(); onlineRandom('random'); };
+  $('#btn-online-rules').onclick = () => openRulesFor(false);
   $('#btn-friend-top').onclick = () => { FX.unlock(); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; } openOnline('friend'); };
   // ランクマッチはランダムマッチを 3 局遊ぶまで押せない（押すと、あと何局か知らせる）
   function renderRankTop() {

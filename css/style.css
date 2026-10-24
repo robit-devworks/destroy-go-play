@@ -262,7 +262,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 #log-pop[hidden] { display: none; }
 #rules-pop {
-  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 32; width: min(480px, calc(100% - 24px)); max-height: 80vh;
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 34; /* オンラインの画面からも開くので、その上に */ width: min(480px, calc(100% - 24px)); max-height: 80vh;
   display: flex; flex-direction: column; border-radius: 14px; background: var(--panel); border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
 }
 #rules-pop[hidden] { display: none; }
@@ -684,6 +684,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .sec-title span::before, .sec-title span::after { content: '✦'; margin: 0 8px; font-size: 10px; color: var(--magic); }
 .home-me { margin: -4px 0 0; text-align: center; font-size: 12px; color: var(--muted); }
 .home-me:empty { display: none; }
+.on-rule-note { margin: 0; text-align: center; font-size: 12px; line-height: 1.6; color: #c9b8e8; }
+.on-rule-note b { color: var(--gold); font-weight: 700; }
+.on-rule-note button { background: rgba(255, 210, 63, 0.12); color: var(--gold); border: 1px solid rgba(255, 210, 63, 0.55); font-weight: 700; box-shadow: none; }
+.on-rule-note button, #online-body .on-rule button { width: auto; margin: 0 0 0 6px; padding: 2px 10px; font-size: 12px; border-radius: 999px; vertical-align: baseline; }
+#online-body .on-rule { font-size: 12px; color: var(--muted); }
+#online-body .on-rule b { color: var(--gold); }
 .start-item {
   position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%;
   border: 0; border-radius: 999px; padding: 13px 20px; color: #fff;
