@@ -819,3 +819,4 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 @keyframes nm-rainbow { to { background-position: -200% 0; } }
 #online-body #on-cpu small { display: block; font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+#online-body #on-adv-cpu small { display: block; font-size: 11px; color: rgba(255, 255, 255, 0.8); font-weight: 600; margin-top: 2px; }
