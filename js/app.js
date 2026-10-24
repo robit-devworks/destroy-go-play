@@ -1447,11 +1447,14 @@
     if (video) { $('#share-video').src = shareUrl; $('#share-video').play().catch(() => {}); } else $('#share-img').src = shareUrl;
     $('#share-save').href = shareUrl; $('#share-save').download = name;
     $('#share-save').textContent = video ? '動画を保存' : '画像を保存';
+    // スマホは共有メニューに X が出る。パソコンの共有メニュー（Windows・Mac）には X が出ないことが多いので、
+    // 保存してから X の投稿画面を開くボタンを出す（保存したファイルを添付してもらう）
     const canFiles = !!(navigator.canShare && navigator.canShare({ files: [shareFile] }));
-    $('#share-go').hidden = !canFiles;
-    $('#share-x').hidden = canFiles; // 共有メニューが使えないパソコンでは、保存してから X に添付してもらう
-    $('#share-note').textContent = video && !canFiles ? '「動画を保存」してから「Xで投稿」を押し、保存した動画を添付してください'
-      : '';
+    const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+    $('#share-go').hidden = !canFiles || !mobile;
+    $('#share-x').hidden = mobile && canFiles;
+    $('#share-x').textContent = `${video ? '動画' : '画像'}を保存してXで投稿`;
+    $('#share-note').textContent = $('#share-x').hidden ? '' : `X の投稿画面が開いたら、保存した${video ? '動画' : '画像'}を添付してください`;
     if (video && !xOk) $('#share-note').textContent = 'このブラウザでは X に載せられない形式（WebM）になります。Chrome か Safari で試してください';
     $('#share-pop').hidden = false;
   }
@@ -1463,7 +1466,10 @@
     try { await navigator.share({ files: [shareFile], text: SHARE_TEXT }); }
     catch (e) { /* 閉じただけ */ }
   };
-  $('#share-x').onclick = () => window.open(`https://x.com/intent/post?text=${encodeURIComponent(SHARE_TEXT)}`, '_blank', 'noopener');
+  $('#share-x').onclick = () => {
+    $('#share-save').click(); // 先に保存（ダウンロード）してから
+    window.open(`https://x.com/intent/post?text=${encodeURIComponent(SHARE_TEXT)}`, '_blank', 'noopener');
+  };
   $('#share-close').onclick = () => { $('#share-pop').hidden = true; $('#share-video').pause(); };
   // 🔊 で音量の窓を開く（効果音・BGM の音量と、全部消す）
   function setMute(m) { // 効果音と BGM をまとめて消す・出す
