@@ -212,6 +212,7 @@
         <button id="rp-auto" class="accent">▶ ハイライト</button>
         <button id="rp-next" title="1手進む">▶</button>
         <button id="rp-last" title="最後へ">⏭</button>
+        <button id="rp-rec" title="ハイライトを動画にしてシェア">🎬 動画</button>
       </div>
       <div class="controls" id="preview-controls">
         <div class="score-hint" id="preview-info"></div>
@@ -253,7 +254,9 @@
   <div id="share-pop" hidden>
     <div class="modal-box">
       <img id="share-img" alt="シェアする画像">
-      <div class="m-buttons"><button id="share-go" class="accent">共有する</button><a id="share-save" download="destroy-go.png">画像を保存</a><button id="share-close">閉じる</button></div>
+      <video id="share-video" controls playsinline loop hidden></video>
+      <p id="share-note"></p>
+      <div class="m-buttons"><button id="share-go" class="accent">共有する</button><button id="share-x" class="accent" hidden>Xで投稿</button><a id="share-save" download="destroy-go.png">画像を保存</a><button id="share-close">閉じる</button></div>
     </div>
   </div>
   <!-- 対局中の音量（🔊 で開く） -->

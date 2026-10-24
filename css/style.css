@@ -305,7 +305,13 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #log-list .log-empty { display: block; color: var(--muted); text-align: center; border: 0; }
 #share-pop { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.75); padding: 16px; }
 #share-pop[hidden] { display: none; }
-#share-pop img { width: 100%; max-height: 60vh; object-fit: contain; border-radius: 10px; margin-bottom: 14px; }
+#share-pop img, #share-pop video { width: 100%; max-height: 60vh; object-fit: contain; border-radius: 10px; margin-bottom: 14px; background: #000; }
+#share-pop [hidden] { display: none; }
+#share-note { margin: -6px 0 10px; font-size: 12px; color: var(--muted); text-align: center; }
+#share-note:empty { display: none; }
+#rp-rec { flex: 0 0 auto; padding: 10px 8px; }
+.recording #replay-controls button:not(#rp-rec) { pointer-events: none; opacity: 0.35; }
+.recording #rp-rec { background: #b3001b; color: #fff; animation: blink 1s steps(2) infinite; }
 #share-pop .m-buttons a { flex: 1; border: 1px solid rgba(255, 255, 255, 0.15); background: var(--panel-active); border-radius: 10px; padding: 12px; font-weight: 700; color: #fff; text-decoration: none; font-size: 14px; }
 #vol-mute { border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 8px; font-weight: 700; }
 /* 隠し演出を解放したときのお知らせ */

@@ -1314,13 +1314,18 @@
   // ---------- 📷 シェア：その瞬間の盤と演出を 1 枚の画像（1080×1350）にして、共有メニューで送る ----------
   const PLAY_URL = 'robit-devworks.github.io/destroy-go-play';
   async function captureScene() {
-    const Wd = 1080, Ht = 1350, out = document.createElement('canvas');
-    out.width = Wd; out.height = Ht;
-    const x = out.getContext('2d');
+    const out = document.createElement('canvas');
+    out.width = 1080; out.height = 1350;
+    try { await document.fonts.load("80px 'Dela Gothic One'"); } catch (e) { /* 無視 */ }
+    drawScene(out.getContext('2d'));
+    return out;
+  }
+  // 1080×1350 の座標で描く（動画では縮めた画面にそのまま描く）
+  function drawScene(x) {
+    const Wd = 1080, Ht = 1350;
     const bg = x.createLinearGradient(0, 0, 0, Ht);
     bg.addColorStop(0, '#2a0a0e'); bg.addColorStop(0.5, '#0b0710'); bg.addColorStop(1, '#1a0830');
     x.fillStyle = bg; x.fillRect(0, 0, Wd, Ht);
-    try { await document.fonts.load("80px 'Dela Gothic One'"); } catch (e) { /* 無視 */ }
     // 上：ロゴ
     const lg = x.createLinearGradient(0, 40, 0, 140);
     lg.addColorStop(0, '#fff6c8'); lg.addColorStop(0.4, '#ffcc33'); lg.addColorStop(0.7, '#ff5a1f'); lg.addColorStop(1, '#b3001b');
@@ -1342,29 +1347,52 @@
       x.shadowColor = getComputedStyle(banner).getPropertyValue('--c') || '#ff3b2f'; x.shadowBlur = 30;
       x.strokeText(banner.textContent, Wd / 2, by + B * 0.42); x.fillText(banner.textContent, Wd / 2, by + B * 0.42); x.shadowBlur = 0;
     }
+    // 「K.O.!! 黒の勝ち」などの大きな知らせ（ハイライトの最後）
+    const note = $('#eyes');
+    if (note.classList.contains('show') && note.textContent) {
+      x.font = "64px 'Dela Gothic One', sans-serif";
+      const w = x.measureText(note.textContent).width;
+      if (w > Wd - 80) x.font = `${Math.floor(64 * (Wd - 80) / w)}px 'Dela Gothic One', sans-serif`;
+      x.lineWidth = 12; x.strokeStyle = '#1a0005'; x.fillStyle = '#ffd23f';
+      x.strokeText(note.textContent, Wd / 2, by + B * 0.62); x.fillText(note.textContent, Wd / 2, by + B * 0.62);
+    }
     // 下：HP（デストロイルール）と、遊べる場所
     x.font = "bold 40px sans-serif"; x.fillStyle = '#fff';
     if (dstate) x.fillText(`黒 HP ${dstate.hp[BLACK]}　／　白 HP ${dstate.hp[WHITE]}`, Wd / 2, by + B + 60);
     x.font = "bold 34px sans-serif"; x.fillStyle = '#ffd23f';
     x.fillText(PLAY_URL, Wd / 2, Ht - 70);
     x.font = "26px sans-serif"; x.fillStyle = 'rgba(255,255,255,0.6)'; x.fillText('#デストロイ碁　© ROBIT', Wd / 2, Ht - 28);
-    return out;
   }
-  let shareFile = null;
+  let shareFile = null, shareUrl = null;
+  const SHARE_TEXT = `デストロイ碁で遊んだ！ https://${PLAY_URL}/ #デストロイ碁`;
+  // 画像か動画を見せて、共有メニュー（スマホ）か保存＋X の投稿画面（パソコン）で送る
+  function openShare(blob, name, xOk = true) {
+    const video = blob.type.startsWith('video/');
+    shareFile = new File([blob], name, { type: blob.type });
+    if (shareUrl) URL.revokeObjectURL(shareUrl);
+    shareUrl = URL.createObjectURL(blob);
+    $('#share-img').hidden = video; $('#share-video').hidden = !video;
+    if (video) { $('#share-video').src = shareUrl; $('#share-video').play().catch(() => {}); } else $('#share-img').src = shareUrl;
+    $('#share-save').href = shareUrl; $('#share-save').download = name;
+    $('#share-save').textContent = video ? '動画を保存' : '画像を保存';
+    const canFiles = !!(navigator.canShare && navigator.canShare({ files: [shareFile] }));
+    $('#share-go').hidden = !canFiles;
+    $('#share-x').hidden = canFiles; // 共有メニューが使えないパソコンでは、保存してから X に添付してもらう
+    $('#share-note').textContent = video && !canFiles ? '「動画を保存」してから「Xで投稿」を押し、保存した動画を添付してください'
+      : '';
+    if (video && !xOk) $('#share-note').textContent = 'このブラウザでは X に載せられない形式（WebM）になります。Chrome か Safari で試してください';
+    $('#share-pop').hidden = false;
+  }
   $('#btn-share').onclick = async () => {
     const cv = await captureScene(); // 押した瞬間を撮る（演出の途中でも）
-    const blob = await new Promise((res) => cv.toBlob(res, 'image/png'));
-    shareFile = new File([blob], 'destroy-go.png', { type: 'image/png' });
-    const url = URL.createObjectURL(blob);
-    $('#share-img').src = url; $('#share-save').href = url;
-    $('#share-go').hidden = !(navigator.canShare && navigator.canShare({ files: [shareFile] }));
-    $('#share-pop').hidden = false;
+    openShare(await new Promise((res) => cv.toBlob(res, 'image/png')), 'destroy-go.png');
   };
   $('#share-go').onclick = async () => {
-    try { await navigator.share({ files: [shareFile], text: `デストロイ碁で遊んだ！ https://${PLAY_URL}/ #デストロイ碁` }); }
+    try { await navigator.share({ files: [shareFile], text: SHARE_TEXT }); }
     catch (e) { /* 閉じただけ */ }
   };
-  $('#share-close').onclick = () => { $('#share-pop').hidden = true; };
+  $('#share-x').onclick = () => window.open(`https://x.com/intent/post?text=${encodeURIComponent(SHARE_TEXT)}`, '_blank', 'noopener');
+  $('#share-close').onclick = () => { $('#share-pop').hidden = true; $('#share-video').pause(); };
   // 🔊 で音量の窓を開く（効果音・BGM の音量と、全部消す）
   function setMute(m) { // 効果音と BGM をまとめて消す・出す
     vol.seMute = vol.bgmMute = m; saveVolume(); applyVolume();
@@ -2084,10 +2112,69 @@
     layout(); rpReset(); renderNames(); renderThemes(); rpRender();
   }
   function endReplay() {
+    stopRec(true);
     if (!rpSaved) return;
     rpStop(); SIZE = rpSaved.size; Object.assign(themes, rpSaved.themes); rpSaved = null; rpk = null;
     gameEl.classList.remove('replaying'); renderThemes();
   }
+  // ---------- 🎬 ハイライトを動画にする：最初から自動再生しながら、📷 と同じ画面（720×900）に描いて録画する ----------
+  // 音は効果音だけ入れる（BGM は入れない）。X に載せられる長さ（2 分 20 秒）を超えないよう 2 分 15 秒で止める
+  let rec = null;
+  const REC_MAX = 135000;
+  // X に載せられるのは H.264 の mp4。Chrome・Edge は avc1 を指定すると H.264 で録れる。Safari は mp4 だけ（中身は H.264）。
+  // H.264 で録れないブラウザでは WebM にして、そのことを知らせる
+  function recType() {
+    if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return null;
+    const ok = (t) => MediaRecorder.isTypeSupported(t);
+    const h264 = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4;codecs=avc1'].find(ok);
+    if (h264) return { type: h264, x: true };
+    if (ok('video/mp4') && !ok('video/webm')) return { type: 'video/mp4', x: true }; // Safari
+    const webm = ['video/webm;codecs=vp9,opus', 'video/webm'].find(ok);
+    return webm ? { type: webm, x: false } : null;
+  }
+  async function startRec() {
+    const rt = recType();
+    if (!rt) { toast('この端末では動画にできません（📷 で画像ならシェアできます）'); return; }
+    const type = rt.type;
+    try { await document.fonts.load("80px 'Dela Gothic One'"); } catch (e) { /* 無視 */ }
+    const out = document.createElement('canvas'); out.width = 720; out.height = 900;
+    const x = out.getContext('2d'), stream = out.captureStream(30);
+    const actx = FX.unlock();
+    let dest = null;
+    if (actx && actx.createMediaStreamDestination) {
+      dest = actx.createMediaStreamDestination(); actx.master.connect(dest);
+      dest.stream.getAudioTracks().forEach((t) => stream.addTrack(t));
+    }
+    const chunks = [], mr = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 4000000 });
+    mr.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    rec = { mr, dest, actx, chunks, type, xOk: rt.x, t0: performance.now(), endAt: 0 };
+    gameEl.classList.add('recording'); $('#rp-rec').textContent = '■ やめる';
+    mr.start(250);
+    rpGoTo(0); FX.clear(); rpAutoStep();
+    const frame = () => {
+      if (!rec || rec.mr !== mr) return;
+      x.save(); x.scale(720 / 1080, 720 / 1080); drawScene(x); x.restore();
+      const now = performance.now();
+      if (!rpTimer && rpk && rpIdx >= rpk.moves.length && !rec.endAt) rec.endAt = now + 3000; // 最後の演出を見せてから止める
+      if ((rec.endAt && now >= rec.endAt) || now - rec.t0 > REC_MAX) { stopRec(false); return; }
+      requestAnimationFrame(frame);
+    };
+    frame();
+  }
+  function stopRec(cancel) {
+    if (!rec) return;
+    const r = rec; rec = null;
+    gameEl.classList.remove('recording'); $('#rp-rec').textContent = '🎬 動画';
+    r.mr.onstop = () => {
+      if (r.dest) try { r.actx.master.disconnect(r.dest); } catch (e) { /* 無視 */ }
+      if (cancel || !r.chunks.length) return;
+      const blob = new Blob(r.chunks, { type: r.type.split(';')[0] });
+      openShare(blob, `destroy-go-highlight.${/mp4/.test(r.type) ? 'mp4' : 'webm'}`, r.xOk);
+    };
+    r.mr.stop();
+    if (cancel) { rpStop(); rpRender(); }
+  }
+  $('#rp-rec').onclick = () => { if (rec) { stopRec(true); toast('録画をやめました'); } else startRec(); };
   $('#rp-first').onclick = () => rpGoTo(0);
   $('#rp-prev').onclick = () => rpGoTo(rpIdx - 1);
   $('#rp-next').onclick = () => { if (rpIdx >= rpk.moves.length) return; rpStop(); FX.clear(); rpApply(true); if (rpIdx >= rpk.moves.length) rpFinish(); rpRender(); };
