@@ -212,6 +212,7 @@
         <button id="rp-auto" class="accent">▶ ハイライト</button>
         <button id="rp-next" title="1手進む">▶</button>
         <button id="rp-last" title="最後へ">⏭</button>
+        <button id="rp-speed" title="何も起きない手の早送りの速さ（石を取る手・アタリの手は等倍）">⏩×8</button>
         <button id="rp-rec" title="ハイライトを動画にして共有">📤 共有</button>
       </div>
       <div class="controls" id="preview-controls">
@@ -227,6 +228,7 @@
   <!-- デストロイルールのダメージの計算式（演出より手前に出すので、盤の外に置いて位置を合わせる） -->
   <div id="dmg-formula"></div>
   <div id="flash"></div>
+  <div id="time-alert"></div>
   <div id="banner"></div>
 
   <div id="gtoast"></div>
@@ -256,6 +258,8 @@
     <div class="modal-box">
       <img id="share-img" alt="シェアする画像">
       <video id="share-video" controls playsinline loop hidden></video>
+      <label id="share-dmg-row"><input type="checkbox" id="share-dmg" checked> ダメージ・回復の表示を入れる</label>
+      <button id="share-redo" hidden>この設定で動画を作り直す</button>
       <p id="share-note"></p>
       <div class="m-buttons"><button id="share-go" class="accent">共有する</button><button id="share-x" class="accent" hidden>Xで投稿</button><a id="share-save" download="destroy-go.png">画像を保存</a><button id="share-close">閉じる</button></div>
     </div>

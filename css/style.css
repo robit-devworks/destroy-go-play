@@ -311,10 +311,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #share-pop[hidden] { display: none; }
 #share-pop img, #share-pop video { width: 100%; max-height: 60vh; object-fit: contain; border-radius: 10px; margin-bottom: 14px; background: #000; }
 #share-pop [hidden] { display: none; }
+#share-dmg-row { display: flex; align-items: center; justify-content: center; gap: 6px; margin: -6px 0 10px; font-size: 14px; font-weight: 700; }
+#share-dmg-row input { transform: scale(1.2); accent-color: var(--accent); }
+#share-redo { display: block; width: 100%; margin: 0 0 10px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 10px; font-weight: 700; }
 #share-note { margin: -6px 0 10px; font-size: 12px; color: var(--muted); text-align: center; }
 #share-note:empty { display: none; }
-#rp-rec { flex: 0 0 auto; padding: 10px 8px; }
-.recording #replay-controls button:not(#rp-rec) { pointer-events: none; opacity: 0.35; }
+#rp-rec, #rp-speed { flex: 0 0 auto; padding: 10px 8px; }
+#rp-speed { font-size: 12px; }
+.recording #replay-controls button:not(#rp-rec):not(#rp-speed) { pointer-events: none; opacity: 0.35; }
 .recording #rp-rec { background: #b3001b; color: #fff; animation: blink 1s steps(2) infinite; }
 #share-pop .m-buttons a { flex: 1; border: 1px solid rgba(255, 255, 255, 0.15); background: var(--panel-active); border-radius: 10px; padding: 12px; font-weight: 700; color: #fff; text-decoration: none; font-size: 14px; }
 #vol-mute { border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 8px; font-weight: 700; }
@@ -464,6 +468,13 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* ---------- 演出レイヤー ---------- */
 #fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20; }
+/* 時間切れが近いとき：画面のふちを赤く光らせる（10 秒は 1 秒に 1 回、5 秒は 1 秒に 2 回） */
+#time-alert { position: fixed; inset: 0; pointer-events: none; z-index: 19; opacity: 0; }
+#time-alert.lv1 { box-shadow: inset 0 0 70px 18px rgba(255, 30, 30, 0.75); animation: time-alert 1s ease-in-out infinite; }
+#time-alert.lv2 { box-shadow: inset 0 0 110px 34px rgba(255, 0, 0, 0.95); animation: time-alert 0.5s ease-in-out infinite; }
+@keyframes time-alert { 0%, 100% { opacity: 0.15; } 50% { opacity: 1; } }
+.time-alert-5 .player.active .time { animation: time-shake 0.25s linear infinite; color: #ff3030; }
+@keyframes time-shake { 0%, 100% { transform: translate(0, 0) scale(1.15); } 25% { transform: translate(-3px, 1px) scale(1.15); } 75% { transform: translate(3px, -1px) scale(1.15); } }
 #flash { position: fixed; inset: 0; pointer-events: none; z-index: 21; opacity: 0; background: var(--c0, #fff); }
 #flash.on { animation: flash 0.45s ease-out; }
 #flash.multi { animation: flash-multi 1.1s ease-out; }

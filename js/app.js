@@ -671,7 +671,7 @@
       for (const c of [BLACK, WHITE]) for (const i of al[c]) { if (wiped.has(i)) continue; const [x, y] = game.xy(i); drawShield(px(x), px(y), c); }
     }
     // アタリの石にひび（陣地ヒントがオンのとき）
-    if (hintMode !== 'none' && (phase === 'play' || phase === 'paused' || phase === 'preview')) {
+    if (hintMode !== 'none' && (phase === 'play' || phase === 'paused' || phase === 'preview' || phase === 'replay')) {
       game.atariStones().forEach(drawAtariCrack);
     }
 
@@ -1326,15 +1326,18 @@
 
   // ---------- 📷 シェア：その瞬間の盤と演出を 1 枚の画像（1080×1350）にして、共有メニューで送る ----------
   const PLAY_URL = 'robit-devworks.github.io/destroy-go-play';
-  async function captureScene() {
+  // 共有する画像・動画に、ダメージ・回復の計算式と「-6」「+1」を入れるか（共有の画面で切り替え。端末に保存）
+  let shareDmg = true;
+  try { shareDmg = localStorage.getItem('destroy-go-share-dmg') !== '0'; } catch (e) { /* 無視 */ }
+  async function captureScene(dmg = shareDmg) {
     const out = document.createElement('canvas');
     out.width = 1080; out.height = 1350;
     try { await document.fonts.load("80px 'Dela Gothic One'"); } catch (e) { /* 無視 */ }
-    drawScene(out.getContext('2d'));
+    drawScene(out.getContext('2d'), dmg);
     return out;
   }
   // 1080×1350 の座標で描く（動画では縮めた画面にそのまま描く）
-  function drawScene(x) {
+  function drawScene(x, dmg = shareDmg) {
     const Wd = 1080, Ht = 1350;
     const bg = x.createLinearGradient(0, 0, 0, Ht);
     bg.addColorStop(0, '#2a0a0e'); bg.addColorStop(0.5, '#0b0710'); bg.addColorStop(1, '#1a0830');
@@ -1370,14 +1373,13 @@
       x.strokeText(note.textContent, Wd / 2, by + B * 0.62); x.fillText(note.textContent, Wd / 2, by + B * 0.62);
     }
     // ダメージ・回復の計算式（盤の真ん中に出ているもの）と、HP の横に出る「-6」「+1」も描く（動画・画像でも分かるように）
-    drawFormula(x, Wd, by + B * 0.8);
-    drawPops(x, Wd, by + B + 14);
+    if (dmg) { drawFormula(x, Wd, by + B * 0.8); drawPops(x, Wd, by + B + 14); }
     // 下：HP（デストロイルール）と、遊べる場所
     x.font = "bold 40px sans-serif"; x.fillStyle = '#fff';
     if (dstate) x.fillText(`黒 HP ${dstate.hp[BLACK]}　／　白 HP ${dstate.hp[WHITE]}`, Wd / 2, by + B + 60);
     x.font = "bold 34px sans-serif"; x.fillStyle = '#ffd23f';
     x.fillText(PLAY_URL, Wd / 2, Ht - 70);
-    x.font = "26px sans-serif"; x.fillStyle = 'rgba(255,255,255,0.6)'; x.fillText('#デストロイ碁　© ROBIT', Wd / 2, Ht - 28);
+    x.font = "26px sans-serif"; x.fillStyle = 'rgba(255,255,255,0.6)'; x.fillText('#デストロイ碁 #囲碁　© ROBIT', Wd / 2, Ht - 28);
   }
   const alphaOf = (el) => +getComputedStyle(el).opacity || 0;
   function fitFont(x, text, size, face, maxW) {
@@ -1436,7 +1438,7 @@
     }
   }
   let shareFile = null, shareUrl = null;
-  const SHARE_TEXT = `デストロイ碁で遊んだ！ https://${PLAY_URL}/ #デストロイ碁`;
+  const SHARE_TEXT = `デストロイ碁で遊んだ！ https://${PLAY_URL}/ #デストロイ碁 #囲碁`;
   // 画像か動画を見せて、共有メニュー（スマホ）か保存＋X の投稿画面（パソコン）で送る
   function openShare(blob, name, xOk = true) {
     const video = blob.type.startsWith('video/');
@@ -1456,12 +1458,27 @@
     $('#share-x').textContent = `${video ? '動画' : '画像'}を保存してXで投稿`;
     $('#share-note').textContent = $('#share-x').hidden ? '' : `X の投稿画面が開いたら、保存した${video ? '動画' : '画像'}を添付してください`;
     if (video && !xOk) $('#share-note').textContent = 'このブラウザでは X に載せられない形式（WebM）になります。Chrome か Safari で試してください';
+    // ダメージの表示の切り替えは、デストロイルールのときだけ出す
+    $('#share-dmg-row').hidden = !(video ? rpk && rpk.mode === 'destroy' : dstate);
+    $('#share-dmg').checked = shareDmg; $('#share-redo').hidden = true;
     $('#share-pop').hidden = false;
   }
+  // 画像は押した瞬間を、ダメージの表示あり・なしの 2 枚撮っておき、チェックで入れ替える
+  let shareImgs = null, shareVideoDmg = null;
+  const toPng = (cv) => new Promise((res) => cv.toBlob(res, 'image/png'));
   $('#btn-share').onclick = async () => {
-    const cv = await captureScene(); // 押した瞬間を撮る（演出の途中でも）
-    openShare(await new Promise((res) => cv.toBlob(res, 'image/png')), 'destroy-go.png');
+    const on = await captureScene(true), off = await captureScene(false); // 押した瞬間を撮る（演出の途中でも）
+    shareImgs = { on: await toPng(on), off: await toPng(off) };
+    shareVideoDmg = null;
+    openShare(shareImgs[shareDmg ? 'on' : 'off'], 'destroy-go.png');
   };
+  $('#share-dmg').onchange = () => {
+    shareDmg = $('#share-dmg').checked;
+    try { localStorage.setItem('destroy-go-share-dmg', shareDmg ? '1' : '0'); } catch (e) { /* 無視 */ }
+    if (shareVideoDmg === null && shareImgs) openShare(shareImgs[shareDmg ? 'on' : 'off'], 'destroy-go.png');
+    else $('#share-redo').hidden = shareDmg === shareVideoDmg; // 動画は作り直す
+  };
+  $('#share-redo').onclick = () => { $('#share-pop').hidden = true; $('#share-video').pause(); startRec(); };
   $('#share-go').onclick = async () => {
     try { await navigator.share({ files: [shareFile], text: SHARE_TEXT }); }
     catch (e) { /* 閉じただけ */ }
@@ -1638,6 +1655,27 @@
     el.className = 'delta show ' + (sec > 0 ? 'plus' : 'minus');
   }
 
+  // 時間切れが近いことを知らせる：残り 10 秒で 1 秒ごとに「ピッ」と画面のふちが赤く光り、残り 5 秒で「ピピッ」と速く強く光る。
+  // 打つ人が自分のときだけ（コンピューターやオンラインの相手の番は鳴らさない）。演出中で時計が止まっているときも鳴らさない。
+  // 光らせるのはふちだけで、点滅は 1 秒に 2 回まで（光に敏感な人のため）
+  let alertLevel = 0, alertSec = 0;
+  function timeAlert() {
+    let level = 0, rem = 0;
+    if (phase === 'play' && clock && clock.running && !fxHoldStart && !notMyTurn()) {
+      rem = clock.remaining(game.turn);
+      level = rem <= 0 ? 0 : rem <= 5000 ? 2 : rem <= 10000 ? 1 : 0;
+    }
+    if (level !== alertLevel) {
+      alertLevel = level;
+      $('#time-alert').className = level ? 'lv' + level : '';
+      gameEl.classList.toggle('time-alert-5', level === 2);
+    }
+    const sec = level ? Math.ceil(rem / 1000) : 0;
+    if (sec && sec !== alertSec) {
+      if (level === 2) { FX.blip(1320, 0.07, 'square', 0.14); FX.blip(1320, 0.07, 'square', 0.14, 0.13); } else FX.blip(880, 0.08, 'square', 0.11);
+    }
+    alertSec = sec;
+  }
   function tick() {
     if (phase === 'play' && fxHoldStart) {
       const now = performance.now();
@@ -1645,6 +1683,7 @@
       else fxHoldStart = 0;
     }
     gameEl.classList.toggle('fx-hold', phase === 'play' && fxHoldStart > 0);
+    timeAlert();
     if (phase === 'play' || phase === 'paused') {
       const loser = game.turn;
       // オンライン対戦で相手の時間が切れたときは、相手からの知らせを少し待つ（届かなければこちらで決める）
@@ -2170,14 +2209,27 @@
   }
   function rpStop() { clearTimeout(rpTimer); rpTimer = 0; }
   // ハイライト：何も起きない手は速く、石を取る手は等倍で演出を見せる。最後は勝ったときの演出
+  // 早送りの速さ（何も起きない手）。等倍は 1 手 0.88 秒。押すたびに ×2 → ×4 → ×8 と切り替わる
+  const RP_SPEEDS = [2, 4, 8], RP_STEP = 880;
+  let rpSpeed = 8;
+  try { const v = +localStorage.getItem('destroy-go-rp-speed'); if (RP_SPEEDS.includes(v)) rpSpeed = v; } catch (e) { /* 無視 */ }
+  const renderRpSpeed = () => { $('#rp-speed').textContent = `⏩×${rpSpeed}`; };
+  $('#rp-speed').onclick = () => {
+    rpSpeed = RP_SPEEDS[(RP_SPEEDS.indexOf(rpSpeed) + 1) % RP_SPEEDS.length];
+    try { localStorage.setItem('destroy-go-rp-speed', rpSpeed); } catch (e) { /* 無視 */ }
+    renderRpSpeed();
+  };
+  renderRpSpeed();
   function rpAutoStep() {
     if (rpIdx >= rpk.moves.length) { rpTimer = 0; rpFinish(); rpRender(); return; }
     const mv = rpk.moves[rpIdx];
     const t = mv.p >= 0 ? game.tryPlay(mv.p) : null, event = t && t.ok && t.captured.length > 0;
+    const before = game.atariStones();
     const hold = rpApply(event, true);
+    const atari = [...game.atariStones()].some((i) => !before.has(i)); // 新しくアタリになった（石にひびが入った）
     rpRender();
-    // 石を取った手と、2 眼で回復した手は止まって見せる。何も起きない手は速く進む
-    rpTimer = setTimeout(rpAutoStep, event ? Math.max(1800, hold + 1500) : rpHealed ? 1800 : 110);
+    // 石を取った手・2 眼で回復した手は止まって見せ、アタリになった手は等倍。何も起きない手は早送り
+    rpTimer = setTimeout(rpAutoStep, event ? Math.max(1800, hold + 1500) : rpHealed ? 1800 : atari ? RP_STEP : RP_STEP / rpSpeed);
   }
   function rpFinish() {
     const res = rpk.result;
@@ -2239,14 +2291,14 @@
     }
     const chunks = [], mr = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 4000000 });
     mr.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
-    rec = { mr, dest, actx, chunks, type, xOk: rt.x, t0: performance.now(), endAt: 0 };
+    rec = { mr, dest, actx, chunks, type, xOk: rt.x, dmg: shareDmg, t0: performance.now(), endAt: 0 };
     gameEl.classList.add('recording'); $('#rp-rec').textContent = '■ やめる';
     toast('ハイライトを動画にしています。終わったら共有できます');
     mr.start(250);
     rpGoTo(0); FX.clear(); rpAutoStep();
     const frame = () => {
       if (!rec || rec.mr !== mr) return;
-      x.save(); x.scale(720 / 1080, 720 / 1080); drawScene(x); x.restore();
+      x.save(); x.scale(720 / 1080, 720 / 1080); drawScene(x, rec.dmg); x.restore();
       const now = performance.now();
       if (!rpTimer && rpk && rpIdx >= rpk.moves.length && !rec.endAt) rec.endAt = now + 3000; // 最後の演出を見せてから止める
       if ((rec.endAt && now >= rec.endAt) || now - rec.t0 > REC_MAX) { stopRec(false); return; }
@@ -2262,6 +2314,7 @@
       if (r.dest) try { r.actx.master.disconnect(r.dest); } catch (e) { /* 無視 */ }
       if (cancel || !r.chunks.length) return;
       const blob = new Blob(r.chunks, { type: r.type.split(';')[0] });
+      shareVideoDmg = r.dmg; shareImgs = null;
       openShare(blob, `destroy-go-highlight.${/mp4/.test(r.type) ? 'mp4' : 'webm'}`, r.xOk);
     };
     r.mr.stop();
