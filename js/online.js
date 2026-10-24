@@ -93,6 +93,18 @@
       async topRatings(n) { const all = JSON.parse(localStorage.getItem('destroy-go-local-ratings') || '{}'); return Object.entries(all).map(([u, v]) => ({ u, ...v })).sort((a, b) => b.r - a.r).slice(0, n); },
       async saveKifu(k) { const all = JSON.parse(localStorage.getItem('destroy-go-local-kifus') || '{}'); all[me] = [...(all[me] || []), k].slice(-5); localStorage.setItem('destroy-go-local-kifus', JSON.stringify(all)); },
       async listKifus(u) { const all = JSON.parse(localStorage.getItem('destroy-go-local-kifus') || '{}'); return (all[u] || []).slice().reverse(); },
+      account() { return { linked: sessionStorage.getItem('destroy-go-local-linked') === '1', email: 'test@example.com' }; },
+      async linkGoogle() { sessionStorage.setItem('destroy-go-local-linked', '1'); return { ok: true }; },
+      async switchTo() {},
+      async saveProfile(v) { const all = JSON.parse(localStorage.getItem('destroy-go-local-users') || '{}'); all[me] = { ...(all[me] || {}), ...v }; localStorage.setItem('destroy-go-local-users', JSON.stringify(all)); },
+      async loadProfile() { return JSON.parse(localStorage.getItem('destroy-go-local-users') || '{}')[me] || null; },
+      async founders() { const v = JSON.parse(localStorage.getItem('destroy-go-local-founders') || '{}'); return { count: v.count || 0, list: v.list || {} }; },
+      async claimFounder(max) {
+        const v = JSON.parse(localStorage.getItem('destroy-go-local-founders') || '{}'); v.list = v.list || {};
+        if (v.list[me]) return v.list[me];
+        const n = (v.count || 0) + 1; if (n > max) return 0;
+        v.count = n; v.list[me] = n; localStorage.setItem('destroy-go-local-founders', JSON.stringify(v)); return n;
+      },
     };
   }
 
@@ -101,8 +113,11 @@
     if (!root.firebase) for (const s of SDK) await loadScript(s);
     const fb = root.firebase;
     const app = fb.apps.length ? fb.app() : fb.initializeApp(ed.firebase);
-    const cred = await app.auth().signInAnonymously();
-    const me = cred.user.uid, db = app.database();
+    const auth = app.auth();
+    // 前にログインした人（Google と連携した人も）はそのまま使う。いなければ匿名でログイン
+    const prev = await new Promise((res) => { const off = auth.onAuthStateChanged((u) => { off(); res(u); }); });
+    const user = prev || (await auth.signInAnonymously()).user;
+    const me = user.uid, db = app.database();
     let offset = 0; // サーバーとの時計のずれ（待っている人がまだいるかの判定に使う）
     db.ref('.info/serverTimeOffset').on('value', (s) => { offset = s.val() || 0; });
     let ref = null, offs = [];
@@ -214,6 +229,32 @@
         const out = []; snap.forEach((c) => { out.push(c.val()); });
         return out.reverse(); // 新しい順
       },
+      // ---- 記録の引き継ぎ（Google 連携）----
+      account() { const u = auth.currentUser, g = u && u.providerData.find((p) => p.providerId === 'google.com'); return { linked: !!g, email: g ? g.email : '' }; },
+      // 今の匿名の記録を Google アカウントにつなぐ（ID は変わらない）。
+      // その Google アカウントが別の記録とつながっていたら { other: 資格情報 } を返す（切り替えるかは app.js で聞く）
+      async linkGoogle() {
+        const provider = new fb.auth.GoogleAuthProvider();
+        try { await auth.currentUser.linkWithPopup(provider); return { ok: true }; } catch (e) {
+          if (e.code === 'auth/credential-already-in-use' && e.credential) return { other: e.credential };
+          throw e;
+        }
+      },
+      async switchTo(credential) { await auth.signInWithCredential(credential); }, // 前の記録に切り替える（ページを読み直して使う）
+      async saveProfile(v) { db.goOnline(); return db.ref('users/' + me).update({ ...v, t: fb.database.ServerValue.TIMESTAMP }); },
+      async loadProfile() { db.goOnline(); return (await db.ref('users/' + me).get()).val(); },
+      async founders() { db.goOnline(); const v = (await db.ref('founders').get()).val() || {}; return { count: v.count || 0, list: v.list || {} }; },
+      // 初代デストロイヤー：番号札（count）を 1 つ進めて、自分の番号を同時に書く。ほかの人と同時だったら読み直してやり直す
+      async claimFounder(max) {
+        db.goOnline();
+        for (let i = 0; i < 6; i++) {
+          const v = (await db.ref('founders').get()).val() || {};
+          if (v.list && v.list[me]) return v.list[me];
+          const n = (v.count || 0) + 1; if (n > max) return 0;
+          try { await db.ref('founders').update({ count: n, ['list/' + me]: n }); return n; } catch (e) { /* 同時に取られた。やり直す */ }
+        }
+        return 0;
+      },
       leave() {
         offs.forEach((f) => f()); offs = [];
         if (ref) {
@@ -256,6 +297,16 @@
     async topRatings(n = 50) { return withTimeout(transport().then((t) => t.topRatings(n)), LIMIT); },
     async saveKifu(k) { return (await transport()).saveKifu(k); },
     async listKifus(u) { return withTimeout(transport().then((t) => t.listKifus(u)), LIMIT); },
+    // 初代デストロイヤー（ランクマッチを最初に終えた先着の人）
+    async founders() { return withTimeout(transport().then((t) => t.founders()), LIMIT); },
+    async claimFounder(max) { return withTimeout(transport().then((t) => t.claimFounder(max)), LIMIT); },
+    // 記録の引き継ぎ。ready() で先に準備しておく（Google のログイン画面は、ボタンを押してすぐ開かないと止められる）
+    async ready() { return withTimeout(transport(), LIMIT); },
+    account() { return tp ? tp.account() : { linked: false, email: '' }; },
+    linkGoogle() { return tp.linkGoogle(); },
+    async switchTo(c) { return tp.switchTo(c); },
+    async saveProfile(v) { return (await transport()).saveProfile(v); },
+    async loadProfile() { return withTimeout(transport().then((t) => t.loadProfile()), LIMIT); },
   };
   root.Online = Online;
 })(this);

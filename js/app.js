@@ -391,6 +391,7 @@
     el.style.setProperty('--tc', '#7fe3ff');
     el.className = ''; void el.offsetWidth; el.className = 'show';
     FX.heal();
+    saveReminder('解放した BGM'); syncProfile();
   }
   let bgmKey = 'off'; // 最初は鳴らさない（いきなり音が出ると驚くので）。選べばメドレーなどが流れる
   try { const k = localStorage.getItem('destroy-go-bgm'); const b = BGMS.find((x) => x.key === k); if (b && bgmOk(b)) bgmKey = k; } catch (e) { /* 無視 */ }
@@ -484,6 +485,7 @@
     el.style.setProperty('--tc', t.color);
     el.className = ''; void el.offsetWidth; el.className = 'show';
     FX.heal();
+    saveReminder('解放した演出'); syncProfile();
   }
   for (const color of [BLACK, WHITE]) {
     $('#p' + color + ' .p-theme').onclick = () => {
@@ -1537,16 +1539,76 @@
   const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   document.querySelectorAll('.fs-btn').forEach((b) => {
     if (fsSupported) { b.onclick = toggleFullscreen; return; } // パソコンや Android（アプリとして入れて開いたときも使えるようにする）
-    b.hidden = standalone || !isIOS || EMBEDDED;
-    b.onclick = () => { $('#a2hs').hidden = false; };
+    b.hidden = standalone || !isIOS || EMBEDDED; // 押したときの案内は下の openA2hs
   });
-  // 「ホーム画面に追加」の手順（iPhone の Safari と Chrome で同じ）
-  $('#a2hs-steps').innerHTML = [
+  // 「ホーム画面に追加」の手順（iPhone は Safari と Chrome で同じ。Android とパソコンは Chrome のメニューから）
+  const isAndroid = /Android/.test(navigator.userAgent);
+  $('#a2hs-steps').innerHTML = (isIOS ? [
     'アドレスバーの右にある<b>共有ボタン</b>（□に↑のマーク）を押す。見つからなければ右下の「…」→「共有」',
     '「<b>表示を増やす</b>」を押して、「<b>ホーム画面に追加</b>」を選ぶ',
     'ホーム画面にできた<b>デストロイ碁のアイコン</b>から開く',
-  ].map((t) => `<li>${t}</li>`).join('');
+  ] : isAndroid ? [
+    'Chrome の右上の<b>「⋮」</b>を押す',
+    '「<b>ホーム画面に追加</b>」（または「アプリをインストール」）を選ぶ',
+    'ホーム画面にできた<b>デストロイ碁のアイコン</b>から開く',
+  ] : [
+    'Chrome / Edge のアドレスバーの右にある<b>インストールのマーク</b>を押す（なければ右上の「⋮」→「キャスト、保存、共有」→「ページをアプリとしてインストール」）',
+    'できた<b>デストロイ碁のアイコン</b>から開く',
+  ]).map((t) => `<li>${t}</li>`).join('');
+  // mode：'fs'（全画面で遊ぶには）か 'save'（記録が消えないように）
+  function openA2hs(mode = 'fs', lead = '') {
+    const save = mode === 'save';
+    $('#a2hs-title').textContent = save ? '記録が消えないように' : '全画面で遊ぶには';
+    $('#a2hs-lead').innerHTML = lead; $('#a2hs-lead').hidden = !lead;
+    $('#a2hs-note').textContent = save
+      ? (isIOS ? 'iPhone では、Safari で遊んだ記録はホーム画面のアイコンには引き継がれません。早めに追加するのがおすすめです。' : 'アイコンから開くと、ブラウザのバーも消えて画面いっぱいで遊べます。')
+      : 'アイコンから開くと、ブラウザのバーが消えて画面いっぱいで遊べます。';
+    $('#a2hs-link').hidden = !save || !Online.available() || EMBEDDED;
+    $('#a2hs').hidden = false;
+  }
+  $('#a2hs-link').onclick = () => { $('#a2hs').hidden = true; openAccount(); };
   $('#a2hs-close').onclick = () => { $('#a2hs').hidden = true; };
+  document.querySelectorAll('.fs-btn').forEach((b) => { if (!fsSupported) b.onclick = () => openA2hs('fs'); });
+
+  // ---------- 記録が消えないようにする案内 ----------
+  // 解放した演出・BGM・レートなどは、この端末のブラウザ（localStorage）に保存している。
+  // アプリの中のブラウザ（X・Instagram・LINE など）は消えやすいので毎回、ふつうのブラウザでは最初の 1 回だけ案内する
+  const INAPP = /FBAN|FBAV|Instagram|Line\/|Twitter|TikTok|musical_ly|BytedanceWebview|Discord|Threads|; wv\)/i.test(navigator.userAgent);
+  const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* 無視 */ } };
+  function askPersist() { try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) { /* 無視 */ } }
+  function renderSaveNote() {
+    const el = $('#save-note');
+    if (standalone || EMBEDDED) { el.hidden = true; return; }
+    if (INAPP) {
+      el.className = 'warn';
+      $('#save-note-text').innerHTML = '⚠ <b>アプリの中のブラウザだと、記録が消えやすいです。</b>右上の「…」などから <b>Safari / Chrome で開いて</b>遊んでね';
+      $('#save-note-how').hidden = true;
+      let closed = false; try { closed = sessionStorage.getItem('destroy-go-inapp-closed') === '1'; } catch (e) { /* 無視 */ }
+      el.hidden = closed;
+      return;
+    }
+    el.className = '';
+    $('#save-note-text').innerHTML = '解放した演出・レート・ランキングは、この端末のブラウザに保存されます。<b>ホーム画面に追加</b>すると消えにくくなります';
+    $('#save-note-how').hidden = false;
+    el.hidden = lsGet('destroy-go-save-note') === '1';
+  }
+  $('#save-note-how').onclick = () => openA2hs('save');
+  $('#save-note-close').onclick = () => {
+    $('#save-note').hidden = true;
+    if (INAPP) { try { sessionStorage.setItem('destroy-go-inapp-closed', '1'); } catch (e) { /* 無視 */ } } else lsSet('destroy-go-save-note', '1');
+  };
+  renderSaveNote();
+  askPersist();
+  // 何かを手に入れたとき（初めての解放・初めてのランクマッチ）に 1 回だけ。解放の知らせが消えてから出す
+  function saveReminder(what) {
+    askPersist();
+    if (standalone || EMBEDDED || lsGet('destroy-go-save-remind') === '1') return;
+    lsSet('destroy-go-save-remind', '1');
+    setTimeout(() => openA2hs('save', INAPP
+      ? `${what}は、この端末のブラウザに保存されています。<b>アプリの中のブラウザだと消えやすい</b>ので、Safari / Chrome で開いて、ホーム画面に追加しておくのがおすすめです。`
+      : `${what}は、この端末のブラウザに保存されています。<b>ホーム画面に追加</b>しておくと消えにくくなります。`), 4500);
+  }
   document.addEventListener('fullscreenchange', updateFsButtons);
   document.addEventListener('webkitfullscreenchange', updateFsButtons);
 
@@ -2437,14 +2499,125 @@
     $('#on-code').onkeydown = (e) => { if (e.key === 'Enter') $('#on-join').onclick(); };
   }
   // ランダムマッチ：相手を探す → 見つけた側が部屋を作って合言葉を送り、待っていた側が入る
+  // ---------- 初代デストロイヤー：ランクマッチを最初に終えた先着 100 人。名前の横に番号つきの印が出る ----------
+  const FOUNDER_MAX = 100;
+  let myFounder = 0;
+  try { myFounder = +localStorage.getItem('destroy-go-founder') || 0; } catch (e) { /* 無視 */ }
+  let foundersCache = null, foundersAt = 0;
+  async function loadFounders() {
+    if (foundersCache && Date.now() - foundersAt < 60000) return foundersCache;
+    try { foundersCache = await Online.founders(); foundersAt = Date.now(); } catch (e) { foundersCache = foundersCache || { count: 0, list: {} }; }
+    return foundersCache;
+  }
+  const DEV_UID = 'RBJU7o2rpuTScawapNfCBFPXHhj2'; // 開発者（ROBIT）。初代デストロイヤーはもらわず、開発者の印をつける
+  const devBadge = '<i class="badge-f badge-dev" title="デストロイ碁の開発者">🛠 開発者</i>';
+  const meIsDev = () => isDev() || Online.me() === DEV_UID;
+  const founderBadge = (n, short) => (n ? `<i class="badge-f" title="初代デストロイヤー：ランクマッチを最初に終えた先着 ${FOUNDER_MAX} 人">${short ? '初代' : '👑 初代デストロイヤー '}#${String(n).padStart(2, '0')}</i>` : '');
+  const founderLeft = (f) => (meIsDev() ? `🛠 開発者は初代デストロイヤーをもらいません（先着${FOUNDER_MAX}人・残り${Math.max(0, FOUNDER_MAX - f.count)}枠）`
+    : f.list[Online.me()] || myFounder ? `👑 あなたは<b>初代デストロイヤー #${String(f.list[Online.me()] || myFounder).padStart(2, '0')}</b>です（先着${FOUNDER_MAX}人・残り${Math.max(0, FOUNDER_MAX - f.count)}枠）`
+    : f.count >= FOUNDER_MAX ? '👑 初代デストロイヤー（先着100人）は締め切りました'
+    : `👑 ランクマッチを1局終えると<b>初代デストロイヤー</b>の印がもらえます（先着${FOUNDER_MAX}人・残り${FOUNDER_MAX - f.count}枠）`);
+  async function claimFounder() {
+    if (myFounder || meIsDev()) return;
+    let n = 0;
+    try { n = await Online.claimFounder(FOUNDER_MAX); } catch (e) { return; }
+    if (!n) return;
+    myFounder = n; foundersCache = null;
+    try { localStorage.setItem('destroy-go-founder', String(n)); } catch (e) { /* 無視 */ }
+    renderRankTop(); syncProfile();
+    const el = $('#unlock-pop');
+    el.innerHTML = `<b>👑 初代デストロイヤー #${String(n).padStart(2, '0')} に選ばれた！</b><small>ランクマッチを最初に終えた先着${FOUNDER_MAX}人の証。ランキングで名前の横に出ます</small>`;
+    el.style.setProperty('--tc', '#ffd23f');
+    el.className = ''; void el.offsetWidth; el.className = 'show';
+    FX.heal();
+  }
+  // ---------- 記録の引き継ぎ（Google 連携）----------
+  // レート・名前・初代デストロイヤーは Firebase にある。解放した演出・BGM などもここに写しておき、
+  // 別の端末や製品版で同じ Google アカウントと連携すれば戻せるようにする
+  const linked = () => lsGet('destroy-go-linked') === '1';
+  const profileData = () => ({ fx: [...secretUnlocked], bgm: [...bgmUnlocked], founder: myFounder || 0, random: randomPlayed() });
+  function syncProfile() { if (linked() && Online.available()) Online.saveProfile(profileData()).catch(() => {}); }
+  // サーバーの記録と、この端末の記録を合わせる（どちらかで解放したものは全部使える）
+  function mergeProfile(pf) {
+    if (!pf) return;
+    let changed = false;
+    for (const k of pf.fx || []) if (!secretUnlocked.has(k)) { secretUnlocked.add(k); changed = true; }
+    for (const k of pf.bgm || []) if (!bgmUnlocked.has(k)) { bgmUnlocked.add(k); changed = true; }
+    if (changed) {
+      lsSet('destroy-go-unlocks', JSON.stringify([...secretUnlocked])); lsSet('destroy-go-bgm-unlocks', JSON.stringify([...bgmUnlocked]));
+      buildThemeChips(); renderThemes(); buildBgmChips();
+    }
+    if ((pf.random || 0) > randomPlayed()) lsSet('destroy-go-random-played', pf.random);
+    renderRankTop();
+  }
+  // 連携している人は、開いたときにサーバーの記録を読む（初代デストロイヤーの番号も、今の ID のものに合わせる）
+  async function restoreProfile() {
+    if (!linked() || !Online.available() || EMBEDDED) return;
+    try {
+      const [pf, f] = await Promise.all([Online.loadProfile(), loadFounders()]);
+      mergeProfile(pf);
+      const n = f.list[Online.me()] || 0;
+      if (n !== myFounder) { myFounder = n; lsSet('destroy-go-founder', String(n)); }
+      myRating = null; await loadRating(); renderRankTop();
+      syncProfile();
+    } catch (e) { /* つながらないときは、この端末の記録のまま */ }
+  }
+  async function openAccount() {
+    $('#online-pop').hidden = false; onlineEntry = 'blank';
+    onlineView('<p class="on-wait">準備しています</p>');
+    try { await Online.ready(); } catch (e) { onlineError(e); return; }
+    const a = Online.account();
+    if (a.linked && !linked()) lsSet('destroy-go-linked', '1');
+    const body = a.linked
+      ? `<p class="on-title">🔗 記録の引き継ぎ</p>
+        <p>✅ <b>Google と連携しています</b>${a.email ? `（${esc(a.email)}）` : ''}</p>
+        <p class="on-set">レート・名前・初代デストロイヤー・解放した演出と BGM は、この Google アカウントに保存されます。別の端末や製品版でも、同じ Google アカウントで連携すれば戻ります。</p>`
+      : `<p class="on-title">🔗 記録の引き継ぎ</p>
+        <p>Google と連携すると、記録を Google アカウントに保存できます。</p>
+        <ul class="on-list"><li>ブラウザのデータを消しても戻せる</li><li>別の端末や<b>製品版</b>でも、同じ Google アカウントで連携すれば引き継げる</li><li>保存するのは レート・名前・初代デストロイヤー・解放した演出と BGM</li></ul>
+        <button class="accent" id="on-link">Google で連携する</button>
+        <p class="on-note">連携しなくても、今までどおり遊べます。メールアドレスなどがほかの人に見えることはありません。</p>`;
+    onlineView(`${body}<button id="on-back">戻る</button>`);
+    $('#on-back').onclick = onlineBack;
+    if (!$('#on-link')) return;
+    $('#on-link').onclick = () => {
+      // ログイン画面は、押してすぐ開かないとブラウザに止められるので、待たずに呼ぶ
+      Online.linkGoogle().then(async (r) => {
+        if (r.other) {
+          const ok = confirm('この Google アカウントには、前に連携した記録があります。\n前の記録に切り替えますか？\n\n・レートと名前は、前の記録のものになります\n・解放した演出と BGM は、両方を合わせます');
+          if (!ok) return;
+          await Online.switchTo(r.other);
+          lsSet('destroy-go-linked', '1'); lsSet('destroy-go-founder', '0');
+          location.reload();
+          return;
+        }
+        lsSet('destroy-go-linked', '1');
+        await Online.saveProfile(profileData()).catch(() => {});
+        toast('Google と連携しました。記録が守られます');
+        openAccount();
+      }).catch((e) => {
+        const c = e && e.code;
+        const msg = c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request' ? '連携をやめました'
+          : c === 'auth/popup-blocked' ? 'ログインの画面を開けませんでした。もう一度押すか、Safari / Chrome で開いてください'
+          : c === 'auth/operation-not-allowed' ? 'Google 連携はまだ準備中です'
+          : INAPP ? 'アプリの中のブラウザでは Google にログインできません。Safari / Chrome で開いてください'
+          : `連携できませんでした（${c || (e && e.message) || '不明'}）`;
+        toast(msg);
+      });
+    };
+  }
+  $('#btn-account').hidden = !Online.available() || EMBEDDED;
+  $('#btn-account').onclick = () => { FX.unlock(); openAccount(); };
+  restoreProfile();
   async function showRanking() {
     onlineView('<p class="on-wait">ランキングを読み込んでいます</p>');
     try {
-      const [list, me] = await Promise.all([Online.topRatings(50), loadRating()]);
-      const rows = list.map((v, i) => `<li data-u="${v.u}"${v.u === Online.me() ? ' class="on-mine"' : ''}><span>${i + 1}</span><b>${esc(v.name)}</b><span>${v.r}</span><small>${v.n || 0}局</small></li>`).join('');
+      const [list, me, f] = await Promise.all([Online.topRatings(50), loadRating(), loadFounders()]);
+      const rows = list.map((v, i) => `<li data-u="${v.u}"${v.u === Online.me() ? ' class="on-mine"' : ''}><span>${i + 1}</span><span class="rk-name"><b>${esc(v.name)}</b>${v.u === DEV_UID || (v.u === Online.me() && isDev()) ? devBadge : founderBadge(f.list[v.u], true)}</span><span>${v.r}</span><small>${v.n || 0}局</small></li>`).join('');
       onlineView(`<p class="on-set">ランクマッチ（上級・9路）のレート上位 50 人。名前を押すと、直近 5 局の棋譜が見られます</p>
+        <p class="on-founder">${founderLeft(f)}</p>
         <ol class="on-rank">${rows || '<li class="on-empty">まだ誰もいません</li>'}</ol>
-        <p class="on-me">あなた：<b>${esc(me.name)}</b>（レート ${me.r}・${me.n}局）${isDev() ? '' : '<button id="on-rename">名前を変える</button>'}</p><button id="on-back">戻る</button>`);
+        <p class="on-me">あなた：<b>${esc(me.name)}</b>${meIsDev() ? devBadge : founderBadge(f.list[Online.me()] || myFounder)}（レート ${me.r}・${me.n}局）${isDev() ? '' : '<button id="on-rename">名前を変える</button>'}</p><button id="on-back">戻る</button>`);
       if ($('#on-rename')) $('#on-rename').onclick = () => { myRating.name = makeName(); if (!myRating.fresh) saveRating(); showRanking(); };
       $('#online-body').querySelectorAll('.on-rank li[data-u]').forEach((li) => { li.onclick = () => showPlayerKifus(li.dataset.u, li.querySelector('b').textContent); });
     } catch (e) { onlineView(`<p class="on-err">${e.message}</p><button id="on-back">戻る</button>`); }
@@ -2482,10 +2655,12 @@
     const view = (n) => onlineView(`<p class="on-wait">相手を探しています</p>
       <p class="on-set">${label}：${settingText(RULE)}</p>
       <p class="on-rule"><b>デストロイ碁オリジナルのルール</b>です。石を取ると相手にダメージ、HPを0にしても勝ち。待っている間にどうぞ<button id="on-rules">ルールを見る</button></p>
+      <p class="on-founder" id="on-founder" hidden></p>
       <p class="on-set" id="on-count">${n ? `${label}を開いている人：${n}人` : ''}</p>
       <button id="on-cpu" hidden>待っている間、CPU（Lv1）と対戦する</button><button id="on-cancel">やめる</button>`);
     view(0);
     $('#on-rules').onclick = () => openRulesFor(kind === 'rank');
+    if (kind === 'rank' && !myFounder && !meIsDev()) loadFounders().then((f) => { const el = $('#on-founder'); if (el) { el.innerHTML = founderLeft(f); el.hidden = false; } });
     $('#on-cancel').onclick = () => { stopSeek(); Online.leave(); onlineBack(); };
     const showCpu = () => {
       if (!$('#on-cpu')) return;
@@ -2594,7 +2769,7 @@
     net.ended = net.g;
     // ランダム・ランクマッチは同じ相手と続けて対戦しない（同じ相手とレートを動かし合う不正を防ぐ）。終わったら次の相手を探す
     if (net.kind === 'random' || net.kind === 'rank') { net.nextOnly = true; $('#btn-again').textContent = '次の相手を探す'; }
-    if (net.kind === 'random') { try { localStorage.setItem('destroy-go-random-played', randomPlayed() + 1); } catch (e) { /* 無視 */ } }
+    if (net.kind === 'random') { try { localStorage.setItem('destroy-go-random-played', randomPlayed() + 1); } catch (e) { /* 無視 */ } syncProfile(); }
     if (net.kind === 'rank' && net.opp && net.before) {
       const win = winner === net.color;
       myRating.r = eloNext(net.before, net.opp, win); myRating.n = net.before.n + 1; saveRating();
@@ -2608,6 +2783,8 @@
       const d = myRating.r - net.before.r;
       $('#m-rate').textContent = `レート ${net.before.r} → ${myRating.r}（${d >= 0 ? '+' : ''}${d}）`; // 結果の画面に出す
       $('#m-rate').className = d >= 0 ? 'up' : 'down';
+      saveReminder('レートや名前');
+      claimFounder();
     }
   }
   // もう一局：2人とも押したら、色を入れ替えて始める
@@ -2666,6 +2843,11 @@
   // 相手から届いたものを盤に反映する（自分が送ったものは、もう反映してあるので飛ばす）
   function onlineMove(m) {
     if (!net || !m || m.u === Online.me()) return;
+    if (!net.oppU) { // 相手が初代デストロイヤーなら知らせる
+      net.oppU = m.u;
+      if (m.u === DEV_UID) toast('相手は 🛠 開発者（ROBIT）');
+      else loadFounders().then((f) => { const n = f.list[m.u]; if (n && net && net.oppU === m.u) toast(`相手は 👑 初代デストロイヤー #${String(n).padStart(2, '0')}`); });
+    }
     if (m.t === 'again') { if (m.g === net.g) { net.again[m.u] = true; onlineAgainCheck(); } return; }
     if (m.t === 'bye') { if (phase === 'over') peerGoneAfterGame(); else if (!net.waiting) toast('相手が対局をやめました'); return; }
     if (m.g !== net.g) return;
@@ -2693,7 +2875,7 @@
     const left = Math.max(0, RANK_UNLOCK - randomPlayed());
     $('#btn-rank-top').classList.toggle('locked', left > 0);
     $('#rank-top-note').textContent = left ? `🔒 あと${left}局で開放` : 'レートをかけて対戦';
-    if (myRating && !myRating.fresh) $('#home-me').textContent = `${myRating.name}　レート ${myRating.r}`;
+    if (myRating && !myRating.fresh) $('#home-me').innerHTML = `${esc(myRating.name)}${isDev() ? devBadge : founderBadge(myFounder)}　レート ${myRating.r}`;
     $('#btn-rank-top').title = left ? `ランダムマッチをあと ${left} 局遊ぶと開放` : 'デストロイ上級・9路でレートをかけて対戦';
   }
   renderRankTop();
