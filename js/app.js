@@ -1559,11 +1559,17 @@
   function openA2hs(mode = 'fs', lead = '') {
     const save = mode === 'save';
     $('#a2hs-title').textContent = save ? '記録が消えないように' : '全画面で遊ぶには';
+    const canLink = save && Online.available() && !EMBEDDED, phone = isIOS || isAndroid;
     $('#a2hs-lead').innerHTML = lead; $('#a2hs-lead').hidden = !lead;
-    $('#a2hs-note').textContent = save
-      ? (isIOS ? 'iPhone では、Safari で遊んだ記録はホーム画面のアイコンには引き継がれません。早めに追加するのがおすすめです。' : 'アイコンから開くと、ブラウザのバーも消えて画面いっぱいで遊べます。')
-      : 'アイコンから開くと、ブラウザのバーが消えて画面いっぱいで遊べます。';
-    $('#a2hs-link').hidden = !save || !Online.available() || EMBEDDED;
+    // 記録を守るとき：① Google 連携（おすすめ）② ホーム画面に追加（スマホだけ。パソコンは閉じても消えないので要らない）
+    $('#a2hs-s1').hidden = !canLink;
+    $('#a2hs-s2').hidden = !save || !phone;
+    $('#a2hs-s2').textContent = canLink ? '② ホーム画面に追加する（さらに安心）' : 'ホーム画面に追加する';
+    $('#a2hs-steps').hidden = save && !phone;
+    $('#a2hs-note').textContent = !save ? 'アイコンから開くと、ブラウザのバーが消えて画面いっぱいで遊べます。'
+      : isIOS ? 'iPhone では、Safari・Chrome・ホーム画面のアイコンで、記録が別々に保存されます。アイコンで遊ぶなら早めに追加しておくのがおすすめです。'
+      : phone ? 'アイコンから開くと、ブラウザのバーも消えて画面いっぱいで遊べます。'
+      : 'パソコンはブラウザを閉じても記録は消えないので、ホーム画面への追加（インストール）はしなくて大丈夫です。';
     $('#a2hs').hidden = false;
   }
   $('#a2hs-link').onclick = () => { $('#a2hs').hidden = true; openAccount(); };
@@ -1589,8 +1595,10 @@
       return;
     }
     el.className = '';
-    $('#save-note-text').innerHTML = '解放した演出・レート・ランキングは、この端末のブラウザに保存されます。<b>ホーム画面に追加</b>すると消えにくくなります';
-    $('#save-note-how').hidden = false;
+    $('#save-note-text').innerHTML = isIOS || isAndroid
+      ? '解放した演出・レート・ランキングは、この端末のブラウザに保存されます。<b>ホーム画面に追加</b>や<b>Google 連携</b>で消えにくくなります'
+      : '解放した演出・レート・ランキングは、このブラウザに保存されます。<b>Google と連携</b>すると、データを消しても戻せます';
+    $('#save-note-how').hidden = false; $('#save-note-how').textContent = isIOS || isAndroid ? '消えないようにする' : '記録を守る';
     el.hidden = lsGet('destroy-go-save-note') === '1';
   }
   $('#save-note-how').onclick = () => openA2hs('save');
@@ -2512,8 +2520,11 @@
   const DEV_UID = 'RBJU7o2rpuTScawapNfCBFPXHhj2'; // 開発者（ROBIT）。初代デストロイヤーはもらわず、開発者の印をつける
   const devBadge = '<i class="badge-f badge-dev" title="デストロイ碁の開発者">🛠 開発者</i>';
   const meIsDev = () => isDev() || Online.me() === DEV_UID;
-  // テスト用の端末（?tester=1 で一度開くと覚える）。初代デストロイヤーの番号を取らない
-  try { if (/[?&]tester=1\b/.test(location.search)) localStorage.setItem('destroy-go-tester', '1'); } catch (e) { /* 無視 */ }
+  // テスト用の端末（?tester=1 で一度開くと覚える。?tester=0 でやめる）。初代デストロイヤーの番号を取らない
+  try {
+    if (/[?&]tester=1\b/.test(location.search)) localStorage.setItem('destroy-go-tester', '1');
+    if (/[?&]tester=0\b/.test(location.search)) localStorage.removeItem('destroy-go-tester');
+  } catch (e) { /* 無視 */ }
   const isTester = () => lsGet('destroy-go-tester') === '1';
   const founderBadge = (n, short) => (n ? `<i class="badge-f" title="初代デストロイヤー：ランクマッチを最初に終えた先着 ${FOUNDER_MAX} 人">${short ? '初代' : '👑 初代デストロイヤー '}#${String(n).padStart(2, '0')}</i>` : '');
   const founderLeft = (f) => (isTester() && !meIsDev() ? `🧪 テスト用の端末なので、初代デストロイヤーはもらいません（先着${FOUNDER_MAX}人・残り${Math.max(0, FOUNDER_MAX - f.count)}枠）`

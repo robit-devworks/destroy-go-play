@@ -615,8 +615,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #a2hs[hidden] { display: none; }
 .a2hs-title { font-size: 20px; font-weight: 800; color: var(--accent2); }
 .a2hs-steps { text-align: left; line-height: 1.8; padding-left: 22px; margin: 14px 0 8px; }
-.a2hs-lead { font-size: 14px; line-height: 1.7; margin: 10px 0 0; text-align: left; }
+.a2hs-lead { font-size: 14px; line-height: 1.7; margin: 10px 0 14px; text-align: left; }
 .a2hs-lead b { color: var(--accent2); }
+.a2hs-step { margin: 14px 0 4px; padding: 12px; border-radius: 12px; background: rgba(255, 210, 63, 0.08); border: 1px solid rgba(255, 210, 63, 0.35); text-align: left; }
+.a2hs-step-title { margin: 14px 0 0; font-size: 15px; font-weight: 800; color: var(--accent2); text-align: left; }
+.a2hs-step .a2hs-step-title { margin: 0; }
+.a2hs-step-text { margin: 4px 0 10px; font-size: 13px; line-height: 1.6; }
+.a2hs-step #a2hs-link { width: 100%; border: 0; border-radius: 999px; padding: 11px; font-weight: 800; color: #fff; background: linear-gradient(180deg, #ff6a3d, #d4001a); }
+#a2hs .a2hs-step-title + .a2hs-steps { margin-top: 6px; }
 .a2hs-note { font-size: 13px; color: var(--muted); margin: 0 0 16px; }
 .modal-box {
   position: relative;
