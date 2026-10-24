@@ -2917,7 +2917,10 @@
           const n = net;
           setTimeout(() => { if (net === n && net.waiting) { leaveOnline(); onlineRandom(kind); } }, 15000);
         } catch (e) { onlineError(e); }
-      }, (n) => { const el = $('#on-count'); if (el) el.textContent = `${label}を開いている人：${n}人`; }, kind);
+      }, (n) => {
+        const el = $('#on-count'); if (el) el.textContent = `${label}を開いている人：${n}人`;
+        if (n <= 1) { clearTimeout(stopSeek.t); showCpu(); } // 自分しかいないときは、待たずに CPU 戦のボタンを出す（探すのは続ける）
+      }, kind);
     } catch (e) { onlineError(e); }
   }
   function onlineError(e) {
