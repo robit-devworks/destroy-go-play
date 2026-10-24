@@ -18,6 +18,13 @@
     });
   }
   const randomCode = () => String(Math.floor(1000 + Math.random() * 9000));
+  // 決まった時間で返ってこなければあきらめる（無料プランの同時接続の上限を超えると、つながらずに待ち続けるため）
+  const BUSY = 'いま混み合っていて、つながりませんでした。少ししてからもう一度試してください';
+  function withTimeout(p, ms, onTimeout) {
+    let t;
+    return Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => { if (onTimeout) onTimeout(); rej(new Error(BUSY)); }, ms); })])
+      .finally(() => clearTimeout(t));
+  }
 
   // ---------- 同じブラウザの別タブどうし（テスト用） ----------
   function localTransport() {
@@ -77,10 +84,16 @@
       on.child(me).onDisconnect().set(false);
       on.child(me).set(true);
     };
+    // 部屋から抜けたら接続そのものも切る（開いたままだと、同時接続の枠を使い続けてしまう）
+    let epoch = 0; // あきらめたあとに遅れて返ってきた結果は使わない
+    const offline = () => { epoch++; try { db.goOffline(); } catch (e) { /* 無視 */ } };
     return {
       me,
+      offline,
       async create(settings, h) {
-        for (let tries = 0; tries < 20; tries++) {
+        db.goOnline();
+        const my = epoch;
+        for (let tries = 0; tries < 20 && my === epoch; tries++) {
           const code = randomCode(), r = db.ref('rooms/' + code);
           try {
             await r.update({ host: me, created: fb.database.ServerValue.TIMESTAMP, settings });
@@ -89,25 +102,35 @@
             if (old && Date.now() - old > ROOM_TTL) { try { await r.remove(); } catch (err) { /* 別の合言葉で */ } }
             continue;
           }
+          if (my !== epoch) break;
           ref = r; listen(h);
           return code;
         }
         throw new Error('部屋を作れませんでした。少ししてからもう一度試してください');
       },
       async join(code, h) {
+        db.goOnline();
+        const my = epoch;
         const r = db.ref('rooms/' + code);
         const snap = await r.get();
         const v = snap.val();
         if (!v || !v.host || Date.now() - (v.created || 0) > ROOM_TTL) throw new Error('その合言葉の部屋が見つかりません');
         if (v.guest && v.guest !== me) throw new Error('その部屋はもう2人そろっています');
         if (!v.guest) await r.child('guest').set(me);
+        if (my !== epoch) throw new Error(BUSY);
         ref = r; listen(h);
         return v.settings;
       },
       send(v) { const m = { ...v, u: me }; if (ref) ref.child('moves').push(m); return m; },
       leave() {
         offs.forEach((f) => f()); offs = [];
-        if (ref) { ref.child('on/' + me).onDisconnect().cancel(); ref.child('on/' + me).set(false); ref = null; }
+        if (ref) {
+          ref.child('on/' + me).onDisconnect().cancel();
+          // 「抜けた」を書き込んでから切る（書き込みが届かなくても、切れたときの設定で相手には伝わる）
+          const done = ref.child('on/' + me).set(false);
+          withTimeout(done, 3000).catch(() => {}).finally(offline);
+          ref = null;
+        } else offline();
       },
     };
   }
@@ -120,11 +143,13 @@
     if (!tp) tp = useLocal ? localTransport() : await firebaseTransport();
     return tp;
   }
+  const LIMIT = 12000; // 部品の読み込み・ログイン・部屋を作る／入るまでを、これだけ待つ
+  const giveUp = () => { if (tp && tp.offline) tp.offline(); };
   const Online = {
     available: () => useLocal || !!(ed.firebase && ed.firebase.databaseURL),
     me: () => (tp ? tp.me : null),
-    async create(settings, h) { return (await transport()).create(settings, h); },
-    async join(code, h) { return (await transport()).join(code, h); },
+    async create(settings, h) { return withTimeout(transport().then((t) => t.create(settings, h)), LIMIT, giveUp); },
+    async join(code, h) { return withTimeout(transport().then((t) => t.join(code, h)), LIMIT, giveUp); },
     send(v) { return tp ? tp.send(v) : null; },
     leave() { if (tp) tp.leave(); },
   };

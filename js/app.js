@@ -1459,6 +1459,7 @@
     if (phase === 'replay') return;
     phase = 'over'; clock.stop(); cancelCharge();
     saveKifu(title, body, winner);
+    if (net) onlineIdle(); // 結果の画面のまま放置されたら、接続を切る
     const show = () => {
       $('.m-title').textContent = title;
       $('.m-body').textContent = body;
@@ -1570,7 +1571,7 @@
     bgmPick = null; playBgm(); // ランダムなら対局ごとに選び直す
     game = new GoGame(SIZE, rules);
     clock = new GoClock({ base: (net ? net.min : minutes()) * 60 * 1000 });
-    $('#btn-result').hidden = true;
+    $('#btn-result').hidden = true; $('#btn-again').hidden = false;
     $('#btn-undo').hidden = $('#btn-pause').hidden = !!net; // オンライン対戦では待った・一時停止はなし
     if (net) Object.assign(net, { zeroAt: 0, again: {}, out: null, deadIn: null, deadWait: null });
     dead = new Set(); wiped = new Set(); terrGlow = null; pending = -1; hover = -1; lockUntil = 0;
@@ -2145,6 +2146,13 @@
         ${navigator.share ? '<button id="on-share">合言葉を送る</button>' : ''}<button id="on-cancel">やめる</button>`);
       if ($('#on-share')) $('#on-share').onclick = () => navigator.share({ text: `デストロイ碁で対戦しよう！「オンライン対戦（β）」で合言葉 ${code} を入れてね\nhttps://${PLAY_URL}/` }).catch(() => {});
       $('#on-cancel').onclick = () => { leaveOnline(); openOnline(); };
+      const n = net;
+      setTimeout(() => {
+        if (net !== n || !net.waiting) return;
+        leaveOnline();
+        onlineView('<p>相手が来なかったので、部屋を閉じました。</p><button id="on-back">戻る</button>');
+        $('#on-back').onclick = openOnline;
+      }, IDLE_WAIT);
     } catch (e) { onlineError(e); }
   }
   async function onlineJoin(code) {
@@ -2176,6 +2184,17 @@
     if (sv) { SIZE = sv.SIZE; mode = sv.mode; dAdvanced = sv.dAdvanced; rules = sv.rules; Object.assign(themes, sv.themes); renderThemes(); renderRules(); }
     $('#btn-undo').hidden = $('#btn-pause').hidden = false;
     $('#btn-again').textContent = 'もう一局';
+  }
+  // 放置対策：結果の画面で 3 分、相手を待つ画面で 10 分たったら接続を切る（無料プランの同時接続の枠を空けるため）
+  const IDLE_OVER = 3 * 60 * 1000, IDLE_WAIT = 10 * 60 * 1000;
+  function onlineIdle() {
+    const n = net, g = net.g;
+    setTimeout(() => {
+      if (net !== n || net.g !== g || phase !== 'over') return;
+      leaveOnline();
+      $('#btn-again').hidden = true;
+      toast('しばらく操作がなかったので、オンライン対戦の接続を切りました');
+    }, IDLE_OVER);
   }
   // もう一局：2人とも押したら、色を入れ替えて始める
   function onlineAgain() {
