@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Black+Ops+One&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=20261025172239">
+  <link rel="stylesheet" href="css/style.css?v=20261025231155">
 </head>
 <body>
   <div id="stage">
@@ -35,6 +35,19 @@
         <p class="sec-title"><span>この端末で遊ぶ</span></p>
         <button id="btn-start" class="start-item"><b>対局開始</b><small id="start-summary"></small></button>
         <div class="quick"><button id="q-cpu">CPUと</button><button id="q-human">2人で</button><button id="btn-settings">⚙ 設定</button></div>
+        <!-- 対局の設定：よく変えるものはここで選べる（たたむこともできる）。細かい設定は ⚙ 設定 -->
+        <div class="home-set" id="home-set">
+          <button class="hs-head" id="hs-toggle"><span class="hs-t">対局の設定</span><span class="hs-s" id="hs-sum"></span><span class="hs-ar" id="hs-ar"></span></button>
+          <div class="hs-body" id="hs-body">
+            <div class="hs-row"><span class="tr-label">ルール</span><div class="chips" data-k="rule"></div></div>
+            <div class="hs-row" data-row="lv"><span class="tr-label">CPU の強さ</span><div class="chips" data-k="lv"></div></div>
+            <div class="hs-row"><span class="tr-label">碁盤</span><div class="chips" data-k="size"></div></div>
+            <div class="hs-row"><span class="tr-label">持ち時間</span><div class="chips" data-k="time"></div></div>
+            <div class="theme-row" data-color="1"><span class="tr-label"><i class="p-stone black"></i>黒の演出</span><div class="chips"></div></div>
+            <div class="theme-row" data-color="2"><span class="tr-label"><i class="p-stone white"></i>白の演出</span><div class="chips"></div></div>
+            <button class="hs-more" id="hs-more">置き石・ルールの細かい設定・音は ⚙ 設定へ ›</button>
+          </div>
+        </div>
       </div>
       <!-- はじめての人向け：押すだけで、コンピューター Lv1・9路で始める -->
       <div class="beginner">
@@ -357,7 +370,7 @@
     </div>
   </div>
 
-  <script src="js/edition.js?v=20261025172239"></script>
+  <script src="js/edition.js?v=20261025231155"></script>
   <!-- アクセス解析（GoatCounter）。Cookie を使わず、個人は分からない（開かれた回数・どこから来たか・端末の種類だけ）。
        公開しているサイトでだけ数える。開発者とテスト用の端末は数えない -->
   <script>
@@ -371,14 +384,14 @@
       document.head.appendChild(s);
     })();
   </script>
-  <script src="js/go.js?v=20261025172239"></script>
-  <script src="js/clock.js?v=20261025172239"></script>
-  <script src="js/sounds.js?v=20261025172239"></script>
-  <script src="js/effects.js?v=20261025172239"></script>
-  <script src="js/boardfx.js?v=20261025172239"></script>
-  <script src="js/destroy-rule.js?v=20261025172239"></script>
-  <script src="js/ai.js?v=20261025172239"></script>
-  <script src="js/online.js?v=20261025172239"></script>
-  <script src="js/app.js?v=20261025172239"></script>
+  <script src="js/go.js?v=20261025231155"></script>
+  <script src="js/clock.js?v=20261025231155"></script>
+  <script src="js/sounds.js?v=20261025231155"></script>
+  <script src="js/effects.js?v=20261025231155"></script>
+  <script src="js/boardfx.js?v=20261025231155"></script>
+  <script src="js/destroy-rule.js?v=20261025231155"></script>
+  <script src="js/ai.js?v=20261025231155"></script>
+  <script src="js/online.js?v=20261025231155"></script>
+  <script src="js/app.js?v=20261025231155"></script>
 </body>
 </html>

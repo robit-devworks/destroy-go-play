@@ -188,7 +188,43 @@
     $('#start-summary').textContent = [opponent === 'cpu' ? `CPU Lv${cpuLevel}` : '2人で対局', `${SIZE}路`, rule, `${minutes()}分`].join('・');
     $('#q-cpu').setAttribute('aria-pressed', opponent === 'cpu');
     $('#q-human').setAttribute('aria-pressed', opponent !== 'cpu');
+    renderHomeSet();
   }
+  // タイトルの「対局の設定」：ルール・CPU の強さ・碁盤・持ち時間を選ぶ（⚙ 設定の同じボタンを押す）。演出は .theme-row で共通
+  // はじめはひらいておく（気づいてもらうため）。たたんだら覚えておく
+  let homeSetOpen = true;
+  try { homeSetOpen = localStorage.getItem('destroy-go-homeset') !== '0'; } catch (e) { /* 無視 */ }
+  const HOME_SET = {
+    rule: { list: () => [['go', 'ふつうの囲碁'], ['simple', 'デストロイ初級'], ['advanced', 'デストロイ上級']],
+      now: () => (mode === 'destroy' ? (dAdvanced ? 'advanced' : 'simple') : 'go'),
+      pick: (v) => { $(`#mode-chips .chip[data-mode="${v === 'go' ? 'go' : 'destroy'}"]`).click(); if (v !== 'go') $(`#dlevel-chips .chip[data-level="${v}"]`).click(); } },
+    lv: { list: () => [1, 2, 3, 4, 5, 6, 7, 8, 9].map((lv) => [lv, String(lv)]), now: () => cpuLevel, pick: (v) => $(`#level-chips .chip[data-level="${v}"]`).click() },
+    size: { list: () => Object.keys(BOARDS).sort((a, b) => b - a).map((n) => [+n, `${n}路`]), now: () => SIZE, pick: (v) => $(`#size-chips .chip[data-size="${v}"]`).click() },
+    time: { list: () => TIME_CHOICES.map((t) => [t, t === 'auto' ? `おすすめ（${AUTO_MINUTES[SIZE]}分）` : `${t}分`]), now: () => timeChoice, pick: (v) => $(`#time-chips .chip[data-time="${v}"]`).click() },
+  };
+  function renderHomeSet() {
+    const box = $('#home-set');
+    box.classList.toggle('open', homeSetOpen);
+    $('#hs-ar').textContent = homeSetOpen ? 'たたむ ▲' : 'ひらく ▼';
+    // たたんでいるときは演出だけ出す（ルール・碁盤・持ち時間は「対局開始」に出ている）
+    $('#hs-sum').textContent = homeSetOpen ? '' : `演出 黒：${themeOf(themes[BLACK]).label}／白：${themeOf(themes[WHITE]).label}`;
+    box.querySelectorAll('.hs-row .chips').forEach((row) => {
+      const k = row.dataset.k, items = HOME_SET[k].list();
+      if (row.children.length !== items.length || k === 'time') { // 持ち時間の「おすすめ（N分）」は碁盤で変わるので作り直す
+        row.textContent = '';
+        for (const [v, label] of items) {
+          const chip = document.createElement('button');
+          chip.className = 'chip rule-chip'; chip.dataset.v = v; chip.textContent = label;
+          chip.onclick = () => HOME_SET[k].pick(v);
+          row.appendChild(chip);
+        }
+      }
+      row.querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', c.dataset.v === String(HOME_SET[k].now())));
+    });
+    box.querySelector('[data-row="lv"]').hidden = opponent !== 'cpu';
+  }
+  $('#hs-toggle').onclick = () => { homeSetOpen = !homeSetOpen; lsSet('destroy-go-homeset', homeSetOpen ? '1' : '0'); renderHomeSet(); };
+  $('#hs-more').onclick = () => $('#btn-settings').click();
   $('#q-cpu').onclick = () => $('#opp-chips .chip[data-opp="cpu"]').click();
   $('#q-human').onclick = () => $('#opp-chips .chip[data-opp="human"]').click();
   // ⚙ 設定：タブで「対局・演出・音・ルール」を切り替える
@@ -352,6 +388,7 @@
       badge.title = `演出：${t.label}（タップで切替）`;
     }
     $('#preview-label').textContent = `${NAMES[previewColor]}：${themeOf(themes[previewColor]).label}`;
+    if (homeReady) renderHomeSet(); // たたんでいるときの 1 行に演出も出す
   }
 
   // 演出の選択肢を作る（隠し要素を解放したら作り直す）
