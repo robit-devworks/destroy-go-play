@@ -1486,7 +1486,8 @@
     }
   }
   let shareFile = null, shareUrl = null;
-  const SHARE_TEXT = `デストロイ碁で遊んだ！ https://${PLAY_URL}/ #デストロイ碁 #囲碁`;
+  // 共有の文に入れる URL には、どこから来たか分かる目印（ref）を付ける（アクセス解析の「Campaigns」で見られる）
+  const SHARE_TEXT = `デストロイ碁で遊んだ！ https://${PLAY_URL}/?ref=share #デストロイ碁 #囲碁`;
   // 画像か動画を見せて、共有メニュー（スマホ）か保存＋X の投稿画面（パソコン）で送る
   function openShare(blob, name, xOk = true) {
     const video = blob.type.startsWith('video/');
@@ -2961,7 +2962,7 @@
       onlineView(`<p>相手にこの合言葉を伝えてください</p><div class="on-code">${code}</div>
         <p class="on-set">${settingText(settings)}</p><p class="on-wait">相手が入るのを待っています</p>
         ${navigator.share ? '<button id="on-share">合言葉を送る</button>' : ''}<button id="on-cancel">やめる</button>`);
-      if ($('#on-share')) $('#on-share').onclick = () => navigator.share({ text: `デストロイ碁で対戦しよう！「オンライン対戦（β）」で合言葉 ${code} を入れてね\nhttps://${PLAY_URL}/` }).catch(() => {});
+      if ($('#on-share')) $('#on-share').onclick = () => navigator.share({ text: `デストロイ碁で対戦しよう！「オンライン対戦（β）」で合言葉 ${code} を入れてね\nhttps://${PLAY_URL}/?ref=invite` }).catch(() => {});
       $('#on-cancel').onclick = () => { leaveOnline(); onlineBack(); };
       const n = net;
       setTimeout(() => {
