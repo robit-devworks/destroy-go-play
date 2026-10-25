@@ -102,7 +102,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .chip.locked { opacity: 0.45; }
 .chip.soon { opacity: 0.55; border-style: dashed; }
 .chip.online-chip { border-style: dashed; }
-.chip.locked::after { content: '🔒製品版（準備中）'; font-size: 10px; font-weight: 700; margin-left: 2px; color: var(--muted); }
+.chip.locked::after { content: '🔒'; font-size: 10px; font-weight: 700; margin-left: 2px; color: var(--muted); }
 
 .options { display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--muted); }
 .options input { transform: scale(1.2); margin-right: 6px; accent-color: var(--accent); }

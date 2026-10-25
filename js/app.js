@@ -54,6 +54,12 @@
     dark: '一度に 20 子以上取った',
     light: 'コンピューター Lv9 に勝った',
   };
+  // 鍵のかかった演出・BGM を押したときのヒント（答えは言わず、ぼかして出す）
+  const HINTS_LOCKED = {
+    fire: '始まりの文字を砕け', thunder: '相手の HP を削りきれ', dark: '大軍を一撃で飲み込め', light: '最強を打ち破れ',
+    fantasy15: '旅を続けよ', boss03: '強敵に挑み、勝て', lastboss01: '会心の一撃を放て',
+  };
+  const lockedMsg = (key) => (HINTS_LOCKED[key] ? `条件未達成：${HINTS_LOCKED[key]}` : '条件未達成');
   // シーズンのランキング報酬（色違いの演出）。製品版でも、取った人だけが使える（開発者も同じ）
   const SEASON_REWARDS = {
     crimson: 'シーズン1 ランクマッチ 1〜3 位',
@@ -363,8 +369,10 @@
       chip.querySelector('.mk').textContent = t.mark;
       chip.appendChild(document.createTextNode(t.label));
       if (!unlocked(t.key)) { // 無料版では選べない（プレビューでは見られる）
-        chip.classList.add('locked'); chip.title = '製品版（準備中）で使えます';
-        chip.onclick = () => toast(`「${t.label}」は製品版（準備中）で使えます。演出プレビューで見られます`);
+        // 鍵のマークだけ出す。解放の条件はひみつで、押すとぼかしたヒントだけ出す
+        const how = SECRETS[t.key] ? lockedMsg(t.key) : '製品版で使えます';
+        chip.classList.add('locked'); chip.title = how;
+        chip.onclick = () => toast(`🔒 ${how}`);
         box.appendChild(chip);
         return;
       }
@@ -472,8 +480,8 @@
         chip.className = 'chip rule-chip'; chip.dataset.bgm = b.key; chip.textContent = b.label;
         chip.setAttribute('aria-pressed', b.key === bgmKey);
         if (!bgmOk(b)) {
-          chip.classList.add('locked'); chip.title = '製品版（準備中）で使えます';
-          chip.onclick = () => toast(`BGM「${b.label}」は製品版（準備中）で使えます`);
+          chip.classList.add('locked'); chip.title = lockedMsg(b.key);
+          chip.onclick = () => toast(`🔒 ${lockedMsg(b.key)}`);
         } else chip.onclick = () => { // 選ぶと試しに鳴らす（タイトルでも）。対局中ならそのまま切り替わる
           bgmKey = b.key; bgmPick = null;
           try { localStorage.setItem('destroy-go-bgm', b.key); } catch (e) { /* 無視 */ }
