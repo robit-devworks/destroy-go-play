@@ -1385,8 +1385,12 @@
     return out;
   }
   // 1080×1350 の座標で描く（動画では縮めた画面にそのまま描く）
-  function drawScene(x, dmg = shareDmg) {
-    const Wd = 1080, Ht = 1350;
+  // 動かない部分（背景・ロゴ・下の文字）は 1 回だけ描いて使い回す（動画を録るときに毎コマ描き直すと重く、絵が遅れて音とずれる）
+  let sceneBase = null;
+  function sceneBaseCanvas() {
+    if (sceneBase) return sceneBase;
+    const Wd = 1080, Ht = 1350, c = document.createElement('canvas'); c.width = Wd; c.height = Ht;
+    const x = c.getContext('2d');
     const bg = x.createLinearGradient(0, 0, 0, Ht);
     bg.addColorStop(0, '#2a0a0e'); bg.addColorStop(0.5, '#0b0710'); bg.addColorStop(1, '#1a0830');
     x.fillStyle = bg; x.fillRect(0, 0, Wd, Ht);
@@ -1396,6 +1400,18 @@
     x.textAlign = 'center'; x.textBaseline = 'middle';
     x.font = "88px 'Dela Gothic One', sans-serif"; x.fillStyle = lg;
     x.shadowColor = '#ff3b2f'; x.shadowBlur = 24; x.fillText('デストロイ碁', Wd / 2, 100); x.shadowBlur = 0;
+    // 下：遊べる場所
+    x.font = "bold 34px sans-serif"; x.fillStyle = '#ffd23f';
+    x.fillText(PLAY_URL, Wd / 2, Ht - 70);
+    x.font = "26px sans-serif"; x.fillStyle = 'rgba(255,255,255,0.6)'; x.fillText('#デストロイ碁 #囲碁　© ROBIT', Wd / 2, Ht - 28);
+    // ロゴの文字（Dela Gothic One）が読み込めてから作ったものだけ使い回す
+    if (document.fonts && document.fonts.check("88px 'Dela Gothic One'")) sceneBase = c;
+    return c;
+  }
+  function drawScene(x, dmg = shareDmg) {
+    const Wd = 1080;
+    x.drawImage(sceneBaseCanvas(), 0, 0);
+    x.textAlign = 'center'; x.textBaseline = 'middle';
     // 真ん中：盤（碁盤・にじみ・盤の演出）と、その上の演出（画面全体の fx から盤の部分を切り出す）
     const r = canvas.getBoundingClientRect(), B = 960, bx = (Wd - B) / 2, by = 190;
     for (const el of [canvas, $('#own-1'), $('#own-2'), $('#board-fx')]) if (el.width) x.drawImage(el, bx, by, B, B);
@@ -1413,7 +1429,9 @@
     }
     // 「K.O.!! 黒の勝ち」などの大きな知らせ（ハイライトの最後）
     const note = $('#eyes');
-    if (note.classList.contains('show') && note.textContent) {
+    // 消えかけ（見えていない）ときは描かない。ハイライトの動画では、勝ちが決まったあと最後まで出したままにする
+    const finished = rec && rpk && rpIdx >= rpk.moves.length;
+    if (note.classList.contains('show') && note.textContent && (alphaOf(note) > 0.05 || finished)) {
       x.font = "64px 'Dela Gothic One', sans-serif";
       const w = x.measureText(note.textContent).width;
       if (w > Wd - 80) x.font = `${Math.floor(64 * (Wd - 80) / w)}px 'Dela Gothic One', sans-serif`;
@@ -1425,9 +1443,6 @@
     // 下：HP（デストロイルール）と、遊べる場所
     x.font = "bold 40px sans-serif"; x.fillStyle = '#fff';
     if (dstate) x.fillText(`黒 HP ${dstate.hp[BLACK]}　／　白 HP ${dstate.hp[WHITE]}`, Wd / 2, by + B + 60);
-    x.font = "bold 34px sans-serif"; x.fillStyle = '#ffd23f';
-    x.fillText(PLAY_URL, Wd / 2, Ht - 70);
-    x.font = "26px sans-serif"; x.fillStyle = 'rgba(255,255,255,0.6)'; x.fillText('#デストロイ碁 #囲碁　© ROBIT', Wd / 2, Ht - 28);
   }
   const alphaOf = (el) => +getComputedStyle(el).opacity || 0;
   function fitFont(x, text, size, face, maxW) {
@@ -2297,6 +2312,7 @@
     dstate = rpk.mode === 'destroy' ? new DestroyRule.DestroyState(SIZE, rpk.hpb, rpk.adv) : null;
     wiped = new Set(); dead = new Set(); terrGlow = null; rpIdx = 0;
     dlog = [];
+    $('#eyes').className = ''; // 対局の最後の「K.O.!!」などが残らないように（ハイライトの最後に出し直す）
   }
   // 1 手置く。animate なら石を取る演出・ダメージも見せる。演出の長さ（ms）を返す
   // showHeal：石を取らない手でも、2 眼の回復は見せる（ハイライトの自動再生で使う）。回復したかは rpHealed に残す
