@@ -758,38 +758,16 @@
     }
   }
 
-  function loop() {
-    c2.clearRect(0, 0, W, H);
-
+  // 1 コマ（1/60 秒）ぶん進める。動きは描いた回数ではなく時間で進める（重くて描くのが遅れたときは、
+  // 遅れた分だけまとめて進める）。そうしないと、重いあいだ演出がスローになって、時間どおりに鳴る音とずれる
+  function step() {
     for (const e of emitters) { tintNow = e.tint; e.fn(e.t); e.t++; }
     tintNow = null;
     emitters = emitters.filter((e) => e.t < e.life);
-
-    c2.globalCompositeOperation = 'lighter';
-    for (const r of rings) {
-      r.t += 1;
-      if (r.t <= 0) continue; // 遅れて広がるリングはまだ描かない
-      const k = r.t / r.life;
-      c2.strokeStyle = r.color; c2.globalAlpha = Math.max(0, 1 - k);
-      c2.lineWidth = r.w * (1 - k) + 1;
-      c2.beginPath(); c2.arc(r.x, r.y, r.r0 + (r.r1 - r.r0) * (1 - Math.pow(1 - k, 3)), 0, Math.PI * 2); c2.stroke();
-    }
+    for (const r of rings) r.t += 1;
     rings = rings.filter((r) => r.t < r.life);
-
-    for (const b of bolts) {
-      b.t += 1;
-      c2.globalCompositeOperation = 'lighter';
-      c2.globalAlpha = Math.max(0, 1 - b.t / b.life) * (Math.random() > 0.3 ? 1 : 0.3);
-      c2.strokeStyle = b.color; c2.lineWidth = b.width; c2.shadowColor = b.color; c2.shadowBlur = 20;
-      c2.beginPath(); c2.moveTo(b.pts[0][0], b.pts[0][1]);
-      for (const p of b.pts) c2.lineTo(p[0], p[1]);
-      c2.stroke();
-      if (b.dark) { c2.globalCompositeOperation = 'source-over'; c2.strokeStyle = '#0a0002'; c2.lineWidth = Math.max(2, b.width * 0.8); } // 紅雷：芯が黒い稲妻
-      else c2.strokeStyle = '#fff', c2.lineWidth = Math.max(1, b.width * 0.35);
-      c2.shadowBlur = 0; c2.stroke();
-    }
+    for (const b of bolts) b.t += 1;
     bolts = bolts.filter((b) => b.t < b.life);
-
     const dying = [];
     for (const p of parts) {
       p.t += 1;
@@ -802,17 +780,46 @@
       }
       if (!p.static) { p.vx *= p.drag; p.vy = p.vy * p.drag + p.g; p.x += p.vx; p.y += p.vy; p.rot += p.vr; }
       if (p.trail) { tintNow = p.tint || null; p.trail(p); tintNow = null; }
-      drawParticle(p);
       if (p.t >= p.life && p.onDeath) dying.push(p);
     }
     parts = parts.filter((p) => p.t < p.life && p.y < H + 150 && p.y > -H * 1.5);
-    c2.globalAlpha = 1; c2.globalCompositeOperation = 'source-over';
     dying.forEach((p) => { tintNow = p.tint || null; p.onDeath(p); tintNow = null; });
+  }
+  const FRAME = 1000 / 60, MAX_STEPS = 6; // 一度に追いつくのは 0.1 秒ぶんまで（止まっていたあとに一気に飛ばないように）
+  let lastT = 0, carry = 0;
+  function loop(now) {
+    carry += Math.max(0, now - lastT); lastT = now;
+    let n = Math.min(MAX_STEPS, Math.max(1, Math.floor(carry / FRAME)));
+    carry = Math.max(0, carry - n * FRAME); if (carry > FRAME * MAX_STEPS) carry = 0;
+    while (n--) step();
+
+    c2.clearRect(0, 0, W, H);
+    c2.globalCompositeOperation = 'lighter';
+    for (const r of rings) {
+      if (r.t <= 0) continue; // 遅れて広がるリングはまだ描かない
+      const k = r.t / r.life;
+      c2.strokeStyle = r.color; c2.globalAlpha = Math.max(0, 1 - k);
+      c2.lineWidth = r.w * (1 - k) + 1;
+      c2.beginPath(); c2.arc(r.x, r.y, r.r0 + (r.r1 - r.r0) * (1 - Math.pow(1 - k, 3)), 0, Math.PI * 2); c2.stroke();
+    }
+    for (const b of bolts) {
+      c2.globalCompositeOperation = 'lighter';
+      c2.globalAlpha = Math.max(0, 1 - b.t / b.life) * (Math.random() > 0.3 ? 1 : 0.3);
+      c2.strokeStyle = b.color; c2.lineWidth = b.width; c2.shadowColor = b.color; c2.shadowBlur = 20;
+      c2.beginPath(); c2.moveTo(b.pts[0][0], b.pts[0][1]);
+      for (const p of b.pts) c2.lineTo(p[0], p[1]);
+      c2.stroke();
+      if (b.dark) { c2.globalCompositeOperation = 'source-over'; c2.strokeStyle = '#0a0002'; c2.lineWidth = Math.max(2, b.width * 0.8); } // 紅雷：芯が黒い稲妻
+      else c2.strokeStyle = '#fff', c2.lineWidth = Math.max(1, b.width * 0.35);
+      c2.shadowBlur = 0; c2.stroke();
+    }
+    for (const p of parts) drawParticle(p);
+    c2.globalAlpha = 1; c2.globalCompositeOperation = 'source-over';
 
     if (parts.length || rings.length || bolts.length || emitters.length) requestAnimationFrame(loop);
     else { running = false; c2.clearRect(0, 0, W, H); }
   }
-  function kick() { if (!running) { running = true; requestAnimationFrame(loop); } }
+  function kick() { if (!running) { running = true; lastT = performance.now(); carry = FRAME; requestAnimationFrame(loop); } }
 
   // ---------- 共通パーツ ----------
   function color(c) {
