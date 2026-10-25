@@ -321,9 +321,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #share-redo { display: block; width: 100%; margin: 0 0 10px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 10px; font-weight: 700; }
 #share-note { margin: -6px 0 10px; font-size: 12px; color: var(--muted); text-align: center; }
 #share-note:empty { display: none; }
-#rp-rec, #rp-speed { flex: 0 0 auto; padding: 10px 8px; }
+#rp-rec, #rp-speed, #rp-dmg { flex: 0 0 auto; padding: 10px 8px; }
+#rp-dmg { font-size: 12px; }
+#rp-dmg[aria-pressed="false"] { opacity: 0.6; }
 #rp-speed { font-size: 12px; }
 .recording #replay-controls button:not(#rp-rec):not(#rp-speed) { pointer-events: none; opacity: 0.35; }
+/* 共有の動画を録っている間は、動画に映らない画面の揺れ・フラッシュ・周りが暗くなる演出を止めて軽くする（重いと絵が遅れて音とずれる） */
+.rec-light #stage.shaking { animation: none; }
+.rec-light #flash, .rec-light #vignette { display: none; }
 .recording #rp-rec { background: #b3001b; color: #fff; animation: blink 1s steps(2) infinite; }
 #share-pop .m-buttons a { flex: 1; border: 1px solid rgba(255, 255, 255, 0.15); background: var(--panel-active); border-radius: 10px; padding: 12px; font-weight: 700; color: #fff; text-decoration: none; font-size: 14px; }
 #vol-mute { border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 8px; font-weight: 700; }
@@ -445,6 +450,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .m-themes .tr-label { font-size: 13px; }
 .m-themes .chip { padding: 4px 8px; font-size: 12px; }
 .m-themes .chip .mk { width: 18px; height: 18px; font-size: 11px; }
+.m-next { display: flex; flex-direction: column; gap: 8px; margin: 0 0 14px; text-align: left; }
+.m-next[hidden], .m-next .next-row[hidden] { display: none; }
+.m-next .next-row { display: flex; flex-direction: column; gap: 6px; }
+.m-next .tr-label { font-size: 13px; }
+.m-next .chip { padding: 4px 8px; font-size: 12px; }
 .m-themes .chip.locked { display: none; } /* 使えない演出は出さない */
 .modal-box { max-height: calc(100vh - 32px); overflow-y: auto; }
 #kifu-pop {

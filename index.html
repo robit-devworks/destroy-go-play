@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Black+Ops+One&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=20261025154227">
+  <link rel="stylesheet" href="css/style.css?v=20261025164239">
 </head>
 <body>
   <div id="stage">
@@ -250,6 +250,7 @@
         <button id="rp-next" title="1手進む">▶</button>
         <button id="rp-last" title="最後へ">⏭</button>
         <button id="rp-speed" title="何も起きない手の早送りの速さ（石を取る手・アタリの手は等倍）">⏩×8</button>
+        <button id="rp-dmg" title="共有の動画に、ダメージ・回復の数字を入れるか（なしにすると、すっきり見られる）" hidden></button>
         <button id="rp-rec" title="ハイライトを動画にして共有">📤 共有</button>
       </div>
       <div class="controls" id="preview-controls">
@@ -334,6 +335,13 @@
       <div class="m-title"></div>
       <div class="m-body"></div>
       <div id="m-rate"></div>
+      <!-- 次の対局のルール（CPU 戦・2人で対局のとき。タイトルに戻らずに選べる） -->
+      <div class="m-next" id="m-next" hidden>
+        <div class="next-row"><span class="tr-label">次の相手</span><div class="chips" data-k="opp"></div></div>
+        <div class="next-row" data-row="lv"><span class="tr-label">CPU の強さ</span><div class="chips" data-k="lv"></div></div>
+        <div class="next-row"><span class="tr-label">次のルール</span><div class="chips" data-k="rule"></div></div>
+        <div class="next-row"><span class="tr-label">碁盤</span><div class="chips" data-k="size"></div></div>
+      </div>
       <!-- 次の対局の演出（タイトルに戻らずに選べる） -->
       <div class="themes m-themes">
         <div class="theme-row" data-color="1"><span class="tr-label"><i class="p-stone black"></i>次の黒の演出</span><div class="chips"></div></div>
@@ -349,7 +357,7 @@
     </div>
   </div>
 
-  <script src="js/edition.js?v=20261025154227"></script>
+  <script src="js/edition.js?v=20261025164239"></script>
   <!-- アクセス解析（GoatCounter）。Cookie を使わず、個人は分からない（開かれた回数・どこから来たか・端末の種類だけ）。
        公開しているサイトでだけ数える。開発者とテスト用の端末は数えない -->
   <script>
@@ -363,14 +371,14 @@
       document.head.appendChild(s);
     })();
   </script>
-  <script src="js/go.js?v=20261025154227"></script>
-  <script src="js/clock.js?v=20261025154227"></script>
-  <script src="js/sounds.js?v=20261025154227"></script>
-  <script src="js/effects.js?v=20261025154227"></script>
-  <script src="js/boardfx.js?v=20261025154227"></script>
-  <script src="js/destroy-rule.js?v=20261025154227"></script>
-  <script src="js/ai.js?v=20261025154227"></script>
-  <script src="js/online.js?v=20261025154227"></script>
-  <script src="js/app.js?v=20261025154227"></script>
+  <script src="js/go.js?v=20261025164239"></script>
+  <script src="js/clock.js?v=20261025164239"></script>
+  <script src="js/sounds.js?v=20261025164239"></script>
+  <script src="js/effects.js?v=20261025164239"></script>
+  <script src="js/boardfx.js?v=20261025164239"></script>
+  <script src="js/destroy-rule.js?v=20261025164239"></script>
+  <script src="js/ai.js?v=20261025164239"></script>
+  <script src="js/online.js?v=20261025164239"></script>
+  <script src="js/app.js?v=20261025164239"></script>
 </body>
 </html>

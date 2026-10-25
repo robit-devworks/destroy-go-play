@@ -1536,8 +1536,15 @@
     shareVideoDmg = null;
     openShare(shareImgs[shareDmg ? 'on' : 'off'], 'destroy-go.png');
   };
+  // 再生の画面のボタンで、録る前にも選べる（共有の画面のチェックと同じ設定）
+  const renderRpDmg = () => { const b = $('#rp-dmg'); b.textContent = `数字${shareDmg ? 'あり' : 'なし'}`; b.setAttribute('aria-pressed', shareDmg); };
+  $('#rp-dmg').onclick = () => {
+    shareDmg = !shareDmg;
+    try { localStorage.setItem('destroy-go-share-dmg', shareDmg ? '1' : '0'); } catch (e) { /* 無視 */ }
+    renderRpDmg();
+  };
   $('#share-dmg').onchange = () => {
-    shareDmg = $('#share-dmg').checked;
+    shareDmg = $('#share-dmg').checked; renderRpDmg();
     try { localStorage.setItem('destroy-go-share-dmg', shareDmg ? '1' : '0'); } catch (e) { /* 無視 */ }
     if (shareVideoDmg === null && shareImgs) openShare(shareImgs[shareDmg ? 'on' : 'off'], 'destroy-go.png');
     else $('#share-redo').hidden = shareDmg === shareVideoDmg; // 動画は作り直す
@@ -1721,6 +1728,7 @@
     const show = () => {
       $('.m-title').textContent = title;
       $('.m-body').textContent = body;
+      renderNext();
       $('#modal').classList.add('show');
       FX.boom(0.6);
       // 隠し要素：人が勝ったとき（コンピューター戦なら人の側）
@@ -1762,11 +1770,50 @@
     $('#btn-result').hidden = false;
   };
   $('#btn-result').onclick = () => { $('#modal').classList.add('show'); $('#btn-result').hidden = true; };
+  // 結果の画面で、次の対局の相手・強さ・ルール・碁盤を選ぶ（⚙ 設定の同じボタンを押すので、選んだ内容は保存される）
+  const NEXT_CHOICES = {
+    opp: [['cpu', 'コンピューター'], ['human', '2人で']],
+    lv: [1, 2, 3, 4, 5, 6, 7, 8, 9].map((lv) => [lv, `Lv${lv}`]),
+    rule: [['go', 'ふつうの囲碁'], ['simple', 'デストロイ初級'], ['advanced', 'デストロイ上級']],
+    size: Object.keys(BOARDS).sort((a, b) => b - a).map((n) => [+n, `${n}路`]),
+  };
+  // 碁盤の大きさは、今の盤面を描き直すと崩れるので、次の対局を始めるときに変える
+  let nextSize = 0;
+  const applyNextSize = () => { if (nextSize && nextSize !== SIZE) $(`#size-chips .chip[data-size="${nextSize}"]`).click(); nextSize = 0; };
+  const nextNow = { opp: () => opponent, lv: () => cpuLevel, rule: () => (mode === 'destroy' ? (dAdvanced ? 'advanced' : 'simple') : 'go'), size: () => nextSize || SIZE };
+  function pickNext(k, v) {
+    if (k === 'opp') $(`#opp-chips .chip[data-opp="${v}"]`).click();
+    if (k === 'lv') $(`#level-chips .chip[data-level="${v}"]`).click();
+    if (k === 'size') nextSize = v;
+    if (k === 'rule') {
+      $(`#mode-chips .chip[data-mode="${v === 'go' ? 'go' : 'destroy'}"]`).click();
+      if (v !== 'go') $(`#dlevel-chips .chip[data-level="${v}"]`).click();
+    }
+    renderNext();
+  }
+  function renderNext() {
+    const box = $('#m-next');
+    box.hidden = !!net || warmupCpu || phase === 'replay'; // オンライン対戦・ランクマッチまでの CPU 戦では選べない
+    if (box.hidden) return;
+    box.querySelectorAll('.chips').forEach((row) => {
+      const k = row.dataset.k;
+      if (!row.children.length) {
+        for (const [v, label] of NEXT_CHOICES[k]) {
+          const chip = document.createElement('button');
+          chip.className = 'chip rule-chip'; chip.dataset.v = v; chip.textContent = label;
+          chip.onclick = () => pickNext(k, v);
+          row.appendChild(chip);
+        }
+      }
+      row.querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.v) === String(nextNow[k]())));
+    });
+    box.querySelector('[data-row="lv"]').hidden = opponent !== 'cpu';
+  }
   $('#btn-again').onclick = () => {
     if (net) { onlineAgain(); return; }
-    $('#modal').classList.remove('show'); newGame();
+    $('#modal').classList.remove('show'); applyNextSize(); newGame();
   };
-  $('#btn-home').onclick = () => { warmupCpu = false; leaveOnline(); renderBeginner(); renderRankTop(); $('#modal').classList.remove('show'); endReplay(); showScreen('title'); phase = 'title'; stopBgm(); };
+  $('#btn-home').onclick = () => { applyNextSize(); warmupCpu = false; leaveOnline(); renderBeginner(); renderRankTop(); $('#modal').classList.remove('show'); endReplay(); showScreen('title'); phase = 'title'; stopBgm(); };
 
   // ---------- 時計・パネル ----------
   function fmt(ms) {
@@ -2381,6 +2428,7 @@
     const t = mv.p >= 0 ? game.tryPlay(mv.p) : null, event = t && t.ok && t.captured.length > 0;
     const before = game.atariStones();
     const hold = rpApply(event, true);
+    if (!event && mv.p >= 0) FX.stoneClick(); // 石を置く音（ハイライト・共有の動画でも聞こえるように）
     const atari = [...game.atariStones()].some((i) => !before.has(i)); // 新しくアタリになった（石にひびが入った）
     rpRender();
     // 石を取った手・2 眼で回復した手は止まって見せ、アタリになった手は等倍。何も起きない手は早送り
@@ -2407,6 +2455,7 @@
     layout(); rpReset();
     // 履歴は対局全体の分を先に作っておく（まだ再生していない手の分は薄く出す）
     if (k.mode === 'destroy') { while (rpIdx < k.moves.length) rpApply(false); rpLogAll = dlog; rpReset(); } else rpLogAll = null;
+    $('#rp-dmg').hidden = k.mode !== 'destroy'; renderRpDmg(); // ダメージの数字はデストロイルールのときだけ
     renderNames(); renderThemes(); rpRender();
   }
   function endReplay() {
@@ -2450,7 +2499,7 @@
     const chunks = [], mr = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 4000000 });
     mr.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
     rec = { mr, dest, keep, actx, chunks, type, xOk: rt.x, dmg: shareDmg, t0: performance.now(), endAt: 0 };
-    gameEl.classList.add('recording'); $('#rp-rec').textContent = '■ やめる';
+    gameEl.classList.add('recording'); document.body.classList.add('rec-light'); $('#rp-rec').textContent = '■ やめる';
     toast('ハイライトを動画にしています。終わったら共有できます');
     mr.start(250);
     rpGoTo(0); FX.clear(); rpAutoStep();
@@ -2467,7 +2516,7 @@
   function stopRec(cancel) {
     if (!rec) return;
     const r = rec; rec = null;
-    gameEl.classList.remove('recording'); $('#rp-rec').textContent = '📤 共有';
+    gameEl.classList.remove('recording'); document.body.classList.remove('rec-light'); $('#rp-rec').textContent = '📤 共有';
     r.mr.onstop = () => {
       if (r.dest) try { r.actx.master.disconnect(r.dest); } catch (e) { /* 無視 */ }
       if (r.keep) try { r.keep.stop(); r.keep.disconnect(); } catch (e) { /* 無視 */ }
