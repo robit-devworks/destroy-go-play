@@ -2439,14 +2439,17 @@
     const out = document.createElement('canvas'); out.width = 720; out.height = 900;
     const x = out.getContext('2d'), stream = out.captureStream(30);
     const actx = FX.unlock();
-    let dest = null;
+    let dest = null, keep = null;
     if (actx && actx.createMediaStreamDestination) {
       dest = actx.createMediaStreamDestination(); actx.master.connect(dest);
       dest.stream.getAudioTracks().forEach((t) => stream.addTrack(t));
+      // 音が鳴っていない間は音のデータが途切れ、再生や X への投稿でその分が詰められて、あとの音が早く聞こえる。
+      // 聞こえないほど小さな音を流し続けて、途切れないようにする
+      if (actx.createConstantSource) { keep = actx.createConstantSource(); keep.offset.value = 0.0003; keep.connect(dest); keep.start(); }
     }
     const chunks = [], mr = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 4000000 });
     mr.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
-    rec = { mr, dest, actx, chunks, type, xOk: rt.x, dmg: shareDmg, t0: performance.now(), endAt: 0 };
+    rec = { mr, dest, keep, actx, chunks, type, xOk: rt.x, dmg: shareDmg, t0: performance.now(), endAt: 0 };
     gameEl.classList.add('recording'); $('#rp-rec').textContent = '■ やめる';
     toast('ハイライトを動画にしています。終わったら共有できます');
     mr.start(250);
@@ -2467,6 +2470,7 @@
     gameEl.classList.remove('recording'); $('#rp-rec').textContent = '📤 共有';
     r.mr.onstop = () => {
       if (r.dest) try { r.actx.master.disconnect(r.dest); } catch (e) { /* 無視 */ }
+      if (r.keep) try { r.keep.stop(); r.keep.disconnect(); } catch (e) { /* 無視 */ }
       if (cancel || !r.chunks.length) return;
       const blob = new Blob(r.chunks, { type: r.type.split(';')[0] });
       shareVideoDmg = r.dmg; shareImgs = null;
