@@ -2490,6 +2490,9 @@
   function onlineView(html) { $('#online-body').innerHTML = html; }
   // ランダムマッチ（β）のルール。人が少ないうちは分かれないよう 1 つだけ。ランクマッチは上級でレートが動く
   // ランダムマッチ：ふだんは 9 路・3 分、週末（日本時間の土日）は 13 路・5 分。待合室は 1 つのまま（ルールは部屋を作った側のものになる）
+  // 対戦タイム：人が集まりやすいように決めた時間（毎晩 21〜23 時・日本時間）。時間外でもマッチはできる
+  const BATTLE_FROM = 21, BATTLE_TO = 23;
+  const isBattleTime = () => { const h = new Date(Date.now() + 9 * 3600000).getUTCHours(); return h >= BATTLE_FROM && h < BATTLE_TO; };
   const isWeekend = () => [0, 6].includes(new Date(Date.now() + 9 * 3600000).getUTCDay());
   const randomRule = () => (isWeekend() ? { size: 13, mode: 'destroy', adv: false, rules: 'japanese', min: 5 } : { size: 9, mode: 'destroy', adv: false, rules: 'japanese', min: 3 });
   const RANK_RULE = { size: 9, mode: 'destroy', adv: true, rules: 'japanese', min: 3 };
@@ -2934,7 +2937,10 @@
         } catch (e) { onlineError(e); }
       }, (n) => {
         const el = $('#on-count'); if (el) el.textContent = `${label}を開いている人：${n}人`;
-        if (n <= 1) { clearTimeout(stopSeek.t); showCpu(); } // 自分しかいないときは、待たずに CPU 戦のボタンを出す（探すのは続ける）
+        if (n <= 1) { // 自分しかいないときは、待たずに CPU 戦のボタンを出す（探すのは続ける）
+          clearTimeout(stopSeek.t); showCpu();
+          if (el && !isBattleTime()) el.textContent += `（人が集まりやすいのは、毎晩 ${BATTLE_FROM}〜${BATTLE_TO} 時の対戦タイムです）`;
+        }
       }, kind);
     } catch (e) { onlineError(e); }
   }
@@ -3152,7 +3158,7 @@
   $('#btn-friend-top').onclick = () => { FX.unlock(); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; } openOnline('friend'); };
   // ランクマッチは開放の条件をそろえるまで押せない（押すと、あと何が必要か案内する）
   function renderRankTop() {
-    $('#btn-random-top span').textContent = isWeekend() ? '🔥 週末は13路！' : '知らない人とすぐ対戦';
+    $('#btn-random-top span').textContent = isBattleTime() ? `🔥 対戦タイム中${isWeekend() ? '・13路' : ''}` : `${isWeekend() ? '週末は13路・' : ''}対戦タイム 毎晩${BATTLE_FROM}時〜`;
     const open = rankOpen(), btn = rankButtonOpen();
     $('#btn-rank-top').classList.toggle('locked', !btn);
     $('#rank-top-note').textContent = !btn ? `🔒 あと${rankRandomLeft()}局で開放` : open ? 'レートをかけて対戦' : 'まず上級をCPUで1勝';
@@ -3160,6 +3166,7 @@
     $('#btn-rank-top').title = open ? 'デストロイ上級・9路でレートをかけて対戦' : `ランクマッチまで：${rankLockText()}`;
   }
   renderRankTop();
+  setInterval(() => { if (phase === 'title') renderRankTop(); }, 60000); // 対戦タイムの始まり・終わりで表示を変える
   $('#btn-rank-top').onclick = () => {
     FX.unlock(); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; }
     if (!rankOpen() || lsGet('destroy-go-rank-intro') !== '1') { rankGuide(); return; }
