@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Black+Ops+One&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=20261025042743">
+  <link rel="stylesheet" href="css/style.css?v=20261025052428">
 </head>
 <body>
   <div id="stage">
@@ -349,15 +349,28 @@
     </div>
   </div>
 
-  <script src="js/edition.js?v=20261025042743"></script>
-  <script src="js/go.js?v=20261025042743"></script>
-  <script src="js/clock.js?v=20261025042743"></script>
-  <script src="js/sounds.js?v=20261025042743"></script>
-  <script src="js/effects.js?v=20261025042743"></script>
-  <script src="js/boardfx.js?v=20261025042743"></script>
-  <script src="js/destroy-rule.js?v=20261025042743"></script>
-  <script src="js/ai.js?v=20261025042743"></script>
-  <script src="js/online.js?v=20261025042743"></script>
-  <script src="js/app.js?v=20261025042743"></script>
+  <script src="js/edition.js?v=20261025052428"></script>
+  <!-- アクセス解析（GoatCounter）。Cookie を使わず、個人は分からない（開かれた回数・どこから来たか・端末の種類だけ）。
+       公開しているサイトでだけ数える。開発者とテスト用の端末は数えない -->
+  <script>
+    (function () {
+      if (location.hostname !== 'robit-devworks.github.io') return;
+      try {
+        if (localStorage.getItem('destroy-go-dev') === '1' || localStorage.getItem('destroy-go-tester') === '1' || /[?&]tester=1\b/.test(location.search)) { localStorage.setItem('skipgc', 't'); return; }
+      } catch (e) { /* 保存できない環境でも数える */ }
+      var s = document.createElement('script');
+      s.async = true; s.src = 'https://gc.zgo.at/count.js'; s.setAttribute('data-goatcounter', 'https://destroygo.goatcounter.com/count');
+      document.head.appendChild(s);
+    })();
+  </script>
+  <script src="js/go.js?v=20261025052428"></script>
+  <script src="js/clock.js?v=20261025052428"></script>
+  <script src="js/sounds.js?v=20261025052428"></script>
+  <script src="js/effects.js?v=20261025052428"></script>
+  <script src="js/boardfx.js?v=20261025052428"></script>
+  <script src="js/destroy-rule.js?v=20261025052428"></script>
+  <script src="js/ai.js?v=20261025052428"></script>
+  <script src="js/online.js?v=20261025052428"></script>
+  <script src="js/app.js?v=20261025052428"></script>
 </body>
 </html>
