@@ -462,6 +462,103 @@ button { font: inherit; color: inherit; cursor: pointer; }
   display: flex; flex-direction: column; border-radius: 14px; background: var(--panel); border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
 }
 #kifu-pop[hidden] { display: none; }
+/* CPU 道場 */
+/* 破壊の迷宮の入口：ひび割れた石の壁（レンガの目地＋ひび）・左右にたいまつ。「対局開始」より大きく目立たせる */
+.dungeon-btn { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; min-height: 128px; padding: 16px 64px; border-radius: 14px; cursor: pointer; overflow: hidden;
+  color: #f5e6c8; font: inherit; text-align: center; border: 3px solid #4a3a2a;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 140' preserveAspectRatio='none'%3E%3Cg fill='none' stroke='%23000' stroke-linecap='round' stroke-linejoin='round' opacity='.75'%3E%3Cpath d='M0 38 L34 44 L52 30 L80 41 L98 36' stroke-width='2.2'/%3E%3Cpath d='M52 30 L58 12 L70 0' stroke-width='1.6'/%3E%3Cpath d='M400 96 L366 90 L350 104 L322 98 L300 112 L288 140' stroke-width='2.4'/%3E%3Cpath d='M350 104 L344 122' stroke-width='1.5'/%3E%3Cpath d='M190 0 L196 18 L184 30 L192 46' stroke-width='1.8'/%3E%3Cpath d='M120 140 L128 122 L118 108 L134 96' stroke-width='1.8'/%3E%3Cpath d='M128 122 L146 126' stroke-width='1.2'/%3E%3Cpath d='M300 0 L294 16 L306 26' stroke-width='1.4'/%3E%3C/g%3E%3Cg fill='none' stroke='%23ffd9a0' stroke-linecap='round' opacity='.18' transform='translate(1 1)'%3E%3Cpath d='M0 38 L34 44 L52 30 L80 41 L98 36' stroke-width='1'/%3E%3Cpath d='M400 96 L366 90 L350 104 L322 98 L300 112 L288 140' stroke-width='1'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 100% 100% no-repeat,
+    radial-gradient(ellipse at 12% 40%, rgba(255, 140, 40, 0.35), transparent 35%),
+    radial-gradient(ellipse at 88% 40%, rgba(255, 140, 40, 0.35), transparent 35%),
+    radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0) 35%, rgba(0, 0, 0, 0.6)),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.55) 0 2px, transparent 2px 26px),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.45) 0 2px, transparent 2px 58px),
+    linear-gradient(#3e3439, #1a1418);
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.85), 0 0 18px rgba(255, 110, 30, 0.3); }
+.dungeon-btn:active { transform: scale(0.98); }
+.dg-text { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.dg-text b { font-family: var(--font-logo); font-weight: 400; font-size: 34px; letter-spacing: 0.1em; color: #ffcf7a; text-shadow: 0 3px 0 #000, 0 0 12px rgba(255, 120, 30, 0.7); }
+.dg-text small { font-size: 12px; color: #e8d2a8; }
+.dg-go { margin-top: 4px; font-size: 14px; font-weight: 800; color: #1a0e00; background: linear-gradient(#ffd27a, #ff9a2a); padding: 5px 18px; border-radius: 999px; box-shadow: 0 0 12px rgba(255, 150, 40, 0.7); white-space: nowrap; }
+/* たいまつ：壁に取り付けた木の柄と金具、その上でゆらぐ炎 */
+.dg-torch { position: absolute; top: 50%; width: 10px; height: 46px; margin-top: -8px; border-radius: 3px 3px 5px 5px; background: linear-gradient(90deg, #3a2210, #7a4a24 50%, #3a2210); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.7); }
+.dg-torch.l { left: 24px; } .dg-torch.r { right: 24px; }
+.dg-torch::before { content: ''; position: absolute; left: -4px; top: 2px; width: 18px; height: 7px; border-radius: 2px; background: linear-gradient(#8a8a92, #3a3a40); } /* 金具 */
+.dg-torch::after { content: ''; position: absolute; left: -5px; top: -6px; width: 20px; height: 9px; border-radius: 50% 50% 4px 4px; background: radial-gradient(ellipse at 50% 30%, #6a3a1a, #2a1408); } /* 燃えている先 */
+.dg-fire { position: absolute; left: 50%; bottom: 100%; width: 22px; height: 34px; margin: 0 0 2px -11px; border-radius: 50% 50% 45% 45% / 65% 65% 35% 35%;
+  background: radial-gradient(ellipse at 50% 75%, #fff6c8 0 18%, #ffcf3a 32%, #ff7a1a 58%, rgba(255, 60, 0, 0) 72%);
+  filter: drop-shadow(0 0 10px rgba(255, 140, 30, 0.95)); transform-origin: 50% 100%; animation: dg-flame 0.5s ease-in-out infinite alternate; }
+.dg-torch.r .dg-fire { animation-delay: 0.25s; animation-duration: 0.6s; }
+@keyframes dg-flame { 0% { transform: scale(1, 1) skewX(-3deg); opacity: 0.92; } 50% { transform: scale(0.92, 1.12) skewX(4deg); opacity: 1; } 100% { transform: scale(1.05, 0.94) skewX(-2deg); opacity: 0.88; } }
+#dojo-pop {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 33; width: min(460px, calc(100% - 24px)); max-height: 88vh; overflow-y: auto;
+  border-radius: 14px; border: 2px solid #4a3a2a; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), inset 0 0 30px rgba(0, 0, 0, 0.8); padding-bottom: 14px;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.35) 0 2px, transparent 2px 24px), repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.3) 0 2px, transparent 2px 52px), linear-gradient(#2a2228, #0e0a0e);
+}
+#dojo-pop[hidden] { display: none; }
+#dojo-pop .sp-head b { font-family: var(--font-logo); font-weight: 400; color: #ffcf7a; text-shadow: 0 2px 0 #000, 0 0 8px rgba(255, 120, 30, 0.6); }
+#dojo-pop .sp-head { padding: 12px 16px 4px; }
+#dojo-body { padding: 0 14px; }
+.dj-head { text-align: center; font-size: 14px; margin: 4px 0 10px; color: var(--muted); }
+.dj-head b { color: var(--accent2); }
+.dj-rule { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 0 0 10px; font-size: 12px; color: var(--muted); }
+.dj-rule span { margin-right: 2px; font-weight: 700; }
+.dj-rule .chip { padding: 4px 9px; font-size: 12px; }
+/* 階段を下りるように、下の階ほど暗く・少しずつ右へ */
+.dj-floors { display: flex; flex-direction: column; gap: 6px; }
+.dj-stage { position: relative; display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; overflow: hidden; text-align: left;
+  margin-left: calc((var(--depth) - 1) * 4px); margin-right: calc((9 - var(--depth)) * 4px);
+  background: linear-gradient(90deg, rgba(70, 56, 44, calc(0.95 - var(--depth) * 0.07)), rgba(14, 10, 10, 0.95)); border: 1px solid rgba(255, 220, 160, 0.14); color: var(--text); font: inherit; cursor: pointer; }
+.dj-stage.next { border-color: var(--accent2); box-shadow: 0 0 12px rgba(255, 210, 63, 0.55); animation: dj-pulse 1.6s ease-in-out infinite; }
+.dj-stage.boss { background: linear-gradient(90deg, #3a0a1e, #12040c); border-color: rgba(255, 60, 80, 0.6); }
+.dj-stage.done { border-color: rgba(255, 150, 60, 0.35); }
+@keyframes dj-pulse { 50% { box-shadow: 0 0 22px rgba(255, 210, 63, 0.9); } }
+.dj-lv { font-family: 'Dela Gothic One', sans-serif; font-size: 18px; color: var(--accent2); min-width: 48px; }
+.dj-name { flex: 1; font-size: 13px; font-weight: 800; display: flex; flex-direction: column; }
+.dj-name small { font-size: 10px; font-weight: 600; color: #ffd9a0; }
+.dj-st { font-size: 13px; color: var(--accent2); letter-spacing: 1px; white-space: nowrap; }
+.dj-stage:not(.done) .dj-st { color: var(--muted); font-size: 11px; letter-spacing: 0; }
+.dj-stage.next .dj-st { color: var(--accent2); font-weight: 800; }
+.dj-stamp { position: absolute; top: 50%; right: 82px; transform: translateY(-50%) rotate(-12deg); font-style: normal; font-size: 11px; font-weight: 900; color: #ff3b2f;
+  border: 2px solid #ff3b2f; border-radius: 6px; padding: 0 5px; opacity: 0.8; background: rgba(20, 0, 0, 0.4); }
+/* 深淵層：紫と黒。迷宮の下に続く */
+.dj-abyss-head { margin: 14px 0 8px; text-align: center; font-size: 14px; color: #c9a8ff; text-shadow: 0 0 10px rgba(150, 80, 255, 0.8); }
+.dj-abyss-head b { font-family: var(--font-logo); font-weight: 400; font-size: 20px; color: #e0c8ff; }
+.dj-abyss-head small { display: block; font-size: 11px; color: var(--muted); text-shadow: none; margin-top: 2px; }
+.dj-abyss-lock { margin: 12px 0 0; padding: 10px; text-align: center; font-size: 13px; color: #9a88b0; border: 1px dashed rgba(150, 110, 220, 0.4); border-radius: 10px; background: rgba(20, 0, 40, 0.4); }
+.dj-floors.abyss .dj-stage { background: linear-gradient(90deg, rgba(50, 20, 80, calc(0.95 - var(--depth) * 0.06)), rgba(6, 0, 12, 0.96)); border-color: rgba(170, 110, 255, 0.25); }
+.dj-floors.abyss .dj-stage.done { border-color: rgba(200, 140, 255, 0.5); }
+.dj-floors.abyss .dj-stage.boss { background: linear-gradient(90deg, #3a0a4a, #0a000e); border-color: rgba(220, 80, 255, 0.7); }
+.dj-floors.abyss .dj-lv { color: #d8b8ff; }
+.dj-hd { color: #b8a0d8 !important; }
+.dj-abyss-open { color: #d8b8ff; }
+.badge-f.badge-dojo.dj-18 { color: #f0e0ff; background: linear-gradient(90deg, #3a0a6a, #7a2ac8, #3a0a6a); background-size: 200% 100%; border-color: #c890ff; animation: dj-shine 3s linear infinite; font-weight: 900; }
+.dj-help { font-size: 11px; color: var(--muted); text-align: center; line-height: 1.6; margin: 10px 0; }
+.dj-gauntlet { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%; padding: 10px; border-radius: 999px; border: 0; font: inherit;
+  font-weight: 900; font-size: 16px; color: #fff; background: linear-gradient(#ff6a3a, #d4001a); cursor: pointer; }
+.dj-gauntlet small { font-size: 11px; font-weight: 600; opacity: 0.9; }
+#m-dojo { margin: 0 0 12px; text-align: center; }
+#m-dojo[hidden] { display: none; }
+#m-dojo p { margin: 4px 0; }
+.dj-win { font-family: 'Dela Gothic One', sans-serif; font-size: 20px; color: var(--accent2); text-shadow: 0 0 12px rgba(255, 90, 31, 0.7); }
+.dj-stars { font-size: 22px; color: var(--accent2); letter-spacing: 2px; }
+.dj-stars b { font-size: 11px; letter-spacing: 0; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: #d4001a; color: #fff; vertical-align: middle; }
+.dj-tip { font-size: 11px; color: var(--muted); }
+.dj-title { font-size: 14px; font-weight: 800; color: #ffd9a0; }
+.dj-title small { display: block; font-size: 11px; font-weight: 600; color: var(--muted); }
+.dj-lose { font-size: 15px; color: var(--muted); }
+.dj-g { font-size: 14px; font-weight: 800; }
+.dj-g b { font-size: 11px; margin-left: 6px; padding: 2px 8px; border-radius: 999px; background: #d4001a; color: #fff; }
+.dj-card { margin-top: 6px; padding: 7px 16px; border-radius: 999px; font: inherit; font-size: 13px; font-weight: 800; color: #fff; cursor: pointer;
+  background: #2a1830; border: 1px solid var(--accent2); }
+.badge-f.badge-dojo { color: #ffb46a; background: rgba(255, 120, 30, 0.12); border-color: rgba(255, 140, 60, 0.55); }
+.badge-f.badge-dojo.dj-10 { color: #1a0a00; border-color: #fff2b0; background: linear-gradient(90deg, #ffd23f, #fff6c8, #ff9a3a, #ffd23f); background-size: 200% 100%; animation: dj-shine 3s linear infinite; font-weight: 900; }
+@keyframes dj-shine { to { background-position: -200% 0; } }
+.dj-goal { text-align: center; font-size: 12px; margin: 10px 0 0; padding: 8px; border-radius: 10px; background: rgba(255, 210, 63, 0.08); border: 1px dashed rgba(255, 210, 63, 0.4); }
+.dj-goal b { color: var(--accent2); }
+.dj-goal.got { border-style: solid; box-shadow: 0 0 12px rgba(255, 210, 63, 0.5); }
+.dj-master { color: var(--accent2); font-size: 15px; text-shadow: 0 0 10px rgba(255, 210, 63, 0.6); }
+.badge-f.badge-dojo.dj-9 { color: #ff7a9a; background: rgba(255, 40, 90, 0.14); border-color: rgba(255, 70, 110, 0.6); }
 #online-pop {
   position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 33; width: min(420px, calc(100% - 24px)); max-height: 85vh; overflow-y: auto;
   border-radius: 14px; background: var(--panel); border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
@@ -602,6 +699,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* 色違いの演出（シーズン報酬）：元の演出の暗幕の色を回す */
 #vignette.v-crimson { filter: hue-rotate(115deg) saturate(1.8) brightness(0.55); }
 #vignette.v-aoen { filter: hue-rotate(190deg); }
+/* 虹滅：真ん中から虹色の光の筋が放射状に出る（色はゆっくり回る） */
+#vignette[class*="v-kometsu"] { background:
+  radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 35%),
+  repeating-conic-gradient(from 0deg at 50% 45%, rgba(255, 50, 110, 0.5) 0 5deg, transparent 5deg 10deg, rgba(255, 170, 40, 0.5) 10deg 15deg, transparent 15deg 20deg,
+    rgba(255, 235, 60, 0.5) 20deg 25deg, transparent 25deg 30deg, rgba(60, 255, 140, 0.5) 30deg 35deg, transparent 35deg 40deg,
+    rgba(50, 200, 255, 0.5) 40deg 45deg, transparent 45deg 50deg, rgba(160, 90, 255, 0.5) 50deg 55deg, transparent 55deg 60deg); }
+#vignette.show.v-kometsu { animation: vig var(--dur) ease-out forwards, km-hue 2.4s linear infinite; }
+@keyframes km-hue { to { filter: hue-rotate(360deg); } }
+#vignette.v-ougon, #vignette.meteor-god.v-ougon { filter: hue-rotate(45deg) saturate(1.3) brightness(1.15); }
 #vignette.meteor-god.v-shimetsu { filter: hue-rotate(285deg); }
 #vignette.holy { background: radial-gradient(ellipse at 50% 0%, rgba(255, 255, 240, 0.75), rgba(255, 230, 160, 0.35) 45%, rgba(255, 240, 200, 0.15)); }
 #vignette.void { background: radial-gradient(circle at center, rgba(40, 0, 70, 0.1), rgba(25, 0, 50, 0.6) 45%, rgba(5, 0, 15, 0.9)); }
@@ -633,6 +739,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
   animation: slam-god 0.9s cubic-bezier(.2, 1.6, .4, 1), god-glow 0.3s 0.9s infinite alternate; }
 #banner.rainbow .b-main { animation-name: slam, hue; animation-duration: 0.45s, 0.6s; animation-iteration-count: 1, infinite; }
 #banner.t6.rainbow .b-main { animation-name: slam-god, hue; animation-duration: 0.9s, 0.5s; animation-iteration-count: 1, infinite; }
+#banner.t6.th-clear .b-main { font-size: clamp(40px, 12vw, 120px); } /* ALL CLEAR は長いので、画面からはみ出さない大きさに */
+/* 虹滅：技の名前は虹のグラデーションで塗り、白と濃い紫で縁取る（パチンコの「祝」のような見た目） */
+#banner.th-kometsu .b-main, #banner.th-kometsu .b-sub {
+  background: linear-gradient(180deg, #ff2a6a, #ff9a1f 20%, #ffe83a 38%, #3aff7a 55%, #2ad8ff 72%, #7a4aff 88%, #ff4ae0);
+  -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-stroke: 2px #fff; text-shadow: none;
+  filter: drop-shadow(0 0 1px #2a0040) drop-shadow(0 0 2px #2a0040) drop-shadow(0 5px 0 #2a0040) drop-shadow(0 0 16px rgba(255, 255, 255, 0.85));
+}
+#banner.t6.th-kometsu .b-main { -webkit-text-stroke: 3px #fff; animation: slam-god 0.9s cubic-bezier(.2, 1.6, .4, 1); }
 @keyframes slam { 0% { transform: scale(4) rotate(-8deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
 @keyframes slam-god { 0% { transform: scale(8) rotate(20deg); opacity: 0; filter: blur(10px); } 100% { transform: scale(1); opacity: 1; filter: none; } }
 @keyframes hue { from { filter: hue-rotate(0deg); } to { filter: hue-rotate(360deg); } }
@@ -649,6 +763,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background: rgba(0, 0, 0, 0.7); padding: 16px;
 }
 #a2hs[hidden] { display: none; }
+#tut-ask { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0, 0, 0, 0.7); }
+#tut-ask[hidden] { display: none; }
+#tut-ask .modal-box { text-align: center; max-width: 380px; }
+.tut-ask-lead { font-size: 14px; line-height: 1.7; margin: 10px 0 14px; }
+.tut-ask-lead small { color: var(--muted); font-size: 12px; }
 .a2hs-title { font-size: 20px; font-weight: 800; color: var(--accent2); }
 .a2hs-steps { text-align: left; line-height: 1.8; padding-left: 22px; margin: 14px 0 8px; }
 .a2hs-lead { font-size: 14px; line-height: 1.7; margin: 10px 0 14px; text-align: left; }
@@ -784,6 +903,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .on-item::after { content: '›'; color: var(--gold); margin-left: 8px; }
 .on-item.ghost { background: linear-gradient(rgba(22, 12, 34, 0.5), rgba(22, 12, 34, 0.5)) padding-box, linear-gradient(120deg, rgba(255, 210, 63, 0.3), rgba(176, 102, 255, 0.3)) border-box; }
 .on-item.locked { opacity: 0.5; }
+.on-item.soon { opacity: 0.6; border-style: dashed; }
+.on-item.soon::after { content: 'SOON'; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; color: var(--gold); }
 .on-item:active, .quick button:active { transform: scale(0.98); }
 .beginner { width: min(420px, 100%); }
 

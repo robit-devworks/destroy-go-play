@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Black+Ops+One&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=20261025231155">
+  <link rel="stylesheet" href="css/style.css?v=20261026002929">
 </head>
 <body>
   <div id="stage">
@@ -33,6 +33,8 @@
       <!-- この端末で遊ぶ：CPU 戦・2 人で対局（ルールなどは ⚙ 設定） -->
       <div class="home-sec">
         <p class="sec-title"><span>この端末で遊ぶ</span></p>
+        <!-- 破壊の迷宮（CPU のボスを倒して下へ潜る）。石の壁とたいまつの見た目 -->
+        <button id="btn-dojo" class="dungeon-btn"><i class="dg-torch l"><i class="dg-fire"></i></i><span class="dg-text"><b>破壊の迷宮</b><small id="dojo-note"></small><span class="dg-go">潜る ▼</span></span><i class="dg-torch r"><i class="dg-fire"></i></i></button>
         <button id="btn-start" class="start-item"><b>対局開始</b><small id="start-summary"></small></button>
         <div class="quick"><button id="q-cpu">CPUと</button><button id="q-human">2人で</button><button id="btn-settings">⚙ 設定</button></div>
         <!-- 対局の設定：よく変えるものはここで選べる（たたむこともできる）。細かい設定は ⚙ 設定 -->
@@ -63,6 +65,13 @@
         <button id="btn-rank-top" class="on-item">ランクマッチ<span id="rank-top-note"></span></button>
         <button id="btn-friend-top" class="on-item">フレンド対戦<span>合言葉で友だちと</span></button>
         <button id="btn-ranking-top" class="on-item ghost">ランキング<span>レート上位</span></button>
+      </div>
+      <!-- これから入る予定の遊び方（押すと「準備中」と出るだけ） -->
+      <div class="home-sec">
+        <p class="sec-title"><span>COMING SOON</span></p>
+        <button class="on-item soon">3人対戦<span>3色の石で三つどもえ</span></button>
+        <button class="on-item soon">4人対戦<span>4人で入り乱れるバトル</span></button>
+        <button class="on-item soon">チーム戦<span>2対2で力を合わせる</span></button>
       </div>
       <div class="title-links">
         <button id="btn-tutorial-sm" class="sub-btn" hidden>📖 チュートリアル</button>
@@ -284,6 +293,11 @@
 
   <div id="gtoast"></div>
   <!-- 棋譜の一覧 -->
+  <!-- 破壊の迷宮：B1F〜B9F のボス（CPU Lv1〜9）・星・称号、ノンストップ潜行 -->
+  <div id="dojo-pop" hidden>
+    <div class="sp-head"><b>🕳 破壊の迷宮</b><button id="dojo-close">閉じる</button></div>
+    <div id="dojo-body"></div>
+  </div>
   <div id="kifu-pop" hidden>
     <div class="log-head"><b>棋譜（最近の20局）</b><button id="kifu-close">閉じる</button></div>
     <ol id="kifu-list"></ol>
@@ -325,6 +339,14 @@
     <button id="vol-mute">🔇 音を全部消す</button>
   </div>
   <div id="unlock-pop"></div>
+  <!-- はじめて開いたとき：チュートリアルをやるか聞く（1 回だけ） -->
+  <div id="tut-ask" hidden>
+    <div class="modal-box">
+      <div class="a2hs-title">囲碁ははじめて？</div>
+      <p class="tut-ask-lead">1分で分かるチュートリアルで、石の取り方とデストロイ碁の遊び方を覚えよう。<br><small>あとからホーム画面の「📖 チュートリアル」でもできます</small></p>
+      <div class="m-buttons"><button id="tut-ask-go" class="accent">▶ やってみる</button><button id="tut-ask-skip">スキップ</button></div>
+    </div>
+  </div>
   <!-- iPhone など全画面のボタンが使えない端末向けの案内 -->
   <div id="a2hs" hidden>
     <div class="modal-box">
@@ -348,6 +370,7 @@
       <div class="m-title"></div>
       <div class="m-body"></div>
       <div id="m-rate"></div>
+      <div id="m-dojo" hidden></div>
       <!-- 次の対局のルール（CPU 戦・2人で対局のとき。タイトルに戻らずに選べる） -->
       <div class="m-next" id="m-next" hidden>
         <div class="next-row"><span class="tr-label">次の相手</span><div class="chips" data-k="opp"></div></div>
@@ -370,7 +393,7 @@
     </div>
   </div>
 
-  <script src="js/edition.js?v=20261025231155"></script>
+  <script src="js/edition.js?v=20261026002929"></script>
   <!-- アクセス解析（GoatCounter）。Cookie を使わず、個人は分からない（開かれた回数・どこから来たか・端末の種類だけ）。
        公開しているサイトでだけ数える。開発者とテスト用の端末は数えない -->
   <script>
@@ -384,14 +407,14 @@
       document.head.appendChild(s);
     })();
   </script>
-  <script src="js/go.js?v=20261025231155"></script>
-  <script src="js/clock.js?v=20261025231155"></script>
-  <script src="js/sounds.js?v=20261025231155"></script>
-  <script src="js/effects.js?v=20261025231155"></script>
-  <script src="js/boardfx.js?v=20261025231155"></script>
-  <script src="js/destroy-rule.js?v=20261025231155"></script>
-  <script src="js/ai.js?v=20261025231155"></script>
-  <script src="js/online.js?v=20261025231155"></script>
-  <script src="js/app.js?v=20261025231155"></script>
+  <script src="js/go.js?v=20261026002929"></script>
+  <script src="js/clock.js?v=20261026002929"></script>
+  <script src="js/sounds.js?v=20261026002929"></script>
+  <script src="js/effects.js?v=20261026002929"></script>
+  <script src="js/boardfx.js?v=20261026002929"></script>
+  <script src="js/destroy-rule.js?v=20261026002929"></script>
+  <script src="js/ai.js?v=20261026002929"></script>
+  <script src="js/online.js?v=20261026002929"></script>
+  <script src="js/app.js?v=20261026002929"></script>
 </body>
 </html>

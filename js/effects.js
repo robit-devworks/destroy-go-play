@@ -55,6 +55,13 @@
       subs: ['昇天せよ', 'メガ・ホーリー', 'ウルトラ・ホーリー', 'GOD OF LIGHT'],
       flash: ['#ffffff', '#fff6d8', '#ffe7a3', '#fff0c0'], vignette: 'holy',
     },
+    clear: { // 破壊の迷宮・深淵層の最深部の報酬：石が光に包まれて消える（CLEAR と消滅をかけた）。盤は丸くえぐれる
+      label: '消滅', mark: '消', color: '#9ad8ff', palette: ['#ffffff', '#e8f6ff', '#bfe6ff', '#9ad8ff'],
+      // いちばん上の技は「神を呼ぶ」のではなく、自分が神になってすべてを消す（ALL CLEAR）
+      names: ['CLEAR!!!', 'MEGA CLEAR!!!', 'ULTRA CLEAR!!!!', 'ALL CLEAR'],
+      subs: ['消え去れ', 'メガ・クリア', 'ウルトラ・クリア', '我、神となりて 無に還す'],
+      flash: ['#ffffff', '#e8f6ff', '#9ad8ff', '#06121e'], vignette: 'holy',
+    },
     // ---- 色違い（シーズンのランキング報酬）。動きは base の演出のまま、色だけ変える ----
     crimson: { // 1〜3 位：赤黒い雷
       label: '紅雷', base: 'thunder', mark: '紅', color: '#ff2a3a', palette: ['#ff5a5a', '#e0102a', '#a0001a', '#ff2a3a'],
@@ -75,6 +82,20 @@
       subs: ['シメツ', 'メガ・シメツ', 'ウルトラ・シメツ', 'GOD OF VIOLET RUIN'],
       flash: ['#ffffff', '#efe0ff', '#9a2aff', '#0e0018'], vignette: 'meteor', tint: 'shimetsu',
     },
+    ougon: { // CPU 道場を全レベル ★3：金と白のデストロイ
+      label: '黄金', base: 'default', mark: '金', color: '#ffd23f', shield: '#c8a850',
+      tierColors: ['#fff6c8', '#ffe27a', '#ffd23f', '#ffb81f', '#ffcc33', '#fff0a0', '#ffffff'],
+      names: ['GOLDEN!!!', 'MEGA GOLDEN!!!', 'ULTRA GOLDEN!!!!', '黄金神降臨'],
+      subs: ['輝け', 'メガ・ゴールデン', 'ウルトラ・ゴールデン', 'GOD OF GOLD'],
+      flash: ['#ffffff', '#fff6c8', '#ffd23f', '#3a2600'], vignette: 'meteor', tint: 'ougon',
+    },
+    kometsu: { // 破壊の迷宮・深淵層の最深部：虹色のデストロイ
+      label: '虹滅', base: 'default', mark: '虹', color: '#ff5bd8', shield: '#b0a8c8',
+      tierColors: ['#ff3b5c', '#ff3b5c', '#ff3b5c', '#ff3b5c', '#ff3b5c', '#ff3b5c', '#ffffff'], whiteMix: 0.45, // 色はプリズムの色に付け替わる。白い光を多めに
+      names: ['RAINBOW!!!', 'MEGA RAINBOW!!!', 'ULTRA RAINBOW!!!!', '虹滅神降臨'],
+      subs: ['七色に散れ', 'メガ・レインボー', 'ウルトラ・レインボー', 'GOD OF RAINBOW RUIN'],
+      flash: ['#ffffff', '#ff5bd8', '#3bc8ff', '#ffe53b'], vignette: 'meteor', tint: 'kometsu',
+    },
   };
   const baseOf = (key) => (THEMES[key] && THEMES[key].base) || key;
 
@@ -84,9 +105,17 @@
     crimson: { id: 'crimson', bolt: 'dark', crack: 'rgba(255,40,60,0.9)',
       map: (h, s, l) => (s < 0.15 ? (l > 0.6 ? [355, 0.85, 0.55] : [h, s, l * 0.6]) : h >= 170 && h <= 260 ? [350, 1, Math.min(l * 0.5, 0.25)] : [356, 1, Math.min(0.48, Math.max(0.3, l * 0.7))]) },
     aoen: { id: 'aoen', blueFlame: true, map: (h, s, l) => (s < 0.15 ? [h, s, l] : h <= 75 || h >= 330 ? [205 + (h > 300 ? 0 : h * 0.4), 1, l] : [h, s, l]) },
+    // 虹滅：プリズムの虹。色のついたものは、その瞬間の色（全部そろって時間で赤→紫と移り変わる）にする。白い光はそのまま。
+    // 色が時間で変わるので覚えておかない（rainbow）
+    kometsu: { id: 'kometsu', rainbow: true, crack: 'rgba(255,255,255,0.95)', map: (h, s, l) => (s < 0.15 ? [h, s, l] : [rainbowHue, 1, Math.min(0.66, Math.max(0.55, l))]) },
+    // 黄金：赤・橙は金色に。白っぽい光はそのまま
+    ougon: { id: 'ougon', crack: 'rgba(255,215,90,0.95)', map: (h, s, l) => (s < 0.15 ? [h, s, l] : h >= 300 || h <= 70 ? [46, Math.max(s, 0.85), Math.max(l, 0.5)] : [h, s, l]) },
     shimetsu: { id: 'shimetsu', crack: 'rgba(200,110,255,0.95)', map: (h, s, l) => (s < 0.15 ? [h, s, l] : h >= 330 || h <= 15 ? [285, s, l] : h <= 70 ? [45, s, l] : [h, s, l]) },
   };
   let tintNow = null; // 今作っている演出の色の付け替え（TINTS の 1 つ）
+  // 虹滅の色：画面の場所で虹のグラデーションになるように（左上が赤 → 右下が紫）。少しずつ流れる
+  let rainbowHue = 0;
+  const hueAt = (x, y) => ((((x * 0.8 + y) / Math.max(1, W + H)) * 420 + performance.now() * 0.06) % 360 + 360) % 360;
   const tintCache = new Map();
   function parseCol(col) {
     let m = col.match(/^#([0-9a-f]{3})$/i);
@@ -102,7 +131,7 @@
   function tintWith(tint, col) {
     if (!tint || typeof col !== 'string') return col;
     const key = tint.id + col;
-    if (tintCache.has(key)) return tintCache.get(key);
+    if (!tint.rainbow && tintCache.has(key)) return tintCache.get(key);
     const v = parseCol(col); let out = col;
     if (v) {
       const [r, g, b] = v.map((x, i) => (i < 3 ? x / 255 : x)), mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
@@ -113,7 +142,7 @@
       const [h2, s2, l2] = tint.map(h, sat, l);
       out = `hsla(${Math.round(h2)},${Math.round(s2 * 100)}%,${Math.round(l2 * 100)}%,${v[3]})`;
     }
-    tintCache.set(key, out);
+    if (!tint.rainbow) tintCache.set(key, out);
     return out;
   }
 
@@ -392,6 +421,7 @@
       sfx((a, t) => noiseHit(a, t, { dur: g ? 3.8 : 2.8, f0: 320, f1: 35, q: 0.6, vol: 0.55 }), 0.8);
     },
     dark() {}, // 闇は渦が潰れるときに専用の音（implode）を鳴らす
+    clear(g) { suck(1, 0.2); suck(0.8, 0.6); chime(1, 1.1); if (g) { suck(1, 1.6); chime(1, 2.2); } }, // 吸い込む音が重なって、最後に澄んだ音
     light(g) { // 天使の合唱のような和音と、高く昇っていくきらめき
       sfx((a, t) => {
         const dur = g ? 3.4 : 2.4;
@@ -431,6 +461,7 @@
     thunder(p, ti) { crack(p); if (ti >= 3) crack(p, 0.35); },
     dark(p, ti) { suck(p); if (ti >= 3) suck(p * 0.7, 0.3); },
     light(p, ti) { chime(p, 0.15); if (ti >= 3) chime(Math.min(1, p + 0.3), 0.6); },
+    clear(p, ti) { suck(p * 0.7, 0.05); chime(Math.max(0.3, p * 0.8), 0.32); if (ti >= 3) chime(Math.min(1, p + 0.2), 0.7); }, // 吸い込まれて、すっと消える
   };
 
   // ---------- 描画レイヤー ----------
@@ -452,6 +483,7 @@
     if (parts.length >= MAX_PARTS && !p.onDeath) return;
     const q = Object.assign({ t: 0, rot: 0, vr: 0, g: 0, drag: 1, vx: 0, vy: 0 }, p);
     if (tintNow) {
+      if (tintNow.rainbow) rainbowHue = hueAt(q.x || 0, q.y || 0);
       q.tint = tintNow; q.color = tintCol(q.color); if (q.edge) q.edge = tintCol(q.edge);
       if (tintNow.blueFlame && q.kind === 'flame') q.blue = true;
     }
@@ -461,6 +493,7 @@
   // 一定フレームの間、毎フレーム fn(t) を呼ぶ
   function emit(life, fn) { emitters.push({ t: 0, life, fn, tint: tintNow }); }
   function ring(x, y, r1, color, { w = 12, life = 40, delay = 0, r0 = 4 } = {}) {
+    if (tintNow && tintNow.rainbow) rainbowHue = (performance.now() * 0.4 + rings.length * 50) % 360; // 輪は 1 本ずつ違う色
     rings.push({ x, y, r0, r1, w, t: -delay, life, color: tintCol(color) });
   }
   function boltBetween(x1, y1, x2, y2, color, { life = 18, width = 3, jag = 30 } = {}) {
@@ -483,6 +516,7 @@
     c2.globalAlpha = alpha;
     c2.save(); c2.translate(p.x, p.y); c2.rotate(p.rot);
     let s = p.size * (p.static || p.attract ? 1 : 1 + (p.t / p.life) * 0.6);
+    if (p.vanish) s = p.size * Math.max(0, 1 - Math.pow(p.t / p.life, 1.6)); // 消滅：最後に点になって消える
     if (p.burning) s *= 1 - 0.75 * Math.max(0, (p.t / p.life - 0.35) / 0.65); // 燃えながら縮んでいく
     const grd = c2.createRadialGradient(-s * 0.3, -s * 0.3, s * 0.1, 0, 0, s);
     if (p.white) { grd.addColorStop(0, '#fff'); grd.addColorStop(1, '#b9b4a8'); }
@@ -506,6 +540,16 @@
       c2.beginPath();
       for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; c2.moveTo(0, 0); c2.lineTo(Math.cos(a) * s * 1.1, Math.sin(a) * s * 1.1); }
       c2.stroke();
+    }
+    if (p.vanish) { // 消滅：白く光りながら縮んで、消える
+      const k = Math.min(1, p.t / p.life);
+      c2.globalCompositeOperation = 'lighter';
+      c2.fillStyle = `rgba(230,245,255,${0.4 + 0.6 * k})`;
+      c2.beginPath(); c2.arc(0, 0, s * 1.02, 0, Math.PI * 2); c2.fill();
+      const halo = c2.createRadialGradient(0, 0, s * 0.5, 0, 0, s * 2.4);
+      halo.addColorStop(0, `rgba(200,235,255,${0.7 * k})`); halo.addColorStop(1, 'rgba(160,220,255,0)');
+      c2.fillStyle = halo; c2.beginPath(); c2.arc(0, 0, s * 2.4, 0, Math.PI * 2); c2.fill();
+      c2.globalCompositeOperation = 'source-over';
     }
     if (p.holy) { // 光に包まれて、だんだん光そのものになっていく石
       const k = Math.min(1, p.t / (p.life * 0.6));
@@ -713,7 +757,7 @@
           const tint = p.shock === 'god' ? '255,60,80' : '235,238,248';
           for (let k = 0; k < 3; k++) {
             const R = p.size * (1.5 + k * 0.75), wob = 0.08 * Math.sin(p.t * 0.9 + k);
-            c2.strokeStyle = `rgba(${k === 0 ? '255,255,255' : tint},${0.85 - k * 0.22})`;
+            c2.strokeStyle = T(p, `rgba(${k === 0 ? '255,255,255' : tint},${0.85 - k * 0.22})`); // 色違い（黄金など）では赤い衝撃波も付け替える
             c2.lineWidth = Math.max(1.5, p.size * (0.35 - k * 0.08));
             c2.beginPath(); c2.arc(-p.size * 0.2 * k, 0, R, -1.15 - wob, 1.15 + wob); c2.stroke();
           }
@@ -828,7 +872,7 @@
     // 隕石は炎ではなく衝撃波をまとうので、白・銀に赤を差す（破壊神は真紅を強めに）
     if (c.ti >= GOD) return pick(['#ffffff', '#d8dbe4', '#ff2a3a', '#ff2a3a']);
     if (c.ti >= ULTRA) return pick(['#ffffff', '#c8ccd6', '#ff3b3b', '#8a8f9c']);
-    return Math.random() < 0.3 ? '#fff' : th.tierColors[c.ti];
+    return Math.random() < (th.whiteMix || 0.3) ? '#fff' : th.tierColors[c.ti];
   }
 
   // 取られた石を吹っ飛ばす
@@ -1245,6 +1289,47 @@
     }
   };
 
+  // 消滅：光の輪が石へ縮んでいき、石は白く光りながら点になって消える。光の粒が上へ吸い込まれる。
+  // ULTRA 以上は画面全体が真ん中へ吸い込まれる（輪が外から縮む）
+  RUN.clear = (c) => {
+    const { points, ti } = c;
+    const god = ti >= GOD, ultra = ti >= ULTRA, pal = c.theme.palette;
+    const motes = (x, y, n, spread) => {
+      for (let i = 0; i < n; i++) {
+        spawn({ kind: 'dot', x: x + rnd(-spread, spread), y: y + rnd(-spread, spread), vx: rnd(-0.3, 0.3), vy: -rnd(0.6, 2.6), g: -0.03, drag: 0.98,
+          size: rnd(1, 2.8), life: rnd(40, 90), color: pick(pal) });
+      }
+    };
+    points.forEach((p, i) => {
+      const ms = (ultra ? 650 : 280) + stagger(i, c.n, ultra ? 1100 : 700);
+      later(Math.max(0, ms - 230), () => ring(p.x, p.y, 1, 'rgba(210,240,255,0.95)', { w: 3, life: 14, r0: c.stone * 2.6 })); // 縮む輪
+      holdStone(p, c, ms, () => {
+        spawn({ kind: 'stone', vanish: true, static: true, white: c.white, x: p.x, y: p.y, size: c.stone / 2, life: 16,
+          onDeath: (q) => {
+            spawn({ kind: 'orb', x: q.x, y: q.y, size: c.stone * 1.5, life: 10, color: '#e8f6ff' });
+            spawn({ kind: 'star', x: q.x, y: q.y, vx: 0, vy: 0, size: c.stone * 0.18, life: 18, color: '#ffffff' });
+            motes(q.x, q.y, 8 + Math.round(c.power * 10), c.stone * 0.35);
+            ring(q.x, q.y, c.stone * 1.8, 'rgba(255,255,255,0.7)', { w: 2, life: 14 });
+          } });
+      });
+    });
+    if (ti >= 3 && !ultra) ring(c.cx, c.cy, 2, 'rgba(200,235,255,0.8)', { w: 6, life: 26, r0: 90 + c.power * W * 0.4 }); // まわりから縮む輪
+    if (ultra) {
+      const R = Math.max(W, H);
+      ring(c.cx, c.cy, 2, '#ffffff', { w: 16, life: 40, r0: R * 0.8 });
+      ring(c.cx, c.cy, 2, 'rgba(160,220,255,0.9)', { w: 10, life: 44, r0: R * 0.6, delay: 6 });
+      emit(frames(c.hold - 500), (t) => { // 画面中の光の粒が、上へ吸い込まれていく
+        if (t % (god ? 2 : 4)) return;
+        for (let i = 0; i < (god ? 6 : 3); i++) spawn({ kind: 'dot', x: rnd(0, W), y: rnd(H * 0.2, H * 1.1), vx: rnd(-0.2, 0.2), vy: -rnd(2, 6), drag: 0.99, size: rnd(1, 2.6), life: rnd(50, 90), color: pick(pal) });
+      });
+      later(700, () => spawn({ kind: 'orb', x: c.cx, y: c.cy, size: R * (god ? 0.6 : 0.4), life: 26, color: '#dff2ff' })); // 吸い込んだあとの白い光
+    }
+    if (god) { // 2 度目の吸い込みと、静かに回る光の筋
+      later(900, () => { ring(c.cx, c.cy, 2, '#ffffff', { w: 22, life: 46, r0: Math.max(W, H) }); ring(c.cx, c.cy, 2, 'rgba(154,216,255,0.9)', { w: 12, life: 50, r0: Math.max(W, H) * 0.75, delay: 8 }); });
+      spawn({ kind: 'rays', x: c.cx, y: c.cy, size: Math.max(W, H) * 0.7, count: 18, spin: 0.006, static: true, life: frames(c.hold) });
+    }
+  };
+
   // 神レベル共通：画面全体に降り注ぐ
   function godRain(c) {
     const key = c.themeKey;
@@ -1252,6 +1337,7 @@
       const x = rnd(0, W);
       if (key === 'fire') spawn({ kind: 'flame', x, y: H + rnd(0, H), vx: rnd(-1, 1), vy: -rnd(4, 12), size: rnd(4, 9), life: rnd(80, 160) });
       else if (key === 'ice') spawn({ kind: 'snow', x, y: rnd(-H, 0), vx: rnd(-1, 1), vy: rnd(2, 6), size: rnd(1.5, 4), life: rnd(100, 180), rot: rnd(0, 6) });
+      else if (key === 'clear') spawn({ kind: 'star', x, y: H + rnd(0, H * 0.6), vx: rnd(-0.3, 0.3), vy: -rnd(2, 5), size: rnd(1, 2.5), life: rnd(80, 150), color: '#e8f6ff' }); // 光が昇っていく
       else if (key !== 'default' && key !== 'dark' && key !== 'light') spawn({ kind: 'dot', x, y: rnd(-H, 0), vx: rnd(-1, 1), vy: rnd(4, 12), g: 0.05, size: rnd(2, 5), life: rnd(80, 160), color: color(c) });
     }
     if (key === 'default') { // 空を横切る流星群

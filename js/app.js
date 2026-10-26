@@ -65,7 +65,34 @@
     crimson: 'シーズン1 ランクマッチ 1〜3 位',
     shimetsu: 'シーズン1 ランクマッチ 4〜10 位',
     aoen: 'シーズン1 ランクマッチ 11〜50 位',
+    ougon: '破壊の迷宮 全階 ★3', // シーズンとは別だが、扱いは同じ（取った人だけが使える）
+    kometsu: '（まだ手に入らない）', // 虹色の演出。見せ方を考え直し中
+    clear: '破壊の迷宮 深淵層の最深部を突破',
   };
+  // 破壊の迷宮（中では dojo と呼ぶ）：B1F〜B9F のボス（CPU Lv1〜9）。勝つと「撃破」、星（★1〜3）は勝ち方で決まる。途中の階で称号がもらえる
+  const BOSSES = ['', '見習い石崩し', 'いたずら小鬼', '石割りの剣士', '鉄壁の門番', '破壊の番人', '業火の将軍', '雷鳴の覇者', '深淵の賢者', '碁の魔王',
+    '深淵の見習い', '狂いし小鬼', '呪われた剣士', '黒鉄の門番', '冥府の番人', '獄炎の将軍', '黒雷の覇者', '虚無の賢者', '真・碁の魔王'];
+  // 深淵層 B10F〜B18F（B9F を突破すると出てくる裏の階）：CPU のレベル（lv）と、CPU がもらうハンデ（置き石 hc・HP の上乗せ hp）。ルールはデストロイ固定
+  const ABYSS = {
+    10: { lv: 1, hc: 4, hp: 0 }, 11: { lv: 2, hc: 0, hp: 1 }, 12: { lv: 3, hc: 3, hp: 0 }, 13: { lv: 4, hc: 0, hp: 0.5 }, 14: { lv: 5, hc: 2, hp: 0 },
+    15: { lv: 6, hc: 0, hp: 0.5 }, 16: { lv: 7, hc: 2, hp: 0 }, 17: { lv: 8, hc: 2, hp: 0.25 }, 18: { lv: 9, hc: 2, hp: 0.5 },
+  };
+  // 消滅（深淵層の最深部の専用の演出）は作り込み中。CLEAR_READY を true にするまで、報酬に出さず手にも入らない
+  const CLEAR_READY = false;
+  const ABYSS_GIFTS = { 12: '名前ガチャの引き直しが 1 日 5 回に', 15: '名前ガチャでレアな名前が出やすくなる', 18: `まだ解放していない演出・BGM を全部解放${CLEAR_READY ? '＋専用の演出「消滅」' : ''}` };
+  const ABYSS_FLOORS = [10, 11, 12, 13, 14, 15, 16, 17, 18];
+  // 10 は特別な称号：Lv1〜9 を全部 ★3 で撃破したとき。18 は深淵層の最深部を突破したとき（いちばん上）
+  const DOJO_TITLES = { 3: '石崩し', 7: '破壊者', 9: '魔王討伐者', 10: 'デストロイマスター', 18: '深淵の覇者' };
+  // stars：{ 階（= CPU のレベル）: 取った星の数（いちばん多いとき） }、best：ノンストップ潜行で何階まで突破したか（いちばん深いとき）
+  let dojo = { stars: {}, best: 0 };
+  try { const d = JSON.parse(localStorage.getItem('destroy-go-dojo') || '{}'); if (d && typeof d.stars === 'object') dojo = { stars: d.stars, best: +d.best || 0 }; } catch (e) { /* 無視 */ }
+  const saveDojo = () => { try { localStorage.setItem('destroy-go-dojo', JSON.stringify(dojo)); } catch (e) { /* 無視 */ } };
+  const dojoCleared = (lv) => (dojo.stars[lv] || 0) > 0;
+  const dojoCount = () => [1, 2, 3, 4, 5, 6, 7, 8, 9].filter(dojoCleared).length;
+  const dojoAll3 = () => [1, 2, 3, 4, 5, 6, 7, 8, 9].every((lv) => dojo.stars[lv] >= 3);
+  const dojoTitleLv = () => (dojoCleared(18) ? 18 : dojoAll3() ? 10 : [9, 7, 3].find(dojoCleared) || 0); // いちばん上の称号（その階を撃破していれば）
+  const abyssOpen = () => dojoCleared(9);
+  const abyssCount = () => ABYSS_FLOORS.filter(dojoCleared).length;
   const secretUnlocked = new Set();
   try { for (const k of JSON.parse(localStorage.getItem('destroy-go-unlocks') || '[]')) if (SECRETS[k] || SEASON_REWARDS[k]) secretUnlocked.add(k); } catch (e) { /* 無視 */ }
   // 開発者はテストのため、ランダムマッチ・ランクマッチ以外（フレンド戦・この端末・プレビュー）ならシーズン報酬も使える
@@ -75,7 +102,7 @@
   const themeKeys = () => FX.themes.map((t) => t.key).filter(unlocked);
   const themeOf = (key) => FX.themes.find((t) => t.key === key) || FX.themes[0];
   // 黒と白で同じ演出は選べない（どちらの演出か一目でわかるように）。色が近い演出（炎と紅雷・氷と蒼炎・闇と紫滅）も同じ扱い
-  const COLOR_GROUP = { fire: 'red', crimson: 'red', ice: 'blue', aoen: 'blue', dark: 'purple', shimetsu: 'purple' };
+  const COLOR_GROUP = { fire: 'red', crimson: 'red', ice: 'blue', aoen: 'blue', dark: 'purple', shimetsu: 'purple', light: 'gold', ougon: 'gold' };
   const clash = (a, b) => a === b || (!!COLOR_GROUP[a] && COLOR_GROUP[a] === COLOR_GROUP[b]);
   const themes = { [BLACK]: 'default', [WHITE]: FREE ? 'ice' : 'fire' };
   try {
@@ -149,10 +176,10 @@
   renderMode();
 
   // 置き石（ハンデ）：0（なし）か 2〜9 子。コンピューター戦では、置くのがあなたかコンピューターかも選ぶ（置く側が黒）
-  let opponent = 'human', cpuLevel = 3, humanColor = BLACK, handicap = 0, hcWho = 'human', cpuResign = true;
+  let opponent = 'cpu', cpuLevel = 3, humanColor = BLACK, handicap = 0, hcWho = 'human', cpuResign = true;
   try {
     const o = JSON.parse(localStorage.getItem('destroy-go-opponent') || '{}');
-    if (o.opponent === 'cpu') opponent = 'cpu';
+    if (o.opponent === 'human') opponent = 'human'; // はじめは CPU 戦（一人でもすぐ遊べるように）
     if (o.level >= 1 && o.level <= 9) cpuLevel = o.level;
     if (o.human === WHITE) humanColor = WHITE;
     if (o.handicap >= 2 && o.handicap <= 9) handicap = o.handicap;
@@ -1288,7 +1315,7 @@
   function setThinking(on) { for (const c of [BLACK, WHITE]) $('#p' + c).classList.toggle('thinking', on && c === cpuSide); }
   function renderNames() {
     for (const c of [BLACK, WHITE]) {
-      const who = net ? (c === net.color ? '（あなた）' : '（相手）') : !cpuSide ? '' : c === cpuSide ? `（CPU Lv${cpuLevelInGame}）` : '（あなた）';
+      const who = net ? (c === net.color ? '（あなた）' : '（相手）') : !cpuSide ? '' : c === cpuSide ? (curFloor > 9 ? `（B${curFloor}F ${BOSSES[curFloor]}）` : `（Lv${cpuLevelInGame} ${BOSSES[cpuLevelInGame]}）`) : '（あなた）';
       $('#p' + c + ' .p-name').firstChild.nodeValue = NAMES[c] + who + ' ';
     }
   }
@@ -1364,6 +1391,7 @@
   }
   $('#btn-undo').onclick = () => {
     if (phase !== 'play' || !game.history.length || net) return;
+    usedUndo = true; // 破壊の迷宮の星（待ったなしで勝つと ★2）
     cancelCharge();
     if (cpuSide) {
       // コンピューター戦：考え中ならやめて自分の手だけ戻す。自分の手番なら、コンピューターの手と自分の手を戻す
@@ -1548,9 +1576,11 @@
   let shareFile = null, shareUrl = null;
   // 共有の文に入れる URL には、どこから来たか分かる目印（ref）を付ける（アクセス解析の「Campaigns」で見られる）
   const SHARE_TEXT = `デストロイ碁で遊んだ！ https://${PLAY_URL}/?ref=share #デストロイ碁 #囲碁`;
+  let shareText = SHARE_TEXT; // 撃破カードのときは、倒したボスの名前を入れる
   // 画像か動画を見せて、共有メニュー（スマホ）か保存＋X の投稿画面（パソコン）で送る
-  function openShare(blob, name, xOk = true) {
+  function openShare(blob, name, xOk = true, text = SHARE_TEXT) {
     const video = blob.type.startsWith('video/');
+    shareText = text;
     shareFile = new File([blob], name, { type: blob.type });
     if (shareUrl) URL.revokeObjectURL(shareUrl);
     shareUrl = URL.createObjectURL(blob);
@@ -1596,12 +1626,12 @@
   };
   $('#share-redo').onclick = () => { $('#share-pop').hidden = true; $('#share-video').pause(); startRec(); };
   $('#share-go').onclick = async () => {
-    try { await navigator.share({ files: [shareFile], text: SHARE_TEXT }); }
+    try { await navigator.share({ files: [shareFile], text: shareText }); }
     catch (e) { /* 閉じただけ */ }
   };
   $('#share-x').onclick = () => {
     $('#share-save').click(); // 先に保存（ダウンロード）してから
-    window.open(`https://x.com/intent/post?text=${encodeURIComponent(SHARE_TEXT)}`, '_blank', 'noopener');
+    window.open(`https://x.com/intent/post?text=${encodeURIComponent(shareText)}`, '_blank', 'noopener');
   };
   $('#share-close').onclick = () => { $('#share-pop').hidden = true; $('#share-video').pause(); };
   // 🔊 で音量の窓を開く（効果音・BGM の音量と、全部消す）
@@ -1764,6 +1794,170 @@
   // winner を渡すと、勝った側の演出で負けた側の石を全部消してから結果を出す
   // ランダムマッチの待ち時間に始めた CPU 戦。勝つと「ランクマッチまでの 1 局」に数える（負けや投了では数えない）
   let warmupCpu = false;
+  // ---------- 破壊の迷宮・ノンストップ潜行（勝ち抜き戦） ----------
+  let usedUndo = false;
+  let gauntlet = null; // ノンストップ潜行：{ lv: 今の階, next: 勝って次に進む階 }
+  const starsText = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
+  const dojoBadge = (lv) => (DOJO_TITLES[lv] ? `<i class="badge-f badge-dojo dj-${lv}" title="${lv === 10 ? '破壊の迷宮 全階 ★3' : `破壊の迷宮 B${lv}F 撃破`}">${DOJO_TITLES[lv]}</i>` : '');
+  // 星：勝つと ★1、待ったなしで ★2、さらに圧勝（KO・中押し・10 目以上）で ★3。置き石をもらったときは ★1 まで
+  function dojoStars(title) {
+    const m = title.match(/の([\d.]+)目勝ち/);
+    const big = title.startsWith('K.O.') || title.includes('中押し') || (m && +m[1] >= 10);
+    const helped = effectiveHandicap() && gameHumanColor() === BLACK;
+    return helped ? 1 : usedUndo ? 1 : big ? 3 : 2;
+  }
+  // 全階 ★3 の報酬：専用の演出「黄金」（取った人だけが使える）
+  function grantOugon() { grantFx('ougon'); }
+  // 取った人だけが使える演出（黄金・消滅）を使えるようにする
+  function grantFx(key) {
+    if (secretUnlocked.has(key)) return;
+    secretUnlocked.add(key); lsSet('destroy-go-unlocks', JSON.stringify([...secretUnlocked]));
+    refreshThemeChoices(); syncProfile();
+  }
+  // 深淵層の最深部の報酬：まだ解放していない演出（隠し要素）と BGM を全部使えるようにする（ランキング報酬・黄金は別）
+  function unlockAll() {
+    let changed = false;
+    for (const k of Object.keys(SECRETS)) if (!secretUnlocked.has(k)) { secretUnlocked.add(k); changed = true; }
+    for (const b of BGMS) if (b.when && !bgmUnlocked.has(b.key)) { bgmUnlocked.add(b.key); changed = true; }
+    if (!changed) return;
+    lsSet('destroy-go-unlocks', JSON.stringify([...secretUnlocked])); lsSet('destroy-go-bgm-unlocks', JSON.stringify([...bgmUnlocked]));
+    refreshThemeChoices(); buildBgmChips(); syncProfile();
+  }
+  // 深淵層：CPU にハンデ（置き石・HP）を付け、ルールをデストロイにする。もとの設定は覚えておき、迷宮を出たら戻す（保存はしない）
+  let curFloor = 0; // 迷宮の何階で戦っているか（0：迷宮の外）
+  let stageSaved = null;
+  function setAbyss(f) {
+    const a = ABYSS[f];
+    if (!stageSaved) stageSaved = { mode, handicap, hcWho, hpBonus, hpBonusColor };
+    mode = 'destroy'; handicap = a.hc; hcWho = 'cpu'; hpBonus = a.hp;
+    hpBonusColor = a.hc ? BLACK : otherColor(humanColor); // HP を上乗せするのは CPU の色（置き石があれば CPU が黒）
+  }
+  function clearStage() {
+    curFloor = 0;
+    if (!stageSaved) return;
+    ({ mode, handicap, hcWho, hpBonus, hpBonusColor } = stageSaved); stageSaved = null;
+    renderMode(); renderRules();
+  }
+  function renderDojoHome() {
+    if (dojoAll3()) grantOugon(); // 引き継ぎなどで達成していたときも
+    if (dojoCleared(18)) { unlockAll(); if (CLEAR_READY) grantFx('clear'); }
+    const n = dojoCount(), t = DOJO_TITLES[dojoTitleLv()];
+    const a = abyssCount();
+    $('#dojo-note').textContent = a >= 9 ? `深淵層まで完全制覇！${t ? `（${t}）` : ''}` : abyssOpen() ? `深淵層 ${a} / 9 階 突破${t ? `・${t}` : ''}` : `${n} / 9 階 突破${t ? `・${t}` : ''}`;
+  }
+  // 結果の画面：CPU 戦なら、ボスを倒したか（星・称号・撃破カード）と、勝ち抜き戦の続き
+  function renderDojoResult(title, winner) {
+    const box = $('#m-dojo');
+    box.hidden = true; box.innerHTML = '';
+    if (!cpuSide || net) return;
+    $('#btn-again').textContent = 'もう一局';
+    const lv = curFloor > 9 ? curFloor : cpuLevelInGame, boss = BOSSES[lv], win = winner && isMine(winner);
+    let html = '', shown = 0;
+    if (win) {
+      const stars = shown = dojoStars(title), first = !dojoCleared(lv), more = stars > (dojo.stars[lv] || 0);
+      const hadTitle = dojoTitleLv();
+      if (more) { dojo.stars[lv] = stars; saveDojo(); syncProfile(); }
+      html += `<p class="dj-win">B${lv}F ${boss} 撃破！</p><p class="dj-stars">${starsText(stars)}${first ? '<b>初撃破</b>' : more ? '<b>星が増えた</b>' : ''}</p>`;
+      if (first && lv === 9 && !abyssCount()) html += `<p class="dj-title dj-abyss-open">▼ 迷宮の底に、さらに深い階層への道が開いた…<small>破壊の迷宮の画面で「深淵層」に挑めます</small></p>`;
+      if (first && ABYSS_GIFTS[lv]) { html += `<p class="dj-title">🎁 ${ABYSS_GIFTS[lv]}！</p>`; if (lv === 18) { unlockAll(); if (CLEAR_READY) grantFx('clear'); } }
+      if (stars < 3) html += `<p class="dj-tip">${stars === 1 && usedUndo ? '待ったなしで勝つと ★2' : stars === 1 ? '置き石なし・待ったなしで勝つと ★2' : 'KO・中押し・10目以上の大差で勝つと ★3'}</p>`;
+      const newTitle = dojoTitleLv() !== hadTitle && DOJO_TITLES[dojoTitleLv()];
+      if (newTitle) {
+        if (dojoTitleLv() === 10) grantOugon();
+        html += dojoTitleLv() === 18
+          ? `<p class="dj-title dj-master">👑 深淵層の最深部を突破！<br>最上位の称号「${newTitle}」を手に入れた！<small>ランキングで名前の横に出ます</small></p>`
+          : dojoTitleLv() === 10
+          ? `<p class="dj-title dj-master">👑 全階 ★3 達成！<br>特別な称号「${newTitle}」と、専用の演出「黄金」を手に入れた！<small>称号はランキングで名前の横に、演出は「対局の設定」で選べます</small></p>`
+          : `<p class="dj-title">🏅 称号「${newTitle}」を手に入れた！<small>ランキングで名前の横に出ます</small></p>`;
+        if (myRating) saveRating();
+      }
+      html += `<button id="dj-card" class="dj-card">📷 撃破カードをシェア</button>`;
+    } else if (!gauntlet) html += `<p class="dj-lose">B${lv}F ${boss} に敗れた…</p>`;
+    if (gauntlet && lv <= 9) {
+      if (win && lv < 9) { gauntlet.next = lv + 1; $('#btn-again').textContent = `▼ 次の階へ：B${lv + 1}F ${BOSSES[lv + 1]}`; html += `<p class="dj-g">🔥 ノンストップ潜行：B${lv}F 突破</p>`; }
+      else {
+        const n = win ? 9 : lv - 1;
+        const best = n > dojo.best;
+        if (best) { dojo.best = n; saveDojo(); syncProfile(); }
+        html += `<p class="dj-g">${n >= 9 ? '👑 ノンストップで最深部まで制覇！' : `🔥 ノンストップ潜行 終了：${n ? `B${n}F まで突破` : 'B1F で力尽きた'}`}${best ? '<b>自己ベスト</b>' : ''}</p>`;
+        gauntlet = null;
+      }
+    }
+    box.innerHTML = html; box.hidden = false;
+    if (win) $('#dj-card').onclick = () => dojoCard(lv, shown);
+    renderDojoHome();
+  }
+  // 撃破カード：倒したボス・星・称号を 1 枚の画像にして共有する
+  async function dojoCard(lv, stars) {
+    try { await document.fonts.load("80px 'Dela Gothic One'"); } catch (e) { /* 無視 */ }
+    const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
+    const x = c.getContext('2d');
+    const bg = x.createRadialGradient(W / 2, H * 0.42, 50, W / 2, H * 0.42, H * 0.8);
+    bg.addColorStop(0, lv > 9 ? '#2a0a4a' : lv === 9 ? '#4a0a2a' : '#3a0d16'); bg.addColorStop(0.6, '#0b0710'); bg.addColorStop(1, '#1a0830');
+    x.fillStyle = bg; x.fillRect(0, 0, W, H);
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    const fire = (y0, y1) => { const g = x.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, '#fff6c8'); g.addColorStop(0.4, '#ffcc33'); g.addColorStop(0.7, '#ff5a1f'); g.addColorStop(1, '#b3001b'); return g; };
+    x.font = "80px 'Dela Gothic One', sans-serif"; x.fillStyle = fire(60, 140); x.shadowColor = '#ff3b2f'; x.shadowBlur = 24; x.fillText('デストロイ碁', W / 2, 110); x.shadowBlur = 0;
+    x.font = "bold 44px sans-serif"; x.fillStyle = '#ffd23f'; x.fillText(lv > 9 ? '破壊の迷宮・深淵層' : '破壊の迷宮', W / 2, 250);
+    x.font = "140px 'Dela Gothic One', sans-serif"; x.fillStyle = '#fff'; x.fillText(`B${lv}F`, W / 2, 420);
+    fitFont(x, BOSSES[lv], 96, "'Dela Gothic One', sans-serif", W - 120); x.fillStyle = '#fff'; x.fillText(BOSSES[lv], W / 2, 580);
+    x.save(); x.translate(W / 2, 780); x.rotate(-0.08);
+    x.font = "190px 'Dela Gothic One', sans-serif"; x.lineWidth = 18; x.strokeStyle = '#1a0005'; x.strokeText('撃破！', 0, 0);
+    x.fillStyle = fire(-90, 90); x.shadowColor = '#ff3b2f'; x.shadowBlur = 40; x.fillText('撃破！', 0, 0); x.restore(); x.shadowBlur = 0;
+    x.font = "110px sans-serif"; x.fillStyle = '#ffd23f'; x.fillText(starsText(stars), W / 2, 990);
+    const t = DOJO_TITLES[dojoTitleLv()];
+    x.font = "bold 40px sans-serif"; x.fillStyle = '#e8dcf0';
+    x.fillText(lv > 9 ? `深淵層 ${abyssCount()} / 9 階 突破${t ? `　称号「${t}」` : ''}` : `${dojoCount()} / 9 階 突破${t ? `　称号「${t}」` : ''}`, W / 2, 1110);
+    x.font = "bold 34px sans-serif"; x.fillStyle = '#ffd23f'; x.fillText(PLAY_URL, W / 2, H - 70);
+    x.font = "26px sans-serif"; x.fillStyle = 'rgba(255,255,255,0.6)'; x.fillText('#デストロイ碁 #囲碁　© ROBIT', W / 2, H - 28);
+    const blob = await toPng(c);
+    shareVideoDmg = null; shareImgs = null;
+    openShare(blob, `destroy-go-lv${lv}.png`, true, `デストロイ碁の破壊の迷宮で「B${lv}F ${BOSSES[lv]}」を撃破！${starsText(stars)} https://${PLAY_URL}/?ref=share #デストロイ碁 #囲碁`);
+    $('#share-dmg-row').hidden = true;
+  }
+  // 迷宮の画面：B1F〜B9F を上から下へ（階段を下りる）。押すとその階のボスと対局。ルールもここで選べる。ノンストップ潜行もここから
+  function openDojo() {
+    const next = [1, 2, 3, 4, 5, 6, 7, 8, 9].find((lv) => !dojoCleared(lv));
+    const floors = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((lv) => {
+      const st = dojo.stars[lv] || 0, tl = DOJO_TITLES[lv];
+      return `<button class="dj-stage${st ? ' done' : ''}${lv === next ? ' next' : ''}${lv === 9 ? ' boss' : ''}" data-lv="${lv}" style="--depth:${lv}">
+        <span class="dj-lv">B${lv}F</span><span class="dj-name">${BOSSES[lv]}${tl ? `<small>🏅 ${tl}</small>` : ''}</span>
+        <span class="dj-st">${st ? starsText(st) : lv === next ? '▼ 次はここ' : '☆☆☆'}</span>${st ? '<i class="dj-stamp">突破</i>' : ''}</button>`;
+    }).join('');
+    const rule = HOME_SET.rule.now();
+    $('#dojo-body').innerHTML = `<p class="dj-head">${dojoCount()} / 9 階 突破${DOJO_TITLES[dojoTitleLv()] ? `　称号：<b>${DOJO_TITLES[dojoTitleLv()]}</b>` : ''}</p>
+      <div class="dj-rule"><span>ルール</span>${HOME_SET.rule.list().map(([v, label]) => `<button class="chip rule-chip" data-v="${v}" aria-pressed="${v === rule}">${label}</button>`).join('')}</div>
+      <div class="dj-floors">${floors}</div>
+      ${abyssOpen() ? `<div class="dj-abyss-head">▼ さらに深く… <b>深淵層</b><small>ルールはデストロイ固定。CPU がハンデ（置き石・HP）をもらって待ち構える</small></div>
+      <div class="dj-floors abyss">${abyssRows()}</div>` : '<div class="dj-abyss-lock">🔒 B9F の先に、何かがある…</div>'}
+      <p class="dj-goal${dojoAll3() ? ' got' : ''}">👑 B1F〜B9F を全部 ★3 で特別な称号：<b>${dojoAll3() ? DOJO_TITLES[10] : '？？？'}</b>（★ ${[1, 2, 3, 4, 5, 6, 7, 8, 9].reduce((t, lv) => t + (dojo.stars[lv] || 0), 0)} / 27）</p>
+      <p class="dj-help">★1 勝つ　★2 待ったなしで勝つ　★3 さらに KO・中押し・10目以上の大差<br>碁盤・持ち時間は「対局の設定」のまま</p>
+      <button id="dj-gauntlet" class="dj-gauntlet">🔥 ノンストップ潜行<small>B1F から負けるまで休まず潜る（9路）。自己ベスト：${dojo.best ? `B${dojo.best}F` : 'まだなし'}</small></button>`;
+    $('#dojo-body').querySelectorAll('.dj-stage').forEach((b) => { b.onclick = () => startDojo(+b.dataset.lv); });
+    $('#dojo-body').querySelectorAll('.dj-rule .chip').forEach((b) => { b.onclick = () => { HOME_SET.rule.pick(b.dataset.v); openDojo(); }; });
+    $('#dj-gauntlet').onclick = () => { $('#size-chips .chip[data-size="9"]').click(); startDojo(1, true); };
+    $('#dojo-pop').hidden = false;
+    const nx = $('#dojo-body .dj-stage.next'); if (nx) nx.scrollIntoView({ block: 'nearest' });
+  }
+  function abyssRows() {
+    const next = ABYSS_FLOORS.find((f) => !dojoCleared(f));
+    return ABYSS_FLOORS.map((f, i) => {
+      const st = dojo.stars[f] || 0, a = ABYSS[f], gift = ABYSS_GIFTS[f], tl = f === 18 && DOJO_TITLES[18]; // 10 は全階 ★3 の称号なので出さない
+      const hd = [a.hc ? `置き石${a.hc}` : '', a.hp ? `HP+${a.hp * 100}%` : ''].filter(Boolean).join('・');
+      return `<button class="dj-stage${st ? ' done' : ''}${f === next ? ' next' : ''}${f === 18 ? ' boss' : ''}" data-lv="${f}" style="--depth:${i + 1}">
+        <span class="dj-lv">B${f}F</span><span class="dj-name">${BOSSES[f]}<small class="dj-hd">Lv${a.lv}・CPU ${hd}</small>${gift ? `<small>🎁 ${gift}</small>` : ''}${tl ? `<small>🏅 ${tl}</small>` : ''}</span>
+        <span class="dj-st">${st ? starsText(st) : f === next ? '▼ 次はここ' : '☆☆☆'}</span>${st ? '<i class="dj-stamp">突破</i>' : ''}</button>`;
+    }).join('');
+  }
+  function startDojo(lv, g = false) {
+    $('#dojo-pop').hidden = true;
+    gauntlet = g ? { lv: 1, next: 0 } : null;
+    clearStage(); curFloor = lv;
+    $('#opp-chips .chip[data-opp="cpu"]').click();
+    $(`#level-chips .chip[data-level="${lv > 9 ? ABYSS[lv].lv : lv}"]`).click();
+    if (lv > 9) setAbyss(lv); else $('#hc-chips .chip[data-hc="0"]').click();
+    warmupCpu = false; FX.unlock(); newGame();
+  }
   function endGame(title, body, winner = 0) {
     if (phase === 'replay') return;
     phase = 'over'; clock.stop(); cancelCharge();
@@ -1773,7 +1967,7 @@
     const show = () => {
       $('.m-title').textContent = title;
       $('.m-body').textContent = body;
-      renderNext();
+      renderDojoResult(title, winner); renderNext();
       $('#modal').classList.add('show');
       FX.boom(0.6);
       // 隠し要素：人が勝ったとき（コンピューター戦なら人の側）
@@ -1838,7 +2032,7 @@
   }
   function renderNext() {
     const box = $('#m-next');
-    box.hidden = !!net || warmupCpu || phase === 'replay'; // オンライン対戦・ランクマッチまでの CPU 戦では選べない
+    box.hidden = !!net || warmupCpu || !!gauntlet || curFloor > 9 || phase === 'replay'; // オンライン対戦・ランクマッチまでの CPU 戦・ノンストップ潜行では選べない
     if (box.hidden) return;
     box.querySelectorAll('.chips').forEach((row) => {
       const k = row.dataset.k;
@@ -1856,9 +2050,11 @@
   }
   $('#btn-again').onclick = () => {
     if (net) { onlineAgain(); return; }
-    $('#modal').classList.remove('show'); applyNextSize(); newGame();
+    $('#modal').classList.remove('show');
+    if (gauntlet && gauntlet.next) { gauntlet.lv = gauntlet.next; gauntlet.next = 0; $(`#level-chips .chip[data-level="${gauntlet.lv}"]`).click(); newGame(); return; }
+    applyNextSize(); newGame();
   };
-  $('#btn-home').onclick = () => { applyNextSize(); warmupCpu = false; leaveOnline(); renderBeginner(); renderRankTop(); $('#modal').classList.remove('show'); endReplay(); showScreen('title'); phase = 'title'; stopBgm(); };
+  $('#btn-home').onclick = () => { applyNextSize(); warmupCpu = false; gauntlet = null; clearStage(); leaveOnline(); renderBeginner(); renderRankTop(); $('#modal').classList.remove('show'); endReplay(); showScreen('title'); phase = 'title'; stopBgm(); };
 
   // ---------- 時計・パネル ----------
   function fmt(ms) {
@@ -1973,7 +2169,7 @@
     // 棋譜（終わったら端末に保存して、あとで見返せる）
     kifu = { date: Date.now(), size: SIZE, rules, mode, adv: dAdvanced, hc, hpb: { color: hpBonusColor, rate: hpBonus },
       cpu: cpuSide ? { side: cpuSide, level: cpuLevel } : null, moves: [], result: null };
-    cpuLevelInGame = cpuLevel; cpuResignInGame = cpuResign;
+    cpuLevelInGame = cpuLevel; cpuResignInGame = cpuResign; usedUndo = false;
     renderNames(); renderHp(); resetEyes();
     clock.start(game.turn);
     updatePanels();
@@ -1982,10 +2178,12 @@
     maybeCpuTurn(); // コンピューターが黒なら先に打つ
   }
 
-  $('#btn-start').onclick = () => { FX.unlock(); newGame(); };
+  $('#btn-start').onclick = () => { FX.unlock(); gauntlet = null; clearStage(); newGame(); };
+  $('#btn-dojo').onclick = () => { FX.unlock(); openDojo(); };
+  $('#dojo-close').onclick = () => { $('#dojo-pop').hidden = true; };
   // おすすめで始める：コンピューター Lv1・9路・置き石なし（ほかの設定は今のまま）。選んだ内容は保存されるので、次からもそのまま
   $('#btn-beginner').onclick = () => {
-    FX.unlock();
+    FX.unlock(); clearStage();
     $('#opp-chips .chip[data-opp="cpu"]').click();
     $('#level-chips .chip[data-level="1"]').click();
     $('#hc-chips .chip[data-hc="0"]').click();
@@ -2213,7 +2411,7 @@
     $('#btn-title').classList.remove('accent');
   }
   function goTitle() {
-    warmupCpu = false; leaveOnline(); renderBeginner(); renderRankTop();
+    warmupCpu = false; gauntlet = null; clearStage(); leaveOnline(); renderBeginner(); renderRankTop();
     endReplay(); endTutorial();
     disarmTitle(); disarmResign(); cancelCharge();
     cpuToken++; setThinking(false); gameSerial++;
@@ -2360,6 +2558,15 @@
     $('.beginner').hidden = false; $('#btn-tutorial-sm').hidden = true; void seen; // 案内はいつも出す
   }
   renderBeginner();
+  // はじめて開いた人には、チュートリアルをやるか 1 回だけ聞く（強制はしない。チュートリアルを終えた・1 局でも遊んだ人には出さない）
+  (function askTutorial() {
+    const ask = !lsGet('destroy-go-tut-asked') && lsGet('destroy-go-tut-done') !== '1' && !(+lsGet('destroy-go-played') > 0);
+    if (!ask || EMBEDDED) return;
+    const done = () => { lsSet('destroy-go-tut-asked', '1'); $('#tut-ask').hidden = true; };
+    $('#tut-ask-go').onclick = () => { done(); FX.unlock(); startTutorial(0); };
+    $('#tut-ask-skip').onclick = done;
+    $('#tut-ask').hidden = false;
+  })();
   // 途中まで進めていたら、続きから始めるか聞く（埋め込み環境では confirm が使えないことがあるので、使えなければ続きから）
   function confirmFrom(i) { try { return window.confirm(`前回の続き（${i + 1}問目）から始めますか？\n「キャンセル」で最初から`); } catch (e) { return true; } }
 
@@ -2636,19 +2843,21 @@
     'ゴリラ', 'ドラゴン', '侍', '忍者', '魔王', '勇者', '騎士', '狼', '虎', '龍', 'タヌキ', 'ペンギン', 'カラス', 'ハムスター', '爆弾', '隕石', '火山', 'ロボ'];
   const RARE_A = ['覇王の', '神域の', '終焉の', '天下無双の', '破壊神の', '幻の', '永劫の', '星喰いの'];
   const RARE_B = ['デストロイヤー', '神の一手', '千年碁石', '碁神', '破壊王', '天地開闢', '黒龍', '流星'];
-  const RARE_P = 0.02; // それぞれの言葉がレアになる確率（金色はおよそ 4%、虹色は 0.04%）
+  // それぞれの言葉がレアになる確率（金色はおよそ 4%、虹色は 0.04%）。破壊の迷宮の B15F を突破すると少し上がる（金色およそ 6%）
+  const rareP = () => (dojoCleared(15) ? 0.03 : 0.02);
   const pick = (a) => a[Math.floor(Math.random() * a.length)];
-  const makeName = () => `${Math.random() < RARE_P ? pick(RARE_A) : pick(NAME_A)}${Math.random() < RARE_P ? pick(RARE_B) : pick(NAME_B)}${Math.floor(10 + Math.random() * 90)}`;
+  const makeName = () => `${Math.random() < rareP() ? pick(RARE_A) : pick(NAME_A)}${Math.random() < rareP() ? pick(RARE_B) : pick(NAME_B)}${Math.floor(10 + Math.random() * 90)}`;
   // 0：ふつう、1：レア（金色）、2：伝説（虹色）
   const nameRank = (n) => (RARE_A.some((w) => String(n).startsWith(w)) ? 1 : 0) + (RARE_B.some((w) => String(n).includes(w)) ? 1 : 0);
-  // 引き直しは 1 日 3 回まで。引いたレアな名前は「キープ」に残り、あとでいつでも戻せる（回数は使わない）
-  const NAME_ROLLS = 3, KEEP_MAX = 8;
+  // 引き直しは 1 日 3 回まで（破壊の迷宮の B12F を突破すると 5 回）。引いたレアな名前は「キープ」に残り、あとでいつでも戻せる（回数は使わない）
+  const KEEP_MAX = 8;
+  const nameRolls = () => (dojoCleared(12) ? 5 : 3);
   const today = () => new Date().toLocaleDateString('sv-SE'); // 2026-10-24 の形（端末の日付）
   function rollsLeft() {
     let v = null; try { v = JSON.parse(localStorage.getItem('destroy-go-name-rolls') || 'null'); } catch (e) { /* 無視 */ }
-    return v && v.d === today() ? Math.max(0, NAME_ROLLS - v.n) : NAME_ROLLS;
+    return v && v.d === today() ? Math.max(0, nameRolls() - v.n) : nameRolls();
   }
-  function useRoll() { try { localStorage.setItem('destroy-go-name-rolls', JSON.stringify({ d: today(), n: NAME_ROLLS - rollsLeft() + 1 })); } catch (e) { /* 無視 */ } }
+  function useRoll() { try { localStorage.setItem('destroy-go-name-rolls', JSON.stringify({ d: today(), n: nameRolls() - rollsLeft() + 1 })); } catch (e) { /* 無視 */ } }
   function keptNames() { try { return JSON.parse(localStorage.getItem('destroy-go-name-keep') || '[]'); } catch (e) { return []; } }
   function keepName(n) {
     if (!nameRank(n)) return;
@@ -2682,8 +2891,8 @@
     return myRating;
   }
   function saveRating() {
-    const { r, n, name, sid, sn } = myRating;
-    Online.setRating(sid ? { r, n, name, sid, sn } : { r, n, name }).catch(() => {});
+    const { r, n, name, sid, sn } = myRating, cl = dojoTitleLv();
+    Online.setRating({ r, n, name, ...(sid ? { sid, sn } : {}), ...(cl ? { cl } : {}) }).catch(() => {});
   }
   // イロレーティング。最初の 10 局は大きく動かす
   function eloNext(me, opp, win) {
@@ -2768,7 +2977,7 @@
   // レート・名前・初代デストロイヤーは Firebase にある。解放した演出・BGM などもここに写しておき、
   // 別の端末や製品版で引き継ぎコードを入れれば戻せるようにする
   const linked = () => lsGet('destroy-go-linked') === '1';
-  const profileData = () => ({ fx: [...secretUnlocked], bgm: [...bgmUnlocked], founder: myFounder || 0, random: randomPlayed(), keep: keptNames(), adv: advCpuWon() });
+  const profileData = () => ({ fx: [...secretUnlocked], bgm: [...bgmUnlocked], founder: myFounder || 0, random: randomPlayed(), keep: keptNames(), adv: advCpuWon(), dojo });
   function syncProfile() { if (linked() && Online.available()) Online.saveProfile(profileData()).catch(() => {}); }
   // サーバーの記録と、この端末の記録を合わせる（どちらかで解放したものは全部使える）
   function mergeProfile(pf) {
@@ -2782,6 +2991,10 @@
     }
     if ((pf.random || 0) > randomPlayed()) lsSet('destroy-go-random-played', pf.random);
     if (pf.adv) lsSet('destroy-go-adv-cpu-win', '1');
+    if (pf.dojo && pf.dojo.stars) { // 破壊の迷宮：階ごとに多いほうの星、ノンストップ潜行の記録も深いほう
+      for (const [lv, n] of Object.entries(pf.dojo.stars)) if ((+n || 0) > (dojo.stars[lv] || 0)) dojo.stars[lv] = +n;
+      dojo.best = Math.max(dojo.best, +pf.dojo.best || 0); saveDojo(); renderDojoHome();
+    }
     for (const n of (pf.keep || []).slice().reverse()) if (!keptNames().includes(n)) keepName(String(n));
     renderRankTop();
   }
@@ -2976,12 +3189,12 @@
     onlineView('<p class="on-wait">ランキングを読み込んでいます</p>');
     try {
       const [list, me, f, sr] = await Promise.all([Online.topRatings(50), loadRating(), loadFounders(), loadSeason()]);
-      const rows = list.map((v, i) => `<li data-u="${v.u}"${v.u === Online.me() ? ' class="on-mine"' : ''}><span>${i + 1}</span><span class="rk-name">${nameHtml(v.name)}<span class="rk-sub">${tagHtml(v.u)}${v.u === DEV_UID || (v.u === Online.me() && isDev()) ? devBadge : founderBadge(f.list[v.u], true)}${seasonBadge(sr, v.u)}</span></span><span>${v.r}</span><small>${v.n || 0}局</small></li>`).join('');
+      const rows = list.map((v, i) => `<li data-u="${v.u}"${v.u === Online.me() ? ' class="on-mine"' : ''}><span>${i + 1}</span><span class="rk-name">${nameHtml(v.name)}<span class="rk-sub">${tagHtml(v.u)}${v.u === DEV_UID || (v.u === Online.me() && isDev()) ? devBadge : founderBadge(f.list[v.u], true)}${seasonBadge(sr, v.u)}${dojoBadge(v.cl)}</span></span><span>${v.r}</span><small>${v.n || 0}局</small></li>`).join('');
       onlineView(`<p class="on-set">ランクマッチ（上級・9路）のレート上位 50 人。名前を押すと、直近 5 局の棋譜が見られます</p>
         <p class="on-founder on-season">${seasonLine(me, sr)}</p>
         <p class="on-founder">${founderLeft(f)}</p>
         <ol class="on-rank">${rows || '<li class="on-empty">まだ誰もいません</li>'}</ol>
-        <p class="on-me">あなた：${nameHtml(me.name)}${tagHtml(Online.me())}${meIsDev() ? devBadge : founderBadge(f.list[Online.me()] || myFounder)}${seasonBadge(sr, Online.me())}（レート ${me.r}・${me.n}局）</p>
+        <p class="on-me">あなた：${nameHtml(me.name)}${tagHtml(Online.me())}${meIsDev() ? devBadge : founderBadge(f.list[Online.me()] || myFounder)}${seasonBadge(sr, Online.me())}${dojoBadge(dojoTitleLv())}（レート ${me.r}・${me.n}局）</p>
         ${isDev() ? '' : nameGachaBox(me.name)}<button id="on-back">戻る</button>`);
       bindNameGacha();
       claimSeason().catch(() => {});
@@ -3268,6 +3481,7 @@
     if (typeof m.r === 'number' && net) { clock.remain[foe] = m.r; updatePanels(); } // 持ち時間は相手の画面の値に合わせる
   }
   // タイトルの「対局開始」の下：ランダムマッチはすぐ探し始め、フレンド対戦は合言葉の画面を開く
+  document.querySelectorAll('.on-item.soon').forEach((el) => { el.onclick = () => toast(`「${el.firstChild.textContent}」は準備中です。お楽しみに！`); });
   $('#btn-random-top').onclick = () => { FX.unlock(); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; } openOnline(); onlineRandom('random'); };
   $('#btn-online-rules').onclick = () => openRulesFor(false);
   $('#btn-friend-top').onclick = () => { FX.unlock(); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; } openOnline('friend'); };
@@ -3297,7 +3511,7 @@
   }
   // adv：上級ルールにするか。9 路・置き石なしで始める
   function startOnlineCpu(adv) {
-    $('#online-pop').hidden = true;
+    $('#online-pop').hidden = true; clearStage();
     $('#opp-chips .chip[data-opp="cpu"]').click();
     $(`#level-chips .chip[data-level="${onlineCpuLevel()}"]`).click();
     $('#hc-chips .chip[data-hc="0"]').click();
@@ -3340,6 +3554,7 @@
   $('#online-close').onclick = () => { if (seekStop) { stopSeek(); Online.leave(); } if (net && net.waiting) leaveOnline(); $('#online-pop').hidden = true; };
 
   homeReady = true;
+  renderDojoHome();
   renderThemes();
   renderRules();
   renderHints();

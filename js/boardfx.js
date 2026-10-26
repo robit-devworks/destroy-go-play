@@ -16,6 +16,7 @@
   // レベル（effects.js の TIERS の番号）ごとの持続時間。0 のレベルでは何もしない
   const DURATION = {
     default: [3000, 3500, 4000, 5000, 6500, 9000, 11000], // デストロイは 1 子からひびが入る
+    clear: [3000, 3500, 4000, 5000, 6500, 9000, 11000], // 消滅も 1 子から盤がえぐれる
     other: [0, 0, 0, 3500, 5000, 7500, 9500],
   };
   const FULL_FROM = 5; // ULTRA 以上は盤全体
@@ -181,7 +182,54 @@
   }
 
   // ---------- テーマ別：動かない層（stat）と脈打つ層（glow）を作る ----------
+  // 消滅：盤がえぐれたくぼみ。ふちはでこぼこ、左上の内側は影、右下の内側は削れた明るい木肌、外側に盛り上がった縁
+  function gouge(x, cx, cy, r, rough = 0.12, lip = r * 0.14) {
+    const n = Math.max(20, Math.round(r / 2)), f1 = rnd(0, 6.3), f2 = rnd(0, 6.3);
+    const pts = Array.from({ length: n }, (_, i) => {
+      const a = (i / n) * Math.PI * 2, k = 1 + rough * (Math.sin(a * 3 + f1) * 0.5 + Math.sin(a * 7 + f2) * 0.3 + rnd(-0.25, 0.25));
+      return [cx + Math.cos(a) * r * k, cy + Math.sin(a) * r * k];
+    });
+    const path = () => { x.beginPath(); pts.forEach(([px, py], i) => (i ? x.lineTo(px, py) : x.moveTo(px, py))); x.closePath(); };
+    x.save();
+    path(); x.strokeStyle = 'rgba(255,236,200,0.5)'; x.lineWidth = lip; x.lineJoin = 'round'; x.stroke(); // 外側の盛り上がった縁
+    path();
+    const deep = x.createLinearGradient(cx - r, cy - r, cx + r, cy + r); // 左上は影、右下は削れた明るい木肌
+    deep.addColorStop(0, 'rgba(18,8,2,0.95)'); deep.addColorStop(0.5, 'rgba(70,40,16,0.9)'); deep.addColorStop(1, 'rgba(160,110,60,0.85)');
+    x.fillStyle = deep; x.fill();
+    x.clip();
+    path(); x.shadowColor = 'rgba(0,0,0,0.85)'; x.shadowBlur = r * 0.3; x.strokeStyle = 'rgba(0,0,0,0.55)'; x.lineWidth = Math.max(2, r * 0.1); x.stroke(); // 内側のふちの影
+    x.shadowBlur = 0;
+    x.strokeStyle = 'rgba(30,14,4,0.3)'; x.lineWidth = Math.max(1, r * 0.03); // 削った跡の筋
+    for (let i = 0; i < 6; i++) { const a = rnd(0, Math.PI * 2); x.beginPath(); x.arc(cx, cy, r * rnd(0.25, 0.85), a, a + rnd(0.5, 1.3)); x.stroke(); }
+    x.restore();
+  }
   const BUILD = {
+    clear(e, x, gx) {
+      for (const p of e.seeds) {
+        if (p.extra) continue;
+        const r = e.cell * (p.main ? 0.62 : 0.55);
+        gouge(x, p.x, p.y, r);
+        for (let i = 0; i < 4; i++) { const a = rnd(0, 6.3), d = r * rnd(1.15, 1.6); x.fillStyle = 'rgba(40,20,6,0.5)'; x.beginPath(); x.arc(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, e.cell * rnd(0.03, 0.06), 0, Math.PI * 2); x.fill(); } // 飛んだ木くず
+        if (e.full) continue; // 大技は真ん中の大きなくぼみに光を集める
+        const glow = gx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 1.3);
+        glow.addColorStop(0, 'rgba(200,235,255,0.45)'); glow.addColorStop(1, 'rgba(160,220,255,0)');
+        gx.fillStyle = glow; gx.beginPath(); gx.arc(p.x, p.y, r * 1.3, 0, Math.PI * 2); gx.fill();
+      }
+      if (e.full) { // 盤の真ん中が大きくえぐり取られ、まわりにえぐった筋が走る
+        const cx = e.center.x, cy = e.center.y, R = S * (e.ti >= 6 ? 0.3 : 0.22);
+        for (let i = 0; i < (e.ti >= 6 ? 16 : 10); i++) {
+          const a = rnd(0, Math.PI * 2), r0 = R * rnd(0.95, 1.05), r1 = R * rnd(1.2, e.ti >= 6 ? 1.9 : 1.5), w = e.cell * rnd(0.06, 0.14);
+          x.strokeStyle = 'rgba(40,20,6,0.75)'; x.lineWidth = w; x.lineCap = 'round';
+          x.beginPath(); x.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); x.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); x.stroke();
+          x.strokeStyle = 'rgba(255,230,190,0.35)'; x.lineWidth = w * 0.3;
+          x.beginPath(); x.moveTo(cx + Math.cos(a) * r0 + w * 0.3, cy + Math.sin(a) * r0 + w * 0.3); x.lineTo(cx + Math.cos(a) * r1 + w * 0.3, cy + Math.sin(a) * r1 + w * 0.3); x.stroke();
+        }
+        gouge(x, cx, cy, R, 0.07, e.cell * 0.2);
+        const glow = gx.createRadialGradient(cx, cy, 0, cx, cy, R);
+        glow.addColorStop(0, 'rgba(220,242,255,0.35)'); glow.addColorStop(1, 'rgba(160,220,255,0)');
+        gx.fillStyle = glow; gx.fillRect(0, 0, S, S);
+      }
+    },
     ice(e, x, gx) {
       x.fillStyle = 'rgba(215,245,255,0.32)'; x.fillRect(0, 0, S, S);
       x.strokeStyle = 'rgba(255,255,255,0.8)'; x.lineWidth = 1.1;
@@ -311,6 +359,12 @@
   }
 
   const ANIM = {
+    clear(e) { // くぼみから、白い光の粒がゆっくり昇る
+      if (Math.random() < (e.full ? 0.7 : 0.35)) {
+        const p = seedNear(e);
+        e.parts.push({ kind: 'ember', color: pick(['#ffffff', '#e8f6ff', '#bfe6ff']), x: p.x, y: p.y, vx: rnd(-0.15, 0.15), vy: -rnd(0.3, 0.9), t: 0, life: rnd(40, 80), size: rnd(0.8, 1.8) });
+      }
+    },
     ice(e) {
       if (Math.random() < (e.full ? 0.8 : 0.4)) {
         const p = e.full ? { x: rnd(0, S), y: rnd(0, S) } : seedNear(e);
@@ -454,7 +508,7 @@
     g.globalAlpha = A * (0.55 + 0.45 * Math.sin(age / 160));
     g.drawImage(e.glow, 0, 0, S, S);
     if (grow < 1) g.restore();
-    if (e.key === 'default') { // ひびは碁盤に入るもの。石の上には描かない
+    if (e.key === 'default' || e.key === 'clear') { // ひび・くぼみは碁盤に入るもの。石の上には描かない
       g.globalCompositeOperation = 'destination-out'; g.globalAlpha = 1; g.fillStyle = '#000';
       g.beginPath();
       for (const p of stoneSource()) { g.moveTo(p.x + p.r, p.y); g.arc(p.x, p.y, p.r, 0, Math.PI * 2); }
@@ -482,6 +536,11 @@
     aoen: (h, s, l, a) => (s < 0.08 || (h > 75 && h < 330) ? [h, s, l] : l < 0.3 ? [228, 0.5, l * 0.22] : [205, 1, Math.max(0.65, l), a * 0.28]), // 青い光を木の黄色に重ねると緑っぽく濁るので、薄く・白っぽく
     // 紫滅：ひび（濃い線）だけ紫に。盤全体のうすい影は元のまま
     shimetsu: (h, s, l, a) => (a < 0.55 || s < 0.05 || (h > 60 && h < 330) ? [h, s, l] : [285, Math.max(s, 0.75), Math.max(l, 0.24)]),
+    // 黄金：金継ぎ風。ひびの芯（暗いところ）は黒く残し、明るい筋を金色にする（ふちの金の光は kintsugi で足す）
+    // 虹滅：ひびの芯は黒く残し、筋を虹色に（場所で色が変わる）
+    kometsu: (h, s, l, a, x, y) => (a < 0.4 ? [h, s, l] : l < 0.5 ? [h, Math.min(s, 0.3), l * 0.5] : s < 0.3 ? [((x + y) * 1.6) % 360, 1, Math.min(0.7, Math.max(0.6, l))] : [h, s, l]),
+    // （木の色に近い明るい部分は元のまま。白っぽい筋だけを金にする）
+    ougon: (h, s, l, a) => (a < 0.4 ? [h, s, l] : l < 0.1 ? [30, 0.3, l * 0.5] : l < 0.5 ? [42, 0.8, 0.2 + l * 0.55] : s < 0.3 ? [46, 1, Math.min(0.8, Math.max(0.6, l))] : [h, s, l]),
   };
   function hsl2rgb(h, s, l) {
     const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2;
@@ -499,10 +558,30 @@
       let h = 0;
       if (dd) h = mx === r ? 60 * (((g2 - b) / dd) % 6) : mx === g2 ? 60 * ((b - r) / dd + 2) : 60 * ((r - g2) / dd + 4);
       if (h < 0) h += 360;
-      const [h3, s3, l3, a3] = map(h, Math.min(1, s2), l, d[i + 3] / 255), [R, G, B] = hsl2rgb(h3 % 360, s3, l3);
+      const px = (i >> 2) % cv.width, py = ((i >> 2) / cv.width) | 0; // 場所で色を変える演出（虹滅）用
+      const [h3, s3, l3, a3] = map(h, Math.min(1, s2), l, d[i + 3] / 255, px, py), [R, G, B] = hsl2rgb(h3 % 360, s3, l3);
       d[i] = R; d[i + 1] = G; d[i + 2] = B; if (a3 !== undefined) d[i + 3] = a3 * 255;
     }
     x.putImageData(img, 0, 0);
+  }
+  // 金継ぎ風：ひびの形をした金色を、ひびの後ろにぼかして置く（黒いひびのふちが金色に光って見える）
+  function kintsugi(cv) {
+    const t = document.createElement('canvas'); t.width = cv.width; t.height = cv.height;
+    const tx = t.getContext('2d');
+    tx.drawImage(cv, 0, 0);
+    // 濃い線だけを金色の形にする（うすい影まで光らせると、盤全体が黄色くかすむ）
+    const img = tx.getImageData(0, 0, t.width, t.height), d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 170) { d[i + 3] = 0; continue; }
+      d[i] = 255; d[i + 1] = 207; d[i + 2] = 58;
+    }
+    tx.putImageData(img, 0, 0);
+    const x = cv.getContext('2d');
+    x.save(); x.globalCompositeOperation = 'destination-over';
+    // 影だけを描く（形そのものは画面の外に置き、ぼかした影だけをひびの位置に戻す）。うすいひびの後ろが金で塗りつぶされないように
+    x.shadowColor = 'rgba(255,205,60,1)'; x.shadowBlur = Math.max(3, cv.width / 180); x.shadowOffsetX = cv.width * 2;
+    for (let k = 0; k < 3; k++) x.drawImage(t, -cv.width * 2, 0);
+    x.restore();
   }
   function apply(key, ti, pts, geo) {
     const variant = VARIANT[key] ? key : null;
@@ -525,7 +604,8 @@
       parts: [], walkers: [], frame: 0, flicker: 0, variant,
     };
     build(cur);
-    if (variant) { recolor(cur.stat, variant); recolor(cur.glow, variant); }
+    // 黄金は、燃えている間の光（glow）は元の色のまま（金色に塗ると盤が黄色くかすむ）
+    if (variant) { recolor(cur.stat, variant); if (variant !== 'ougon' && variant !== 'kometsu') recolor(cur.glow, variant); if (variant === 'ougon') kintsugi(cur.stat); }
     wrap.dataset.bfx = '';
     if (!running) { running = true; requestAnimationFrame(frame); }
   }
@@ -586,6 +666,7 @@
     }
     BUILD[key](e, x, gx);
     if (variant) recolor(img, variant);
+    if (variant === 'ougon') kintsugi(img);
     if (key === 'light') lightStars(x, pts, geo.cell); // 光は木の盤だと見えにくいので、黄色い星の形を残す
     // 跡の範囲（mask）は、あとで同じ場所に新しい跡ができたときに古い跡を消すのに使う
     const mask = maskTo(img, e);
@@ -595,12 +676,12 @@
 
   // ---------- 陣地ヒント ----------
   // にじみの色（木の盤の上で見える色）
-  const HINT_COLOR = { default: '25,15,15', fire: '255,90,0', ice: '40,170,255', thunder: '255,225,0', dark: '130,50,220', light: '255,255,255' };
+  const HINT_COLOR = { default: '25,15,15', fire: '255,90,0', ice: '40,170,255', thunder: '255,225,0', dark: '130,50,220', light: '255,255,255', clear: '130,205,255' };
   const AURA_BOOST = { thunder: 0.8 }; // 黄色は主張が強いので控えめにする
   const AURA_EDGE = { thunder: '60,35,0' }; // 暗い縁
   // 色違いの演出（シーズン報酬）のにじみ。青や紫は木の黄色と混ざると濁るので、暗い縁を先に敷く
-  Object.assign(HINT_COLOR, { crimson: '200,0,30', shimetsu: '140,50,230', aoen: '30,80,255' });
-  Object.assign(AURA_EDGE, { crimson: '40,0,6', shimetsu: '25,0,45', aoen: '0,6,30' });
+  Object.assign(HINT_COLOR, { crimson: '200,0,30', shimetsu: '140,50,230', aoen: '30,80,255', ougon: '255,200,40', kometsu: '255,90,210' });
+  Object.assign(AURA_EDGE, { crimson: '40,0,6', shimetsu: '25,0,45', aoen: '0,6,30', ougon: '45,30,0', kometsu: '30,0,35' });
   // つながりの線の色の付け替え（蒼炎は焦げ跡と違い、線はあざやかな青い炎にする）
   const LINK_VARIANT = { aoen: (h, s, l) => (s < 0.08 || (h > 75 && h < 330) ? [h, s, l] : [210, 1, Math.max(0.35, l)]) };
   // 同じ座標のペアでは毎回同じ形になるよう、座標から決まる乱数を使う
@@ -620,6 +701,12 @@
   function polyline(x, pts) { x.beginPath(); pts.forEach(([px, py], i) => (i ? x.lineTo(px, py) : x.moveTo(px, py))); x.stroke(); }
   // テーマごとのつながりの線
   const LINK = {
+    clear(x, a, b, cell) { // 彫った溝：濃い線の下側に、削れた明るい縁
+      x.lineCap = 'round';
+      x.strokeStyle = 'rgba(255,236,200,0.55)'; x.lineWidth = cell * 0.07; x.save(); x.translate(cell * 0.025, cell * 0.025); polyline(x, [a, b]); x.restore();
+      x.strokeStyle = 'rgba(45,24,8,0.85)'; x.lineWidth = cell * 0.06; polyline(x, [a, b]);
+      x.strokeStyle = 'rgba(170,225,255,0.5)'; x.lineWidth = cell * 0.015; polyline(x, [a, b]);
+    },
     default(x, a, b, cell, rand) { // 木のひび
       const pts = jagged(a[0], a[1], b[0], b[1], cell * 0.12, 7, rand);
       x.lineCap = 'round'; x.lineJoin = 'round';
