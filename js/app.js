@@ -47,6 +47,9 @@
   // 無料版で使える演出（製品版では全部）
   const ED = window.EDITION || { free: false, version: '' };
   const FREE = !!ED.free;
+  // 遊ばれ方の回数だけを GoatCounter に数える（「CPU 戦を始めた」など。個人は分からない）。
+  // GoatCounter は公開しているサイトでだけ読み込む（開発者・テスト用の端末では読み込まない）ので、それ以外では何もしない
+  const track = (name) => { try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: name, title: name, event: true }); } catch (e) { /* 無視 */ } };
   // 無料版の隠し要素：条件を満たすと、その端末でほかの演出も使えるようになる（製品版は最初から全部）
   const SECRETS = {
     fire: 'タイトルのロゴを壊した',
@@ -1857,6 +1860,7 @@
     if (!cpuSide || net) return;
     $('#btn-again').textContent = 'もう一局';
     const lv = curFloor > 9 ? curFloor : cpuLevelInGame, boss = BOSSES[lv], win = winner && isMine(winner);
+    track(win ? (curFloor ? `迷宮 B${lv}F を撃破` : `CPU Lv${lv} に勝った`) : (curFloor ? `迷宮 B${lv}F で負けた` : `CPU Lv${lv} に負けた`));
     let html = '', shown = 0;
     if (win) {
       const stars = shown = dojoStars(title), first = !dojoCleared(lv), more = stars > (dojo.stars[lv] || 0);
@@ -1888,6 +1892,7 @@
         const best = n > dojo.best, firstNs = n >= 9 && !nonstopDone();
         if (best) { dojo.best = n; saveDojo(); syncProfile(); }
         html += `<p class="dj-g">${n >= 9 ? '👑 ノンストップで最深部まで制覇！' : `🔥 ノンストップ潜行 終了：${n ? `B${n}F まで突破` : 'B1F で力尽きた'}`}${best ? '<b>自己ベスト</b>' : ''}</p>`;
+        track(n >= 9 ? 'ノンストップ潜行 制覇' : `ノンストップ潜行 B${n}F まで`);
         if (firstNs) { html += `<p class="dj-title dj-master">🏅 称号「${NONSTOP_TITLE}」を手に入れた！<small>ランキングで名前の横に出ます</small></p>`; if (myRating) saveRating(); }
         if (n >= 9) html += `<button id="dj-ns-card" class="dj-card dj-ns-card">📷 制覇カードをシェア</button>`;
         gauntlet = null;
@@ -1905,6 +1910,7 @@
   }
   // 撃破カード：倒したボス・星・称号を 1 枚の画像にして共有する
   async function dojoCard(lv, stars) {
+    track('撃破カードを作った');
     try { await document.fonts.load("80px 'Dela Gothic One'"); } catch (e) { /* 無視 */ }
     const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
     const x = c.getContext('2d');
@@ -1933,6 +1939,7 @@
   }
   // ノンストップ潜行の制覇カード：金色の背景に「ノンストップ制覇」。B1F〜B9F のボスを並べる
   async function nonstopCard() {
+    track('制覇カードを作った');
     try { await document.fonts.load("80px 'Dela Gothic One'"); } catch (e) { /* 無視 */ }
     const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
     const x = c.getContext('2d');
@@ -1961,6 +1968,7 @@
   }
   // 迷宮の画面：B1F〜B9F を上から下へ（階段を下りる）。押すとその階のボスと対局。ルールもここで選べる。ノンストップ潜行もここから
   function openDojo() {
+    if ($('#dojo-pop').hidden) track('破壊の迷宮を開いた');
     const next = [1, 2, 3, 4, 5, 6, 7, 8, 9].find((lv) => !dojoCleared(lv));
     const floors = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((lv) => {
       const st = dojo.stars[lv] || 0, tl = DOJO_TITLES[lv];
@@ -2221,6 +2229,7 @@
     FX.gameStart();
     if (net) Online.send({ t: 'th', c: net.color, k: themes[net.color], g: net.g }); // 自分の演出を相手に知らせる
     maybeCpuTurn(); // コンピューターが黒なら先に打つ
+    if (!net) track(cpuSide ? (curFloor ? `迷宮 B${curFloor}F に挑んだ` : `CPU Lv${cpuLevel} を始めた`) : '2人で対局を始めた');
   }
 
   $('#btn-start').onclick = () => { FX.unlock(); gauntlet = null; clearStage(); newGame(); };
@@ -2561,6 +2570,7 @@
     tutButtons(); draw(); updatePanels();
   }
   function startTutorial(from = 0) {
+    track('チュートリアルを始めた');
     tut.saved = { size: SIZE, hint: hintMode };
     SIZE = 9; clock = new GoClock({ base: 60000 }); cpuSide = 0;
     gameSerial++; cpuToken++; setThinking(false);
@@ -2582,6 +2592,7 @@
     if (tut.i < TUT.length - 1) { tutLoad(tut.i + 1); return; }
     // クリア：ご褒美は BGM「冒険」（10 局遊んでも手に入る）
     try { localStorage.setItem('destroy-go-tut-done', '1'); } catch (e) { /* 無視 */ }
+    track('チュートリアルをクリアした');
     unlockBgm('fantasy15', 'チュートリアルをクリアした');
     showBigNote('チュートリアル クリア！', '#ffd23f');
     $('#tut-title').textContent = 'クリア！';
@@ -2609,7 +2620,7 @@
     if (!ask || EMBEDDED) return;
     const done = () => { lsSet('destroy-go-tut-asked', '1'); $('#tut-ask').hidden = true; };
     $('#tut-ask-go').onclick = () => { done(); FX.unlock(); startTutorial(0); };
-    $('#tut-ask-skip').onclick = done;
+    $('#tut-ask-skip').onclick = () => { done(); track('チュートリアルをスキップした'); };
     $('#tut-ask').hidden = false;
   })();
   // 途中まで進めていたら、続きから始めるか聞く（埋め込み環境では confirm が使えないことがあるので、使えなければ続きから）
@@ -2778,6 +2789,7 @@
     return webm ? { type: webm, x: false } : null;
   }
   async function startRec() {
+    track('共有の動画を作った');
     const rt = recType();
     if (!rt) { toast('この端末では動画にできません（📷 で画像ならシェアできます）'); return; }
     const type = rt.type;
@@ -3274,6 +3286,7 @@
     });
   }
   async function onlineRandom(kind = 'random') {
+    track(kind === 'rank' ? 'ランクマッチを探した' : 'ランダムマッチを探した');
     const RULE = kind === 'rank' ? RANK_RULE : randomRule(), label = kind === 'rank' ? 'ランクマッチ' : 'ランダムマッチ';
     if (kind === 'rank') await loadRating();
     const view = (n) => onlineView(`<p class="on-wait">相手を探しています</p>
@@ -3529,7 +3542,7 @@
   document.querySelectorAll('.on-item.soon').forEach((el) => { el.onclick = () => toast(`「${el.firstChild.textContent}」は準備中です。お楽しみに！`); });
   $('#btn-random-top').onclick = () => { FX.unlock(); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; } openOnline(); onlineRandom('random'); };
   $('#btn-online-rules').onclick = () => openRulesFor(false);
-  $('#btn-friend-top').onclick = () => { FX.unlock(); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; } openOnline('friend'); };
+  $('#btn-friend-top').onclick = () => { FX.unlock(); track('フレンド対戦を開いた'); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; } openOnline('friend'); };
   // ランクマッチは開放の条件をそろえるまで押せない（押すと、あと何が必要か案内する）
   function renderRankTop() {
     $('#btn-random-top span').textContent = isBattleTime() ? `🔥 対戦タイム中${isWeekend() ? '・13路' : ''}` : `${isWeekend() ? '週末は13路・' : ''}対戦タイム 毎晩${BATTLE_FROM}時〜`;
@@ -3599,6 +3612,15 @@
   $('#online-close').onclick = () => { if (seekStop) { stopSeek(); Online.leave(); } if (net && net.waiting) leaveOnline(); $('#online-pop').hidden = true; };
 
   homeReady = true;
+  // ホーム画面のアイコンから開いた（＝ホーム画面に追加してくれた）ことを、1 台につき 1 日 1 回だけ数える
+  (function trackHomeScreen() {
+    const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+    if (!standalone) return;
+    const d = new Date().toISOString().slice(0, 10);
+    if (lsGet('destroy-go-hs-day') === d) return;
+    lsSet('destroy-go-hs-day', d); track('ホーム画面のアイコンから開いた');
+  })();
+  window.addEventListener('appinstalled', () => track('ホーム画面に追加した')); // Android の Chrome などで、追加したその時
   renderDojoHome();
   renderThemes();
   renderRules();
