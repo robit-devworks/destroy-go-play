@@ -3928,10 +3928,10 @@
     track('観戦の一覧を開いた');
     openOnline(); watchList();
   };
-  // ホームのランダムマッチ・ランクマッチに、いま探している人と対戦中の数を出す（ホームを見ている間、1 分ごと）
+  // ホームのランダムマッチ・ランクマッチに、いま探している人と対戦中の数を出す（ホームを見ている間、30 秒ごと）
   let liveCountAt = 0;
   async function renderLiveCount() {
-    if (!Online.available() || phase !== 'title' || document.hidden || Date.now() - liveCountAt < 50000) return;
+    if (!Online.available() || phase !== 'title' || document.hidden || Date.now() - liveCountAt < 25000) return;
     liveCountAt = Date.now();
     let c;
     try { c = await Online.peek(); } catch (e) { return; }
@@ -3944,7 +3944,9 @@
     $('#watch-top-note').textContent = g ? `🟢 ${g}試合 対戦中` : '対戦中の試合を見る';
   }
   setTimeout(renderLiveCount, 2500);
-  setInterval(renderLiveCount, 60000);
+  setInterval(renderLiveCount, 30000);
+  // ページを閉じる・ほかのページへ移るときは、その場で「探している人」「観戦している人」から外れる
+  window.addEventListener('pagehide', () => { if (seekStop) stopSeek(); stopWatch(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) renderLiveCount(); });
   $('#btn-friend-top').onclick = () => { FX.unlock(); track('フレンド対戦を開いた'); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; } openOnline('friend'); };
   // ランクマッチは開放の条件をそろえるまで押せない（押すと、あと何が必要か案内する）

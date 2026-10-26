@@ -35,6 +35,9 @@
     });
   }
   const randomCode = () => String(Math.floor(1000 + Math.random() * 9000));
+  // 探している人は、「まだいる」の時刻が 50 秒以内の人だけ数える（20 秒ごとに書く。古い版の true は数えない）
+  const SEEK_FRESH = 50000;
+  const freshSeekers = (snap, now) => { let n = 0; snap.forEach((c) => { const v = c.val(); if (typeof v === 'number' && now() - v < SEEK_FRESH) n++; }); return n; };
   const LIVE_MAX = 2 * 60 * 60 * 1000; // 2 時間より前に始まった対局は、観戦の一覧に出さない（消し忘れの分）
   const LOBBY_TTL = 90000, HEARTBEAT = 20000; // 待っている人は 20 秒ごとに時刻を更新する。1 分半更新がなければいないものとする（裏に回したタブはタイマーが 1 分ごとに遅れることがある）
   // 決まった時間で返ってこなければあきらめる（無料プランの同時接続の上限を超えると、つながらずに待ち続けるため）
@@ -242,8 +245,12 @@
         let done = false, hb = 0, taken = null, lost = 0;
         seeking = true;
         mine.remove(); // 前に届いて読まれなかった合言葉が残っていると、新しいものを受け取れないので消しておく
-        seekRef.onDisconnect().remove(); seekRef.set(true);
-        const cnt = (snap) => { if (onCount) onCount(snap.numChildren()); };
+        // 探している人：20 秒ごとに「まだいる」の時刻を書く（通信が切れたことにサーバーが気づくのは遅いので、時刻が古い人は数えない）
+        const mark = () => seekRef.set(fb.database.ServerValue.TIMESTAMP).catch(() => {});
+        seekRef.onDisconnect().remove(); mark();
+        let last = null;
+        const recount = () => { if (onCount && last) onCount(Math.max(1, freshSeekers(last, now))); };
+        const cnt = (snap) => { last = snap; recount(); };
         seekAll.on('value', cnt);
         const stop = () => { seeking = false; clearInterval(hb); seekAll.off('value', cnt); mine.off('value', got); seekRef.onDisconnect().cancel(); seekRef.remove(); };
         const got = (snap) => {
@@ -268,10 +275,10 @@
         }, false);
         // 20 秒ごとに「まだいる」を書く。裏に回したタブなどで更新が遅れ、待つ場所を別の人に取られていたら（探しているのに
         // 待つ場所にいない状態）、もう一度並び直す。取られた直後は合言葉が届く途中かもしれないので、2 回続いたときだけ
-        const beat = () => lobby.transaction((cur) => (cur && cur.u === me ? { u: me, t: now() } : undefined), (err, committed) => {
+        const beat = () => { mark(); recount(); lobby.transaction((cur) => (cur && cur.u === me ? { u: me, t: now() } : undefined), (err, committed) => {
           if (done || err || committed) { lost = 0; return; }
           if (++lost >= 2) tryMatch();
-        }, false);
+        }, false); };
         tryMatch();
         return () => {
           if (done) return;
@@ -303,7 +310,7 @@
         const live = { random: 0, rank: 0 };
         if (l) l.forEach((c) => { const v = c.val(); if (v && !v.r && now() - v.t < LIVE_MAX && live[v.k] !== undefined) live[v.k]++; });
         idle(u);
-        return { random: { wait: a.numChildren(), live: live.random }, rank: { wait: b.numChildren(), live: live.rank } };
+        return { random: { wait: freshSeekers(a, now), live: live.random }, rank: { wait: freshSeekers(b, now), live: live.rank } };
       },
       // 観戦する：今までの手と、これからの手を onMove に、結果を onLive に届ける
       async watch(code, h) {
