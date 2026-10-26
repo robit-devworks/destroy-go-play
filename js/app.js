@@ -1797,6 +1797,7 @@
   // ---------- 破壊の迷宮・ノンストップ潜行（勝ち抜き戦） ----------
   let usedUndo = false;
   let gauntlet = null; // ノンストップ潜行：{ lv: 今の階, next: 勝って次に進む階 }
+  let dojoNext = 0; // 迷宮で勝ったとき、「次の階へ」で進む階
   const starsText = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
   const dojoBadge = (lv) => (DOJO_TITLES[lv] ? `<i class="badge-f badge-dojo dj-${lv}" title="${lv === 10 ? '破壊の迷宮 全階 ★3' : `破壊の迷宮 B${lv}F 撃破`}">${DOJO_TITLES[lv]}</i>` : '');
   // 星：勝つと ★1、待ったなしで ★2、さらに圧勝（KO・中押し・10 目以上）で ★3。置き石をもらったときは ★1 まで
@@ -1848,7 +1849,7 @@
   // 結果の画面：CPU 戦なら、ボスを倒したか（星・称号・撃破カード）と、勝ち抜き戦の続き
   function renderDojoResult(title, winner) {
     const box = $('#m-dojo');
-    box.hidden = true; box.innerHTML = '';
+    box.hidden = true; box.innerHTML = ''; dojoNext = 0;
     if (!cpuSide || net) return;
     $('#btn-again').textContent = 'もう一局';
     const lv = curFloor > 9 ? curFloor : cpuLevelInGame, boss = BOSSES[lv], win = winner && isMine(winner);
@@ -1872,6 +1873,9 @@
         if (myRating) saveRating();
       }
       html += `<button id="dj-card" class="dj-card">📷 撃破カードをシェア</button>`;
+      // 迷宮から挑んだときは、そのまま次の階へ進める（ノンストップ潜行は下で別に扱う）
+      const nx = lv < 9 ? lv + 1 : lv === 9 ? 10 : lv < 18 ? lv + 1 : 0;
+      if (curFloor && !gauntlet && nx) { dojoNext = nx; $('#btn-again').textContent = `▼ B${nx}F へ進む`; html += `<button id="dj-retry" class="dj-card">↻ この階にもう一度</button>`; }
     } else if (!gauntlet) html += `<p class="dj-lose">B${lv}F ${boss} に敗れた…</p>`;
     if (gauntlet && lv <= 9) {
       if (win && lv < 9) { gauntlet.next = lv + 1; $('#btn-again').textContent = `▼ 次の階へ：B${lv + 1}F ${BOSSES[lv + 1]}`; html += `<p class="dj-g">🔥 ノンストップ潜行：B${lv}F 突破</p>`; }
@@ -1883,8 +1887,13 @@
         gauntlet = null;
       }
     }
+    // 次の階のルール（表の階だけ。深淵層はデストロイ固定）
+    const nextLv = dojoNext || (gauntlet && gauntlet.next);
+    if (nextLv && nextLv <= 9) html += `<div class="dj-rule dj-next-rule"><span>次のルール</span>${HOME_SET.rule.list().map(([v, label]) => `<button class="chip rule-chip" data-v="${v}" aria-pressed="${v === HOME_SET.rule.now()}">${label}</button>`).join('')}</div>`;
     box.innerHTML = html; box.hidden = false;
     if (win) $('#dj-card').onclick = () => dojoCard(lv, shown);
+    if ($('#dj-retry')) $('#dj-retry').onclick = () => { $('#modal').classList.remove('show'); dojoNext = 0; startDojo(lv); };
+    box.querySelectorAll('.dj-next-rule .chip').forEach((b) => { b.onclick = () => { HOME_SET.rule.pick(b.dataset.v); box.querySelectorAll('.dj-next-rule .chip').forEach((c) => c.setAttribute('aria-pressed', c.dataset.v === HOME_SET.rule.now())); }; });
     renderDojoHome();
   }
   // 撃破カード：倒したボス・星・称号を 1 枚の画像にして共有する
@@ -2032,7 +2041,7 @@
   }
   function renderNext() {
     const box = $('#m-next');
-    box.hidden = !!net || warmupCpu || !!gauntlet || curFloor > 9 || phase === 'replay'; // オンライン対戦・ランクマッチまでの CPU 戦・ノンストップ潜行では選べない
+    box.hidden = !!net || warmupCpu || !!gauntlet || !!dojoNext || curFloor > 9 || phase === 'replay'; // 迷宮で次の階へ進むときは、迷宮の結果のほうでルールを選ぶ // オンライン対戦・ランクマッチまでの CPU 戦・ノンストップ潜行では選べない
     if (box.hidden) return;
     box.querySelectorAll('.chips').forEach((row) => {
       const k = row.dataset.k;
@@ -2051,6 +2060,7 @@
   $('#btn-again').onclick = () => {
     if (net) { onlineAgain(); return; }
     $('#modal').classList.remove('show');
+    if (dojoNext) { const n = dojoNext; dojoNext = 0; startDojo(n); return; }
     if (gauntlet && gauntlet.next) { gauntlet.lv = gauntlet.next; gauntlet.next = 0; $(`#level-chips .chip[data-level="${gauntlet.lv}"]`).click(); newGame(); return; }
     applyNextSize(); newGame();
   };
