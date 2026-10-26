@@ -472,7 +472,7 @@
     if (!b || bgmOk(b)) return;
     bgmUnlocked.add(key);
     try { localStorage.setItem('destroy-go-bgm-unlocks', JSON.stringify([...bgmUnlocked])); } catch (e) { /* 無視 */ }
-    buildBgmChips();
+    buildBgmChips(); track(`BGM「${b.label}」を解放`);
     const el = $('#unlock-pop');
     el.innerHTML = `<b>🎵 BGM「${b.label}」が解放された！</b><small>${why || b.when}。BGM の選択で使えるようになりました</small>`;
     el.style.setProperty('--tc', '#7fe3ff');
@@ -575,6 +575,7 @@
     try { localStorage.setItem('destroy-go-unlocks', JSON.stringify([...secretUnlocked])); } catch (e) { /* 無視 */ }
     refreshThemeChoices();
     const t = themeOf(key), el = $('#unlock-pop');
+    track(`演出「${t.label}」を解放`);
     el.innerHTML = `<b>🔓 「${t.label}」が解放された！</b><small>${SECRETS[key]}。演出の選択で使えるようになりました</small>`;
     el.style.setProperty('--tc', t.color);
     el.className = ''; void el.offsetWidth; el.className = 'show';
@@ -1820,7 +1821,7 @@
   function grantFx(key) {
     if (secretUnlocked.has(key)) return;
     secretUnlocked.add(key); lsSet('destroy-go-unlocks', JSON.stringify([...secretUnlocked]));
-    refreshThemeChoices(); syncProfile();
+    refreshThemeChoices(); syncProfile(); track(`演出「${themeOf(key).label}」を獲得`);
   }
   // 深淵層の最深部の報酬：まだ解放していない演出（隠し要素）と BGM を全部使えるようにする（ランキング報酬・黄金は別）
   function unlockAll() {
@@ -1871,6 +1872,7 @@
       if (first && ABYSS_GIFTS[lv]) { html += `<p class="dj-title">🎁 ${ABYSS_GIFTS[lv]}！</p>`; if (lv === 18) { unlockAll(); if (CLEAR_READY) grantFx('clear'); } }
       if (stars < 3) html += `<p class="dj-tip">${stars === 1 && usedUndo ? '待ったなしで勝つと ★2' : stars === 1 ? '置き石なし・待ったなしで勝つと ★2' : 'KO・中押し・10目以上の大差で勝つと ★3'}</p>`;
       const newTitle = dojoTitleLv() !== hadTitle && DOJO_TITLES[dojoTitleLv()];
+      if (newTitle) track(`称号「${newTitle}」を獲得`);
       if (newTitle) {
         if (dojoTitleLv() === 10) grantOugon();
         html += dojoTitleLv() === 18
@@ -1893,6 +1895,7 @@
         if (best) { dojo.best = n; saveDojo(); syncProfile(); }
         html += `<p class="dj-g">${n >= 9 ? '👑 ノンストップで最深部まで制覇！' : `🔥 ノンストップ潜行 終了：${n ? `B${n}F まで突破` : 'B1F で力尽きた'}`}${best ? '<b>自己ベスト</b>' : ''}</p>`;
         track(n >= 9 ? 'ノンストップ潜行 制覇' : `ノンストップ潜行 B${n}F まで`);
+        if (firstNs) track(`称号「${NONSTOP_TITLE}」を獲得`);
         if (firstNs) { html += `<p class="dj-title dj-master">🏅 称号「${NONSTOP_TITLE}」を手に入れた！<small>ランキングで名前の横に出ます</small></p>`; if (myRating) saveRating(); }
         if (n >= 9) html += `<button id="dj-ns-card" class="dj-card dj-ns-card">📷 制覇カードをシェア</button>`;
         gauntlet = null;
@@ -2361,7 +2364,7 @@
     clearTimeout(logoIdle);
     logoHits++;
     FX.logoHit(e.clientX, e.clientY, Math.min(5, logoHits), logo.getBoundingClientRect().height);
-    if (logoHits >= 5) { shatterLogo(e.clientX, e.clientY); return; }
+    if (logoHits >= 5) { track('タイトルのロゴを破壊した'); shatterLogo(e.clientX, e.clientY); return; }
     crackLogo(e.clientX, e.clientY, logoHits);
     logo.animate([{ transform: 'translate(0,0)' }, { transform: `translate(${rand(-8, 8)}px, ${rand(3, 8)}px) scale(0.97)` }, { transform: 'translate(0,0)' }], { duration: 160 });
     // しばらく叩かなければ、ひびは消えて元に戻る
@@ -3169,6 +3172,7 @@
       if (!rollsLeft()) return;
       keepName(myRating.name); useRoll();
       const n = makeName(); keepName(n); setName(n); nameGachaFx(n); showRanking();
+      track(['名前ガチャを引いた（ふつう）', '名前ガチャで金色の名前', '名前ガチャで虹色の名前'][nameRank(n)]);
     };
     const keep = keptNames().filter((n) => n !== myRating.name);
     $('#online-body').querySelectorAll('[data-keep]').forEach((b) => {
