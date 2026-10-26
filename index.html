@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Black+Ops+One&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=20261026112754">
+  <link rel="stylesheet" href="css/style.css?v=20261026121037">
 </head>
 <body>
   <div id="stage">
@@ -24,6 +24,8 @@
     <section id="title" class="screen active">
       <!-- 記録が消えないように：初回はホーム画面への追加、アプリ内ブラウザでは Safari / Chrome で開く案内 -->
       <div id="save-note" hidden><span id="save-note-text"></span><button id="save-note-how" hidden>追加のしかた</button><button id="save-note-close" aria-label="閉じる">×</button></div>
+      <!-- メンテナンスのお知らせ（中身と時刻は js/app.js の MAINT） -->
+      <div id="maint-note" hidden></div>
       <div class="title-wrap">
         <h1 class="logo" data-text="デストロイ碁">デストロイ碁</h1>
         <p class="sublogo">DESTROY GO</p>
@@ -226,7 +228,8 @@
         <canvas id="own-2"></canvas>
         <canvas id="board-fx"></canvas>
         <div id="pause-cover"><div>一時停止中</div><button id="btn-resume" class="big-btn">再開</button></div>
-        <div id="toast"></div>
+        <div id="dhint"></div>
+      <div id="toast"></div>
         <div id="charge"></div>
         <div id="eyes"></div>
       </div>
@@ -262,6 +265,7 @@
         <div class="tut-box"><b id="tut-title"></b><p id="tut-text"></p></div>
         <button id="tut-prev">◀ 前へ</button>
         <button id="tut-hint">💡 ヒント</button>
+        <button id="tut-pass" class="accent" hidden>パスする</button>
         <button id="tut-next" class="accent">次へ ▶</button>
       </div>
       <div class="controls" id="replay-controls">
@@ -340,6 +344,18 @@
   </div>
   <div id="unlock-pop"></div>
   <!-- はじめて開いたとき：チュートリアルをやるか聞く（1 回だけ） -->
+  <!-- 📖 チュートリアル：どちらを覚えるか選ぶ -->
+  <div id="tut-pick" hidden>
+    <div class="modal-box">
+      <div class="a2hs-title">📖 チュートリアル</div>
+      <div class="tut-pick-list">
+        <button id="tut-pick-basic"><b>囲碁の基本</b><small>石の取り方・打てない場所・二眼・勝ち負け（10問）</small></button>
+        <button id="tut-pick-destroy" class="accent"><b>デストロイ初級</b><small>HP バトル・クリティカル・K.O.・地の総攻撃（5問）</small></button>
+        <button id="tut-pick-adv" class="accent"><b>デストロイ上級</b><small>ため撃ち・背水・カウンター・コンボ・ラストスパート・回復（9問）</small></button>
+      </div>
+      <div class="m-buttons"><button id="tut-pick-close">閉じる</button></div>
+    </div>
+  </div>
   <div id="tut-ask" hidden>
     <div class="modal-box">
       <div class="a2hs-title">囲碁ははじめて？</div>
@@ -393,7 +409,7 @@
     </div>
   </div>
 
-  <script src="js/edition.js?v=20261026112754"></script>
+  <script src="js/edition.js?v=20261026121037"></script>
   <!-- アクセス解析（GoatCounter）。Cookie を使わず、個人は分からない（開かれた回数・どこから来たか・端末の種類だけ）。
        公開しているサイトでだけ数える。開発者とテスト用の端末は数えない -->
   <script>
@@ -407,14 +423,14 @@
       document.head.appendChild(s);
     })();
   </script>
-  <script src="js/go.js?v=20261026112754"></script>
-  <script src="js/clock.js?v=20261026112754"></script>
-  <script src="js/sounds.js?v=20261026112754"></script>
-  <script src="js/effects.js?v=20261026112754"></script>
-  <script src="js/boardfx.js?v=20261026112754"></script>
-  <script src="js/destroy-rule.js?v=20261026112754"></script>
-  <script src="js/ai.js?v=20261026112754"></script>
-  <script src="js/online.js?v=20261026112754"></script>
-  <script src="js/app.js?v=20261026112754"></script>
+  <script src="js/go.js?v=20261026121037"></script>
+  <script src="js/clock.js?v=20261026121037"></script>
+  <script src="js/sounds.js?v=20261026121037"></script>
+  <script src="js/effects.js?v=20261026121037"></script>
+  <script src="js/boardfx.js?v=20261026121037"></script>
+  <script src="js/destroy-rule.js?v=20261026121037"></script>
+  <script src="js/ai.js?v=20261026121037"></script>
+  <script src="js/online.js?v=20261026121037"></script>
+  <script src="js/app.js?v=20261026121037"></script>
 </body>
 </html>

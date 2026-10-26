@@ -158,11 +158,14 @@
     // 部屋から抜けたら接続そのものも切る（開いたままだと、同時接続の枠を使い続けてしまう）
     let epoch = 0; // あきらめたあとに遅れて返ってきた結果は使わない
     const offline = () => { epoch++; try { db.goOffline(); } catch (e) { /* 無視 */ } };
+    // 部屋を作る・入る・相手を探すたびに数える。部屋を抜けて「少しあとで切る」間に次の相手を探し始めたら、その接続は切らない
+    let uses = 0;
+    const online = () => { uses++; db.goOnline(); };
     return {
       me,
       offline,
       async create(settings, h) {
-        db.goOnline();
+        online();
         const my = epoch;
         for (let tries = 0; tries < 20 && my === epoch; tries++) {
           const code = randomCode(), r = db.ref('rooms/' + code);
@@ -180,7 +183,7 @@
         throw new Error('部屋を作れませんでした。少ししてからもう一度試してください');
       },
       async join(code, h) {
-        db.goOnline();
+        online();
         const my = epoch;
         const r = db.ref('rooms/' + code);
         const snap = await r.get();
@@ -195,7 +198,7 @@
       send(v) { const m = { ...v, u: me }; if (ref) ref.child('moves').push(m); return m; },
       // ランダムマッチの相手を探す。見つかったら onMatch({ host: true, partner }) か onMatch({ host: false, code })。やめるときは戻り値を呼ぶ
       seek(onMatch, onCount, queue = 'random') {
-        db.goOnline();
+        online();
         const q = 'match/' + queue;
         const lobby = db.ref(q + '/lobby'), mine = db.ref('match/pairs/' + me), seekRef = db.ref(q + '/seek/' + me), seekAll = db.ref(q + '/seek');
         let done = false, hb = 0, taken = null;
@@ -310,8 +313,8 @@
         if (ref) {
           ref.child('on/' + me).onDisconnect().cancel();
           // 「抜けた」を書き込んでから切る（書き込みが届かなくても、切れたときの設定で相手には伝わる）
-          const done = ref.child('on/' + me).set(false);
-          withTimeout(done, 3000).catch(() => {}).finally(offline);
+          const done = ref.child('on/' + me).set(false), u = uses;
+          withTimeout(done, 3000).catch(() => {}).finally(() => { if (u === uses) offline(); });
           ref = null;
         } else offline();
       },

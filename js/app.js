@@ -860,7 +860,11 @@
     const p = pointAt(e);
     if (p < 0) return;
     if (phase === 'scoring') { toggleDead(p); return; }
-    if (phase === 'tutorial') { tutTap(p); return; }
+    if (phase === 'tutorial') { // ため撃ちのチュートリアルは、正解の場所を長押しで溜める
+      const q = TUT[tut.i];
+      if (q && q.charge && !tut.solved && p === tutAnswer() && performance.now() >= lockUntil) { const t = game.tryPlay(p); if (t.ok && chargeSteps(t.captured.length).length) { startCharge(p, t.captured, e); return; } }
+      tutTap(p); return;
+    }
     if (phase !== 'play' || performance.now() < lockUntil || notMyTurn()) return;
     if (opt.confirm.checked && e.pointerType !== 'mouse' && p !== pending) {
       const r = game.tryPlay(p);
@@ -901,7 +905,7 @@
   const chargeMax = (c) => c.level > 0 && c.level >= c.steps.length;
   function chargeLoop() {
     if (!charge) return;
-    if (phase !== 'play') { cancelCharge(); return; }
+    if (phase !== 'play' && phase !== 'tutorial') { cancelCharge(); return; }
     const now = performance.now(), ms = now - charge.t0, level = chargeLevel(ms);
     if (level > charge.level) {
       charge.level = level;
@@ -929,6 +933,7 @@
     if (max) { clearTimeout(releaseCharge.t); releaseCharge.t = setTimeout(hideChargeLabel, 1000); } else hideChargeLabel();
     // MAX まで溜めきったら、短いためでも一段強く飛ばす
     if (phase === 'play') playAt(p, Math.min(3, max ? level + 1 : level), max);
+    else if (phase === 'tutorial') tutTap(p, { max, level: Math.min(3, max ? level + 1 : level) });
   }
   function cancelCharge() {
     if (!charge) return;
@@ -978,6 +983,22 @@
 
   // ---------- デストロイルール（HP バトル） ----------
   let dstate = null, ruleHist = [];
+  // デストロイルールの初めての出来事に、1 回だけ一言の説明を出す（何が起きたか分かるように）
+  const DHINTS = {
+    dmg: '💥 石を取ると、相手の HP が減る！ HP を 0 にすると K.O. 勝ち',
+    crit: '⚡ CRITICAL!! 一度にたくさん取ると、相手の最大 HP の半分の大ダメージ',
+    heal: '💚 2眼で取られなくなった石が増えると、HP が回復する',
+    recoil: '⚠ ため撃ちで増えたダメージの分だけ、反動で自分の HP も減る（相手を K.O. したときは反動なし）',
+    terr: '🏯 終局！ 自分の地 1 目につき、相手に 1 ダメージ（地の総攻撃）',
+  };
+  function dHint(key) {
+    if (phase === 'replay' || lsGet('destroy-go-dhint-' + key)) return;
+    lsSet('destroy-go-dhint-' + key, '1');
+    const el = $('#dhint');
+    el.textContent = DHINTS[key];
+    el.className = ''; void el.offsetWidth; el.className = 'show';
+    clearTimeout(dHint._t); dHint._t = setTimeout(() => { el.className = ''; }, 4500);
+  }
   function popDamage(color, text, cls, tags = []) {
     const el = document.createElement('div');
     el.className = 'dmg-pop ' + cls;
@@ -1201,13 +1222,14 @@
         if (h.kind === 'ko') popDamage(victim, 'K.O.!!', 'ko');
         else popDamage(victim, `${h.kind === 'critical' ? 'CRITICAL!! ' : ''}-${h.amount}`, h.kind, h.tags);
         showFormula(victim, h, captured);
+        dHint(h.kind === 'critical' ? 'crit' : 'dmg');
         renderHp(0, { [mover]: h.recoil || 0 });
       }, Math.min(hold, 900));
       // 反動は、相手へのダメージが出てから自分の側に出す（HP はそのとき減らして見せる）
       if (h.recoil > 0) later(() => {
         popDamage(mover, `反動 -${h.recoil}`, 'recoil');
         showRecoilFormula(mover, h);
-        renderHp();
+        renderHp(); dHint('recoil');
         const box = $('#p' + mover + ' .p-hp');
         box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
       }, Math.min(hold, 900) + 450);
@@ -1217,7 +1239,7 @@
     logHeal(healed);
     for (const c of [BLACK, WHITE]) if (healed[c]) later(() => {
       popDamage(c, `+${healed[c]}`, 'heal'); FX.heal();
-      showHealFormula(c, healed[c]);
+      showHealFormula(c, healed[c]); dHint('heal');
       renderHp(c); // 4 つそろって光ってから、残りの端数の表示に戻す
       later(() => renderHp(), 600);
     }, Math.min(hold, 900) + 650);
@@ -1264,7 +1286,7 @@
           const ms = FX.volley(pts, { x: bar.left + bar.width * 0.3, y: bar.top + bar.height / 2 }, themes[c]);
           terrGlow = null; draw();
           later(() => {
-            popDamage(victim, `地${terr[c]}目 -${terr[c]}`, terr[c] ? 'critical' : 'normal');
+            popDamage(victim, `地${terr[c]}目 -${terr[c]}`, terr[c] ? 'critical' : 'normal'); dHint('terr');
             dstate.hp[victim] = Math.max(0, left[victim]);
             renderHp(); FX.boom(0.3 + Math.min(0.5, terr[c] / 60));
             const box = $('#p' + victim + ' .p-hp');
@@ -1813,6 +1835,24 @@
   const NONSTOP_TITLE = '不屈の潜行者';
   const nonstopDone = () => dojo.best >= 9;
   const nonstopBadge = (ns) => (ns ? `<i class="badge-f badge-dojo dj-ns" title="ノンストップ潜行で B9F まで勝ち抜いた">${NONSTOP_TITLE}</i>` : '');
+  // 名前の横に出す称号を選ぶ（迷宮の称号と不屈の潜行者の中から 1 つ）。'auto' はいちばん上のもの、'none' は出さない
+  const ownedTitles = () => [...[18, 10, 9, 7, 3].filter((lv) => (lv === 10 ? dojoAll3() : dojoCleared(lv))).map((lv) => ({ k: 'd' + lv, name: DOJO_TITLES[lv] })),
+    ...(nonstopDone() ? [{ k: 'ns', name: NONSTOP_TITLE }] : [])];
+  const chosenTitle = () => {
+    const own = ownedTitles(), v = lsGet('destroy-go-title') || 'auto';
+    if (v === 'none') return null;
+    return own.find((t) => t.k === v) || own[0] || null;
+  };
+  // ランキングに送る：cl（迷宮の称号の階）と ns（不屈の潜行者）は、選んだ 1 つだけを立てる
+  const titleFields = () => { const t = chosenTitle(); return t ? (t.k === 'ns' ? { cl: 0, ns: 1 } : { cl: +t.k.slice(1), ns: 0 }) : { cl: 0, ns: 0 }; };
+  const myTitleBadge = () => { const f = titleFields(); return dojoBadge(f.cl) + nonstopBadge(f.ns); };
+  function titlePicker() {
+    const own = ownedTitles();
+    if (own.length < 2) return '';
+    const v = lsGet('destroy-go-title') || 'auto';
+    const chip = (k, label) => `<button class="chip rule-chip" data-title="${k}" aria-pressed="${v === k}">${label}</button>`;
+    return `<div class="on-titles"><span>🏅 名前の横に出す称号</span>${chip('auto', 'いちばん上')}${own.map((t) => chip(t.k, t.name)).join('')}${chip('none', '出さない')}</div>`;
+  }
   const dojoBadge = (lv) => (DOJO_TITLES[lv] ? `<i class="badge-f badge-dojo dj-${lv}" title="${lv === 10 ? '破壊の迷宮 全階 ★3' : `破壊の迷宮 B${lv}F 撃破`}">${DOJO_TITLES[lv]}</i>` : '');
   // 星：勝つと ★1、待ったなしで ★2、さらに圧勝（KO・中押し・10 目以上）で ★3。置き石をもらったときは ★1 まで
   function dojoStars(title) {
@@ -2494,7 +2534,7 @@
   }
   // ---------- チュートリアル（はじめての人向け。9 路の盤で 1 問ずつ） ----------
   // type: 'play' は answer に打つと正解、'forbid' は打てない場所に打とうとすると正解、'view' は見るだけ
-  const TUT = [
+  const TUT_BASIC = [
     { title: '囲んで取る（真ん中）', type: 'play', b: [[3, 4], [5, 4], [4, 3]], w: [[4, 4]], answer: [4, 5],
       text: '石の上下左右の空いている点を<b>呼吸点</b>と言います。呼吸点が全部ふさがれると、その石は取られます。白はあと1つで取られる<b>アタリ</b>。最後の1か所に打って取ろう！',
       done: '取れた！ 相手の石を囲んで取るのが囲碁の基本です' },
@@ -2524,32 +2564,88 @@
     { title: '勝ち負け', type: 'view', b: [[3, 0], [3, 1], [3, 2], [3, 3], [3, 4], [3, 5], [3, 6], [3, 7], [3, 8]], w: [[5, 0], [5, 1], [5, 2], [5, 3], [5, 4], [5, 5], [5, 6], [5, 7], [5, 8]],
       text: '2人が続けて<b>パス</b>したら終局。自分の石で囲んだ空き（<b>地</b>）が多いほうの勝ちです（この盤なら黒の地は左側、白の地は右側）。<b>デストロイルール</b>では、石を取って相手の HP を 0 にすると KO 勝ち！' },
   ];
+  // デストロイルールのチュートリアル。hp：最初の HP（{ b, w }）、pre：その前に起きたこと（コンボ・カウンターの判定用）
+  // 初級：HP・ダメージ・クリティカル・K.O.・地の総攻撃（実際にパスして見る）
+  const TUT_DESTROY = [
+    { title: 'HP バトル', type: 'view', hp: {}, b: [[2, 2], [3, 3], [6, 6]], w: [[6, 2], [5, 5], [2, 6]],
+      text: '<b>デストロイルール</b>では、黒と白それぞれに<b>HP</b>（上と下のゲージ）があります。<b>相手の石を取ると相手の HP が減り</b>、<b>0 にしたら K.O. 勝ち</b>。ふつうの囲碁と同じように打ちながら、HP を削り合います' },
+    { title: '取るとダメージ', type: 'play', hp: {}, b: [[3, 4], [5, 4], [4, 3]], w: [[4, 4]], answer: [4, 5],
+      text: '白の石を取って、白の HP を減らしてみよう（上の白のゲージを見てね）',
+      done: '1 子取って <b>2 ダメージ</b>！ まとめて取るほど、1 子あたりのダメージも増えます（1〜3 子は 2、4〜6 子は 3、それ以上は 4）' },
+    { title: 'クリティカル', type: 'play', hp: {}, b: [[2, 3], [2, 4], [6, 3], [6, 4], [3, 2], [4, 2], [5, 2], [3, 5], [4, 5]], w: [[3, 3], [4, 3], [5, 3], [3, 4], [4, 4], [5, 4]], answer: [5, 5],
+      text: '白の 6 子をまとめて取ろう。<b>9路では 6 子以上</b>まとめて取ると……',
+      done: '<b>CRITICAL!!</b> 一度にたくさん取ると、相手の<b>最大 HP の半分</b>のダメージ！ さらに 10 子以上（9路）なら<b>一撃 K.O.</b>' },
+    { title: 'K.O. 勝ち', type: 'play', hp: { w: 2 }, b: [[1, 0]], w: [[0, 0]], answer: [0, 1],
+      text: '白の HP は残り 2。角の白を取って、<b>とどめ</b>を刺そう！',
+      done: '<b>K.O.!!</b> HP を 0 にしたら、地が少なくても<b>その場で勝ち</b>です' },
+    { title: '地の総攻撃', type: 'pass', hp: { w: 25 }, b: [0, 1, 2, 3, 4, 5, 6, 7, 8].map((y) => [3, y]), w: [0, 1, 2, 3, 4, 5, 6, 7, 8].map((y) => [6, y]),
+      text: 'K.O. しないまま 2 人がパスしたら終局。<b>自分の地 1 目につき、相手に 1 ダメージ</b>を同時に与えます（<b>地の総攻撃</b>）。黒の地は左の 27 目、白の地は右の 18 目。下の「<b>パスする</b>」を押してみよう',
+      done: '黒の地 27 目で白に 27 ダメージ → 白の HP 25 は <b>0（K.O.!!）</b>。白の地 18 目で黒は 18 ダメージ、でも HP が残ったので<b>黒の勝ち</b>！ 地が多いほど大ダメージ。2 人とも残ったら<b>HP が多いほうの勝ち</b>' },
+  ];
+  // 上級：ため撃ち（反動）・背水・カウンター・コンボ・ラストスパート・2眼で回復（実際に打って見る）
+  const TUT_ADV = [
+    { title: '上級ルール', type: 'view', hp: {}, adv: true, b: [], w: [],
+      text: '<b>上級</b>（ランクマッチのルール）は、初級に<b>ダメージが増える決まり</b>と<b>回復</b>が加わります。ため撃ち・背水・カウンター・コンボ・ラストスパート・2眼で回復。1 つずつ打って確かめよう' },
+    { title: 'ため撃ち', type: 'play', charge: true, hp: {}, adv: true, b: [[2, 4], [5, 4], [3, 3], [4, 3], [3, 5]], w: [[3, 4], [4, 4]], answer: [4, 5],
+      text: '取れる場所を<b>長押し</b>して溜めよう。ゲージが MAX になると自動で打ちます。<b>ダメージ 1.5 倍</b>！ ただし……',
+      done: '2 子×2 = 4 が、ため撃ちで <b>6</b> に。でも<b>増えた 2 の分だけ、自分の HP も減ります（反動）</b>。ふだんの撃ち合いでは、相手との HP の差は溜めなくても同じです' },
+    { title: 'ため撃ちでとどめ', type: 'play', charge: true, hp: { w: 5 }, adv: true, b: [[2, 4], [5, 4], [3, 3], [4, 3], [3, 5]], w: [[3, 4], [4, 4]], answer: [4, 5],
+      text: '白の HP は残り 5。ふつうに取ると 4 ダメージで足りない。<b>長押しで溜めて</b>、とどめを刺そう',
+      done: '<b>K.O.!!</b> 相手を K.O. したときは<b>反動を受けません</b>。ため撃ちは<b>とどめの一撃</b>に使うのが得です' },
+    { title: '背水', type: 'play', hp: { b: 8 }, adv: true, b: [[2, 3], [2, 4], [5, 3], [5, 4], [3, 2], [4, 2], [3, 5]], w: [[3, 3], [4, 3], [3, 4], [4, 4]], answer: [4, 5],
+      text: '黒の HP は残り 8（最大 HP の 4 分の 1 以下）。この状態で白の 4 子を取ろう',
+      done: '<b>背水</b>：自分の HP が最大の 4 分の 1 以下のときは、ダメージ <b>1.2 倍</b>。追いつめられてからの逆転のチャンスです' },
+    { title: 'カウンター', type: 'play', hp: {}, adv: true, pre: { last: [4, 4] }, b: [[3, 4], [5, 4], [3, 3], [5, 3], [4, 2]], w: [[4, 4], [4, 3]], answer: [4, 5],
+      text: '白は今、真ん中の <b>E5</b> に打って黒の石を取ったところ（という場面）。その<b>取りに来た白の石ごと</b>取り返そう',
+      done: '<b>COUNTER!!</b> 相手に取られた<b>直後</b>に、<b>相手が今打った石を含めて</b>取り返すと 1.5 倍（打って返しなど）。別の場所の石を取り返すだけではカウンターになりません' },
+    { title: 'コンボ', type: 'play', hp: {}, adv: true, pre: { combo: 1 }, b: [[2, 3], [2, 4], [5, 3], [5, 4], [3, 2], [4, 2], [3, 5]], w: [[3, 3], [4, 3], [3, 4], [4, 4]], answer: [4, 5],
+      text: '黒は前の手でも石を取った（という場面）。続けて白の 4 子を取ろう',
+      done: '<b>2 COMBO!</b> 自分の手番で<b>続けて取る</b>と倍率アップ（2 連続 1.2 倍、3 連続 1.4 倍…最大 2 倍）。取れなかった手やパスで途切れます' },
+    { title: 'ラストスパート', type: 'play', spurt: true, hp: {}, adv: true, b: [[2, 3], [2, 4], [5, 3], [5, 4], [3, 2], [4, 2], [3, 5]], w: [[3, 3], [4, 3], [3, 4], [4, 4]], answer: [4, 5],
+      text: '終盤（盤の 7 割が石で埋まるか、2 人の残り時間が少なくなった）という場面。白の 4 子を取ろう',
+      done: '<b>LAST SPURT</b>：終盤に入ると、最後まで<b>2 人とも 1.5 倍</b>。最後まで逆転があります' },
+    { title: '2眼で回復', type: 'play', heal: true, hp: { b: 30 }, adv: true, b: [[0, 1], [1, 1], [2, 1], [3, 1], [3, 0]], w: [[0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [4, 1], [4, 0]], answer: [1, 0],
+      text: '左上の黒の中に打って、眼を 2 つに分けよう（黒の HP は 30）',
+      done: '<b>2眼で回復</b>：取られなくなった（2眼の）石 <b>4 子ごとに HP 1 回復</b>。最大 HP をこえた分は最大 HP も増えます（最初の 2 倍まで）' },
+    { title: '倍率のまとめ', type: 'view', hp: {}, adv: true, b: [], w: [],
+      text: '倍率は<b>全部かけ合わせ</b>ます（ため撃ち×背水×カウンター×コンボ×ラストスパート）。ただし合計は<b>最大 2.5 倍</b>まで。一撃で終わりすぎないようにしています' },
+  ];
+  let TUT = TUT_BASIC; // 今やっているチュートリアル（囲碁の基本／デストロイルール）
+  const tutKey = () => (TUT === TUT_ADV ? 'destroy-go-tut-a' : TUT === TUT_DESTROY ? 'destroy-go-tut-d' : 'destroy-go-tut');
   const tut = { i: 0, solved: false, hint: -1, saved: null, wrong: 0, step: 0 };
   const tutAnswer = () => { const q = TUT[tut.i]; return game.idx(...(tut.step ? q.next : q.answer)); };
   function tutLoad(i) {
-    tut.i = i; tut.solved = TUT[i].type === 'view'; tut.hint = -1; tut.wrong = 0; tut.step = 0; lockUntil = 0;
+    tut.i = i; tut.solved = TUT[i].type === 'view'; tut.hint = -1; tut.wrong = 0; tut.step = 0; lockUntil = 0; tut.finished = null;
+    $('#tut-prev').textContent = '◀ 前へ';
     const q = TUT[i];
     FX.clear(); BoardFX.clear(); BoardFX.resetTraces();
-    game = new GoGame(9, rules); dstate = null; wiped = new Set(); dead = new Set(); terrGlow = null;
+    game = new GoGame(9, rules); wiped = new Set(); dead = new Set(); terrGlow = null;
+    dstate = q.hp ? new DestroyRule.DestroyState(9, null, !!q.adv) : null; // デストロイルールのチュートリアル（初級・上級）
+    if (q.hp && q.hp.w !== undefined) dstate.hp[WHITE] = q.hp.w;
+    if (q.hp && q.hp.b !== undefined) dstate.hp[BLACK] = q.hp.b;
+    if (q.pre && q.pre.combo) dstate.combo[BLACK] = q.pre.combo;
+    if (q.pre && q.pre.last) dstate.last = { mover: WHITE, captured: 1, point: game.idx(...q.pre.last) };
     for (const [x, y] of q.b) game.board[game.idx(x, y)] = BLACK;
     for (const [x, y] of q.w) game.board[game.idx(x, y)] = WHITE;
     game.turn = BLACK;
     hintMode = q.hint || 'none'; resetEyes();
     $('#tut-title').textContent = `${i + 1} / ${TUT.length}　${q.title}`;
     $('#tut-text').innerHTML = q.text;
-    tutButtons(); draw(); updatePanels();
-    try { localStorage.setItem('destroy-go-tut', i); } catch (e) { /* 無視 */ }
+    tutButtons(); draw(); updatePanels(); renderHp();
+    lsSet(tutKey(), i);
   }
   function tutButtons() {
     $('#tut-prev').disabled = tut.i === 0;
-    $('#tut-hint').hidden = TUT[tut.i].type === 'view' || tut.solved; // 解けたらヒントはいらない
+    $('#tut-hint').hidden = TUT[tut.i].type === 'view' || TUT[tut.i].type === 'pass' || tut.solved; // 解けたらヒントはいらない
+    $('#tut-pass').hidden = TUT[tut.i].type !== 'pass' || tut.solved;
     $('#tut-next').disabled = !tut.solved;
     $('#tut-next').textContent = tut.i === TUT.length - 1 ? 'クリア！ ▶' : '次へ ▶';
   }
-  function tutTap(p) {
+  function tutTap(p, opts = {}) {
     const q = TUT[tut.i];
-    if (tut.solved || q.type === 'view' || performance.now() < lockUntil) return;
+    if (tut.solved || q.type === 'view' || q.type === 'pass' || performance.now() < lockUntil) return;
     const ans = tutAnswer();
+    if (q.charge && p === ans && !opts.max) { toast('ため撃ち：その場所を長押しして、MAX まで溜めよう'); return; }
     if (p !== ans) {
       tut.wrong++;
       toast(tut.wrong >= 2 ? '光っている場所に打ってみよう' : 'おしい！ もう一度考えてみよう（💡 ヒントもあるよ）');
@@ -2570,18 +2666,31 @@
       const [x, y] = game.xy(p), r = game.play(x, y);
       if (r.captured.length) {
         const k = canvas.getBoundingClientRect().width / geo.css;
-        FX.capture(r.captured.map(stoneScreenPos), WHITE, geo.cell * 0.96 * k, themes[BLACK], 0);
+        FX.capture(r.captured.map(stoneScreenPos), WHITE, geo.cell * 0.96 * k, themes[BLACK], opts.level || 0);
         BoardFX.apply(themes[BLACK], FX.tierIndex(r.captured.length), r.captured.map((c) => { const [cx, cy] = game.xy(c); return { x: px(cx), y: px(cy) }; }), geo);
       } else FX.stoneClick();
       checkNewEyes(300);
-      later(() => showBigNote('正解！', '#5cff8a'), r.captured.length ? 900 : 0);
+      if (dstate && r.captured.length) { // デストロイルール：ダメージを見せる
+        const n = r.captured.length, h = dstate.hit(BLACK, n, { point: p, stones: r.captured, maxCharge: !!opts.max, spurt: !!q.spurt });
+        if (h.recoil > 0) later(() => { popDamage(BLACK, `反動 -${h.recoil}`, 'recoil'); showRecoilFormula(BLACK, h); renderHp(); }, 1200);
+        later(() => {
+          popDamage(WHITE, h.kind === 'ko' || dstate.hp[WHITE] <= 0 ? 'K.O.!!' : `${h.kind === 'critical' ? 'CRITICAL!! ' : ''}-${h.amount}`, h.kind === 'ko' || dstate.hp[WHITE] <= 0 ? 'ko' : h.kind, h.tags);
+          showFormula(WHITE, h, n); renderHp();
+        }, 700);
+        later(() => showBigNote(dstate.hp[WHITE] <= 0 ? 'K.O.!!' : '正解！', dstate.hp[WHITE] <= 0 ? '#ffd23f' : '#5cff8a'), 1500);
+      } else later(() => showBigNote('正解！', '#5cff8a'), r.captured.length ? 900 : 0);
+      if (dstate && q.heal) { // 2眼で回復
+        const healed = dstate.heal(game.board);
+        if (healed[BLACK]) later(() => { popDamage(BLACK, `+${healed[BLACK]}`, 'heal'); FX.heal(); showHealFormula(BLACK, healed[BLACK]); renderHp(); }, 700);
+      }
     }
     $('#tut-text').innerHTML = `<span class="tut-ok">⭕ ${q.done}</span>`;
     tutButtons(); draw(); updatePanels();
   }
-  function startTutorial(from = 0) {
-    track('チュートリアルを始めた');
-    tut.saved = { size: SIZE, hint: hintMode };
+  function startTutorial(from = 0, course = TUT_BASIC) {
+    TUT = course;
+    track(course === TUT_ADV ? 'デストロイ上級のチュートリアルを始めた' : course === TUT_DESTROY ? 'デストロイ初級のチュートリアルを始めた' : 'チュートリアルを始めた');
+    if (!tut.saved) tut.saved = { size: SIZE, hint: hintMode }; // チュートリアルから次のチュートリアルへ進んだときは、最初の設定を残す
     SIZE = 9; clock = new GoClock({ base: 60000 }); cpuSide = 0;
     gameSerial++; cpuToken++; setThinking(false);
     showScreen('game'); phase = 'tutorial';
@@ -2595,26 +2704,88 @@
     SIZE = tut.saved.size; hintMode = tut.saved.hint; tut.saved = null;
     gameEl.classList.remove('tutorial');
   }
-  $('#tut-prev').onclick = () => { if (tut.i > 0) tutLoad(tut.i - 1); };
+  // 地の総攻撃のチュートリアル：黒がパス → 白もパス → 地の多い順に光の弾が飛んで、相手の HP を削る
+  function tutPass() {
+    const q = TUT[tut.i];
+    if (tut.solved || q.type !== 'pass') return;
+    tut.solved = true; tutButtons();
+    toast('黒がパス → 白もパス。終局！');
+    const sc = game.score(new Set()), terr = { [BLACK]: sc.detail[BLACK].territory, [WHITE]: sc.detail[WHITE].territory };
+    const left = { [BLACK]: dstate.hp[BLACK] - terr[WHITE], [WHITE]: dstate.hp[WHITE] - terr[BLACK] };
+    later(() => showBigNote('地の総攻撃！', '#ffd23f'), 600);
+    const order = terr[BLACK] <= terr[WHITE] ? [BLACK, WHITE] : [WHITE, BLACK];
+    order.forEach((c, k) => later(() => {
+      const victim = otherColor(c);
+      terrGlow = { map: sc.territory, color: c }; draw();
+      later(() => {
+        const pts = [];
+        for (let i = 0; i < sc.territory.length; i++) if (sc.territory[i] === c) pts.push(stoneScreenPos(i));
+        const bar = $('#p' + victim + ' .p-hp').getBoundingClientRect();
+        const ms = FX.volley(pts, { x: bar.left + bar.width * 0.3, y: bar.top + bar.height / 2 }, themes[c]);
+        terrGlow = null; draw();
+        later(() => {
+          popDamage(victim, `地${terr[c]}目 -${terr[c]}`, 'critical');
+          dstate.hp[victim] = Math.max(0, left[victim]); renderHp(); FX.boom(0.3 + Math.min(0.5, terr[c] / 60));
+        }, Math.max(600, ms - 200));
+      }, 500);
+    }, 1400 + k * 2300));
+    later(() => {
+      if (dstate.hp[WHITE] <= 0) showBigNote('K.O.!!', '#ff3b3b');
+      $('#tut-text').innerHTML = `<span class="tut-ok">⭕ ${q.done}</span>`;
+      tutButtons();
+    }, 1400 + 2 * 2300 + 400);
+  }
+  $('#tut-pass').onclick = tutPass;
+  // クリアしたあと：左は「ホームへ」、右は次のチュートリアル（上級のあとは上級の CPU 戦）
+  function tutFinish(next, label) {
+    tut.finished = next;
+    $('#tut-prev').disabled = false; $('#tut-prev').textContent = '🏠 ホームへ';
+    $('#tut-next').disabled = false; $('#tut-next').textContent = label;
+    $('#tut-hint').hidden = true; $('#tut-pass').hidden = true;
+  }
+  $('#tut-prev').onclick = () => { if (tut.finished) { goTitle(); return; } if (tut.i > 0) tutLoad(tut.i - 1); };
   $('#tut-hint').onclick = () => { tut.hint = tutAnswer(); draw(); };
   $('#tut-next').onclick = () => {
+    if (tut.finished) {
+      const nx = tut.finished; tut.finished = null;
+      if (nx === 'cpu') { // 上級のルールで CPU と戦ってみる（9路・Lv1）
+        goTitle(); HOME_SET.rule.pick('advanced'); $('#opp-chips .chip[data-opp="cpu"]').click();
+        $('#level-chips .chip[data-level="1"]').click(); $('#size-chips .chip[data-size="9"]').click(); $('#btn-start').click();
+      } else openTutorialCourse(nx);
+      return;
+    }
     if (!tut.solved) return;
     if (tut.i < TUT.length - 1) { tutLoad(tut.i + 1); return; }
+    if (TUT === TUT_DESTROY || TUT === TUT_ADV) {
+      const adv = TUT === TUT_ADV;
+      lsSet(adv ? 'destroy-go-tut-a-done' : 'destroy-go-tut-d-done', '1'); track(adv ? 'デストロイ上級のチュートリアルをクリアした' : 'デストロイ初級のチュートリアルをクリアした');
+      showBigNote(adv ? 'デストロイ上級 クリア！' : 'デストロイ初級 クリア！', '#ffd23f');
+      $('#tut-title').textContent = 'クリア！';
+      $('#tut-text').innerHTML = adv ? 'おつかれさま！ 上級のしくみもばっちり。<b>デストロイ上級</b>の CPU 戦で試して、ランクマッチに挑もう！'
+        : 'おつかれさま！ これで HP バトルのしくみはばっちり。次は、ため撃ちなどが加わる<b>デストロイ上級</b>へ進もう！';
+      tutFinish(adv ? 'cpu' : TUT_ADV, adv ? '上級で CPU と戦う ▶' : 'デストロイ上級へ ▶');
+      return;
+    }
     // クリア：ご褒美は BGM「冒険」（10 局遊んでも手に入る）
     try { localStorage.setItem('destroy-go-tut-done', '1'); } catch (e) { /* 無視 */ }
     track('チュートリアルをクリアした');
     unlockBgm('fantasy15', 'チュートリアルをクリアした');
     showBigNote('チュートリアル クリア！', '#ffd23f');
     $('#tut-title').textContent = 'クリア！';
-    $('#tut-text').innerHTML = 'おつかれさま！ これで対局を始められます。まずは「おすすめで始める」（コンピューター Lv1・9路）がおすすめ。タイトルへ戻って遊んでみよう！';
-    $('#tut-next').disabled = true; $('#tut-hint').hidden = true;
+    $('#tut-text').innerHTML = 'おつかれさま！ これで対局を始められます。まずは「おすすめで始める」（コンピューター Lv1・9路）がおすすめ。<br>石を取ると HP が減る<b>デストロイルール</b>は、「📖 チュートリアル」の「デストロイ初級」で覚えられます！';
+    tutFinish(TUT_DESTROY, 'デストロイ初級へ ▶');
   };
-  $('#btn-tutorial').onclick = () => {
-    let from = 0;
-    try { from = Math.min(TUT.length - 1, +(localStorage.getItem('destroy-go-tut') || 0)); } catch (e) { /* 無視 */ }
-    if (from > 0 && !confirmFrom(from)) from = 0;
-    FX.unlock(); startTutorial(from);
-  };
+  // 📖 チュートリアル：「囲碁の基本」か「デストロイルール」を選ぶ（途中までやっていたら続きから）
+  function openTutorialCourse(course) {
+    TUT = course;
+    const from = Math.min(TUT.length - 1, +(lsGet(tutKey()) || 0));
+    FX.unlock(); startTutorial(from > 0 && !confirmFrom(from) ? 0 : from, course);
+  }
+  $('#btn-tutorial').onclick = () => { $('#tut-pick').hidden = false; };
+  $('#tut-pick-basic').onclick = () => { $('#tut-pick').hidden = true; openTutorialCourse(TUT_BASIC); };
+  $('#tut-pick-destroy').onclick = () => { $('#tut-pick').hidden = true; openTutorialCourse(TUT_DESTROY); };
+  $('#tut-pick-adv').onclick = () => { $('#tut-pick').hidden = true; openTutorialCourse(TUT_ADV); };
+  $('#tut-pick-close').onclick = () => { $('#tut-pick').hidden = true; };
   $('#btn-tutorial-sm').onclick = () => $('#btn-tutorial').onclick();
   // はじめての人向けの案内（チュートリアル・おすすめで始める）は、チュートリアルを終えたか 1 局でも遊んだら隠す。
   // チュートリアルは、下の小さいボタンからいつでも開ける
@@ -2624,6 +2795,17 @@
     $('.beginner').hidden = false; $('#btn-tutorial-sm').hidden = true; void seen; // 案内はいつも出す
   }
   renderBeginner();
+  // メンテナンスのお知らせ：始まる前は予告、始まったら「メンテナンス中」。終わったら on を false にする
+  const MAINT = { on: true, start: new Date('2026-10-26T21:30:00+09:00'), label: '10月26日（月）21:30' };
+  function renderMaint() {
+    const el = $('#maint-note');
+    if (!MAINT.on) { el.hidden = true; return; }
+    el.innerHTML = Date.now() < MAINT.start
+      ? `<b>⚠ 緊急メンテナンスのお知らせ</b><br>${MAINT.label} から<br>緊急メンテナンスを行います。<br>一部の機能が使えないことがあります。`
+      : '<b>⚠ ただいま緊急メンテナンス中です</b><br>一部の機能が使えないことがあります。<br>終わりしだいお知らせします。ご迷惑をおかけします。';
+    el.hidden = false;
+  }
+  renderMaint(); setInterval(renderMaint, 60000);
   // はじめて開いた人には、チュートリアルをやるか 1 回だけ聞く（強制はしない。チュートリアルを終えた・1 局でも遊んだ人には出さない）
   (function askTutorial() {
     const ask = !lsGet('destroy-go-tut-asked') && lsGet('destroy-go-tut-done') !== '1' && !(+lsGet('destroy-go-played') > 0);
@@ -2958,7 +3140,7 @@
     return myRating;
   }
   function saveRating() {
-    const { r, n, name, sid, sn } = myRating, cl = dojoTitleLv(), ns = nonstopDone() ? 1 : 0;
+    const { r, n, name, sid, sn } = myRating, { cl, ns } = titleFields();
     Online.setRating({ r, n, name, ...(sid ? { sid, sn } : {}), ...(cl ? { cl } : {}), ...(ns ? { ns } : {}) }).catch(() => {});
   }
   // イロレーティング。最初の 10 局は大きく動かす
@@ -3289,9 +3471,10 @@
         <p class="on-founder on-season">${seasonLine(me, sr)}</p>
         <p class="on-founder">${founderLeft(f)}</p>
         <ol class="on-rank">${rows || '<li class="on-empty">まだ誰もいません</li>'}</ol>
-        <p class="on-me">あなた：${nameHtml(me.name)}${tagHtml(Online.me())}${meIsDev() ? devBadge : founderBadge(f.list[Online.me()] || myFounder)}${seasonBadge(sr, Online.me())}${pioneerBadge(pi.list[Online.me()] || myPioneer)}${dojoBadge(dojoTitleLv())}${nonstopBadge(nonstopDone())}（レート ${me.r}・${me.n}局）</p>
-        ${isDev() ? '' : nameGachaBox(me.name)}<button id="on-back">戻る</button>`);
+        <p class="on-me">あなた：${nameHtml(me.name)}${tagHtml(Online.me())}${meIsDev() ? devBadge : founderBadge(f.list[Online.me()] || myFounder)}${seasonBadge(sr, Online.me())}${pioneerBadge(pi.list[Online.me()] || myPioneer)}${myTitleBadge()}（レート ${me.r}・${me.n}局）</p>
+        ${titlePicker()}${isDev() ? '' : nameGachaBox(me.name)}<button id="on-back">戻る</button>`);
       bindNameGacha();
+      $('#online-body').querySelectorAll('[data-title]').forEach((b) => { b.onclick = () => { lsSet('destroy-go-title', b.dataset.title); if (myRating) saveRating(); showRanking(); }; });
       claimSeason().catch(() => {});
       $('#online-body').querySelectorAll('.on-rank li[data-u]').forEach((li) => { li.onclick = () => showPlayerKifus(li.dataset.u, li.querySelector('b').textContent); });
     } catch (e) { onlineView(`<p class="on-err">${e.message}</p><button id="on-back">戻る</button>`); }
@@ -3618,8 +3801,8 @@
   }
   // ランクマッチの案内：開くまでの条件と、上級ルールで加わること。初めて入る前にも 1 回出す
   const ADV_POINTS = [
-    ['ため撃ち', '長押しで溜めてから打つと、取ったときのダメージが増える（溜めすぎると反動で自分も減る）'],
-    ['背水・カウンター', 'HP が少ないときや、取られた直後に取り返すと強くなる'],
+    ['ため撃ち', '取れる手を長押しして MAX まで溜めるとダメージ 1.5 倍。ただし増えた分だけ自分の HP も減る（反動）。相手を K.O. したときは反動なし'],
+    ['背水・カウンター', '自分の HP が 4 分の 1 以下だと 1.2 倍（背水）。取られた直後に、取りに来た石ごと取り返すと 1.5 倍（カウンター）'],
     ['コンボ', '続けて取ると倍率が上がる'],
     ['ラストスパート', '終盤（2 人の残り時間が少ない・盤が 7 割埋まった）はダメージが増える'],
     ['2眼で回復', '2 眼で取られなくなった石が増えると HP が回復する'],
