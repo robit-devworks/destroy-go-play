@@ -204,24 +204,17 @@
     x.restore();
   }
   const BUILD = {
-    clear(e, x, gx) {
-      for (const p of e.seeds) {
-        if (p.extra) continue;
-        const r = e.cell * (p.main ? 0.62 : 0.55);
-        gouge(x, p.x, p.y, r);
-        for (let i = 0; i < 4; i++) { const a = rnd(0, 6.3), d = r * rnd(1.15, 1.6); x.fillStyle = 'rgba(40,20,6,0.5)'; x.beginPath(); x.arc(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, e.cell * rnd(0.03, 0.06), 0, Math.PI * 2); x.fill(); } // 飛んだ木くず
-        if (e.full) continue; // 大技は真ん中の大きなくぼみに光を集める
-        const glow = gx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 1.3);
-        glow.addColorStop(0, 'rgba(255,255,255,0.4)'); glow.addColorStop(1, 'rgba(255,255,255,0)');
-        gx.fillStyle = glow; gx.beginPath(); gx.arc(p.x, p.y, r * 1.3, 0, Math.PI * 2); gx.fill();
-      }
-      if (e.full) { // 盤の真ん中が大きくえぐり取られ、まわりにえぐった筋が走る
-        const cx = e.center.x, cy = e.center.y, R = S * (e.ti >= 6 ? 0.3 : 0.22);
-        gouge(x, cx, cy, R, 0.07, e.cell * 0.2);
-        const glow = gx.createRadialGradient(cx, cy, 0, cx, cy, R);
-        glow.addColorStop(0, 'rgba(255,255,255,0.3)'); glow.addColorStop(1, 'rgba(255,255,255,0)');
-        gx.fillStyle = glow; gx.fillRect(0, 0, S, S);
-      }
+    clear(e, x, gx) { // 取った石の真ん中に、大きなくぼみを 1 つ（石ごとに並べない）
+      const pts = e.pts.length ? e.pts : e.seeds;
+      let cx = pts.reduce((a, p) => a + p.x, 0) / pts.length, cy = pts.reduce((a, p) => a + p.y, 0) / pts.length;
+      const spread = Math.max(0, ...pts.map((p) => Math.hypot(p.x - cx, p.y - cy)));
+      let r = Math.min(S * 0.3, e.cell * 0.62 + spread * 0.95); // 取った石がだいたい入る大きさ
+      if (e.full) { cx = e.center.x; cy = e.center.y; r = Math.max(r, S * (e.ti >= 6 ? 0.3 : 0.22)); }
+      gouge(x, cx, cy, r, r > e.cell * 2 ? 0.07 : 0.12, Math.min(e.cell * 0.2, r * 0.14));
+      for (let i = 0; i < 5; i++) { const a = rnd(0, 6.3), d = r * rnd(1.12, 1.4); x.fillStyle = 'rgba(40,20,6,0.5)'; x.beginPath(); x.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, e.cell * rnd(0.03, 0.06), 0, Math.PI * 2); x.fill(); } // 飛んだ木くず
+      const glow = gx.createRadialGradient(cx, cy, 0, cx, cy, r * 1.1);
+      glow.addColorStop(0, 'rgba(255,255,255,0.3)'); glow.addColorStop(1, 'rgba(255,255,255,0)');
+      gx.fillStyle = glow; gx.beginPath(); gx.arc(cx, cy, r * 1.1, 0, Math.PI * 2); gx.fill();
     },
     ice(e, x, gx) {
       x.fillStyle = 'rgba(215,245,255,0.32)'; x.fillRect(0, 0, S, S);

@@ -280,6 +280,14 @@
     return curve;
   }
   // 殴った音：パシッという破裂音＋ドゴッという短い打撃音。余韻は残さない
+  // 重低音だけの「ズン」（消滅）：高い音を入れず、低くうなる音と低い地鳴りだけ
+  function deep(power, delay = 0) {
+    sfx((a, t) => {
+      const dur = 0.7 + power * 1.3;
+      tone(a, t, { f0: 62 + power * 18, f1: 24, dur, vol: 0.45 + power * 0.5 });
+      noiseHit(a, t, { dur: dur * 0.8, type: 'lowpass', f0: 220, f1: 50, q: 0.7, vol: 0.2 + power * 0.35 });
+    }, delay);
+  }
   function punch(power, delay = 0) {
     sfx((a, t) => {
       noiseHit(a, t, { dur: 0.018, type: 'highpass', f0: 2500, vol: 0.8 });
@@ -421,7 +429,7 @@
       sfx((a, t) => noiseHit(a, t, { dur: g ? 3.8 : 2.8, f0: 320, f1: 35, q: 0.6, vol: 0.55 }), 0.8);
     },
     dark() {}, // 闇は渦が潰れるときに専用の音（implode）を鳴らす
-    clear(g) { if (g) { chime(0.6, 1.4); return; } suck(1, 0.2); suck(0.8, 0.6); chime(1, 1.1); }, // 吸い込む音が重なって、最後に澄んだ音。ALL CLEAR は静かに 1 音だけ
+    clear(g) { deep(1, g ? 1.9 : 0.9); }, // 時間が動き出すときに、もう一度だけ低く
     light(g) { // 天使の合唱のような和音と、高く昇っていくきらめき
       sfx((a, t) => {
         const dur = g ? 3.4 : 2.4;
@@ -461,7 +469,7 @@
     thunder(p, ti) { crack(p); if (ti >= 3) crack(p, 0.35); },
     dark(p, ti) { suck(p); if (ti >= 3) suck(p * 0.7, 0.3); },
     light(p, ti) { chime(p, 0.15); if (ti >= 3) chime(Math.min(1, p + 0.3), 0.6); },
-    clear(p, ti) { suck(p * 0.7, 0.05); chime(Math.max(0.3, p * 0.8), 0.32); if (ti >= 3) chime(Math.min(1, p + 0.2), 0.7); }, // 吸い込まれて、すっと消える
+    clear(p, ti) { deep(Math.max(0.3, p), 0.28); }, // 重低音だけ。石が消える瞬間に「ズン」
   };
 
   // ---------- 描画レイヤー ----------
@@ -836,7 +844,7 @@
     freezeUntil = performance.now() + ms;
     document.body.classList.add('timestop');
     clearTimeout(timeStop._t); timeStop._t = setTimeout(() => document.body.classList.remove('timestop'), ms);
-    sfx((a, t) => noiseHit(a, t, { dur: 0.08, type: 'highpass', f0: 3000, q: 0.7, vol: 0.5 })); // 「カチッ」と止まる音
+    sfx((a, t) => tone(a, t, { f0: 48, f1: 30, dur: 0.35, vol: 0.5 })); // 止まる瞬間の、低い「ドン」
   } // 一度に追いつくのは 0.1 秒ぶんまで（止まっていたあとに一気に飛ばないように）
   let lastT = 0, carry = 0;
   function loop(now) {
@@ -1468,7 +1476,7 @@
     if (!c.quiet) {
       // 大技の音はテーマごと（以前は全テーマ共通で爆発音を 2 発鳴らしていた）
       if (ti >= ULTRA) (THEME_BIG_SOUND[themeKey] || (() => {}))(ti >= GOD);
-      if (!calm) [523, 659, 784, 1047, 1319, 1568, 2093].slice(0, ti + 1).forEach((f, i) => blip(f, 0.1, 'square', 0.08, i * 0.06));
+      if (!calm && !theme.calmGod) [523, 659, 784, 1047, 1319, 1568, 2093].slice(0, ti + 1).forEach((f, i) => blip(f, 0.1, 'square', 0.08, i * 0.06)); // 消滅は高い音を鳴らさない
     }
   }
 

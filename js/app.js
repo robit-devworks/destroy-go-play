@@ -100,7 +100,9 @@
   try { for (const k of JSON.parse(localStorage.getItem('destroy-go-unlocks') || '[]')) if (SECRETS[k] || SEASON_REWARDS[k]) secretUnlocked.add(k); } catch (e) { /* 無視 */ }
   // 開発者はテストのため、ランダムマッチ・ランクマッチ以外（フレンド戦・この端末・プレビュー）ならシーズン報酬も使える
   let rankedNow = false;
-  const devHere = () => { try { if (localStorage.getItem('destroy-go-dev') === '1') return true; } catch (e) { /* 無視 */ } return !!(window.Online && Online.me() === 'RBJU7o2rpuTScawapNfCBFPXHhj2'); };
+  // 開発者の ID でオンラインに入ったら、この端末に開発者の印を残す（次に開いたときは、最初から取った人だけの演出もテストで選べる）
+  const markDev = () => { try { if (localStorage.getItem('destroy-go-dev') === '1') return; localStorage.setItem('destroy-go-dev', '1'); localStorage.setItem('skipgc', 't'); } catch (e) { return; } setTimeout(() => refreshThemeChoices(), 0); };
+  const devHere = () => { if (window.DESTROY_GO_DEV) return true; /* 自分用の確認ページ（Artifact）では開発者として動かす */ try { if (localStorage.getItem('destroy-go-dev') === '1') return true; } catch (e) { /* 無視 */ } const d = !!(window.Online && Online.me() === 'RBJU7o2rpuTScawapNfCBFPXHhj2'); if (d) markDev(); return d; };
   const unlocked = (key) => (SEASON_REWARDS[key] ? secretUnlocked.has(key) || (!rankedNow && devHere()) : !FREE || ED.freeThemes.includes(key) || secretUnlocked.has(key));
   const themeKeys = () => FX.themes.map((t) => t.key).filter(unlocked);
   const themeOf = (key) => FX.themes.find((t) => t.key === key) || FX.themes[0];
@@ -451,6 +453,7 @@
       box.appendChild(chip);
     });
   });
+  updatePreviewThemes();
   }
   buildThemeChips();
   // ---------- BGM（音楽：魔王魂 https://maou.audio/ 商用利用可） ----------
@@ -561,8 +564,9 @@
   }
   buildBgmChips();
   // 演出の選択肢（設定とプレビュー）を、解放したものに合わせて作り直す
-  function refreshThemeChoices() {
-    buildThemeChips(); renderThemes();
+  function refreshThemeChoices() { buildThemeChips(); renderThemes(); }
+  // 演出プレビューの選択肢も、演出の選択肢と同じものを出す（解放・開発者と分かったときなどに作り直す）
+  function updatePreviewThemes() {
     document.querySelectorAll('#pv-themes button').forEach((b) => {
       b.textContent = themeOf(b.dataset.key).label + (unlocked(b.dataset.key) ? '' : '🔒');
       b.hidden = !!SEASON_REWARDS[b.dataset.key] && !unlocked(b.dataset.key);
@@ -2942,7 +2946,7 @@
   // （ほかの人が名乗れないよう、Firebase のルールで「ROBIT」「開発」が入った名前は開発者の端末しか書けない）
   const DEV_NAME = 'ROBIT（開発者）';
   // 開発者：この端末で destroy-go-dev を '1' にしたか、引き継ぎコードで開発者の記録に切り替えた端末
-  const isDev = () => { try { if (localStorage.getItem('destroy-go-dev') === '1') return true; } catch (e) { /* 無視 */ } return Online.me() === 'RBJU7o2rpuTScawapNfCBFPXHhj2'; };
+  const isDev = () => devHere();
   let myRating = null; // { r, n, name }（オンライン対戦の画面を開いたときに読む）
   async function loadRating() {
     if (myRating) return myRating;
