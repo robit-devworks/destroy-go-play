@@ -534,6 +534,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .dj-floors.abyss .dj-lv { color: #d8b8ff; }
 .dj-hd { color: #b8a0d8 !important; }
 .dj-abyss-open { color: #d8b8ff; }
+.badge-f.badge-dojo.dj-ns { color: #fff2c0; background: linear-gradient(90deg, #8a4a00, #e09a1a, #8a4a00); border-color: #ffd27a; }
+.dj-ns-card { display: block; margin: 6px auto 0; background: linear-gradient(#ffe27a, #e09a1a); color: #2a1400; border-color: #fff2b0; }
 .badge-f.badge-dojo.dj-18 { color: #f0e0ff; background: linear-gradient(90deg, #3a0a6a, #7a2ac8, #3a0a6a); background-size: 200% 100%; border-color: #c890ff; animation: dj-shine 3s linear infinite; font-weight: 900; }
 .dj-help { font-size: 11px; color: var(--muted); text-align: center; line-height: 1.6; margin: 10px 0; }
 .dj-gauntlet { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%; padding: 10px; border-radius: 999px; border: 0; font: inherit;

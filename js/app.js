@@ -1799,6 +1799,10 @@
   let gauntlet = null; // ノンストップ潜行：{ lv: 今の階, next: 勝って次に進む階 }
   let dojoNext = 0; // 迷宮で勝ったとき、「次の階へ」で進む階
   const starsText = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
+  // ノンストップ潜行で B9F まで勝ち抜いた人の称号（迷宮の階の称号とは別に、名前の横に並べて出す）
+  const NONSTOP_TITLE = '不屈の潜行者';
+  const nonstopDone = () => dojo.best >= 9;
+  const nonstopBadge = (ns) => (ns ? `<i class="badge-f badge-dojo dj-ns" title="ノンストップ潜行で B9F まで勝ち抜いた">${NONSTOP_TITLE}</i>` : '');
   const dojoBadge = (lv) => (DOJO_TITLES[lv] ? `<i class="badge-f badge-dojo dj-${lv}" title="${lv === 10 ? '破壊の迷宮 全階 ★3' : `破壊の迷宮 B${lv}F 撃破`}">${DOJO_TITLES[lv]}</i>` : '');
   // 星：勝つと ★1、待ったなしで ★2、さらに圧勝（KO・中押し・10 目以上）で ★3。置き石をもらったときは ★1 まで
   function dojoStars(title) {
@@ -1881,9 +1885,11 @@
       if (win && lv < 9) { gauntlet.next = lv + 1; $('#btn-again').textContent = `▼ 次の階へ：B${lv + 1}F ${BOSSES[lv + 1]}`; html += `<p class="dj-g">🔥 ノンストップ潜行：B${lv}F 突破</p>`; }
       else {
         const n = win ? 9 : lv - 1;
-        const best = n > dojo.best;
+        const best = n > dojo.best, firstNs = n >= 9 && !nonstopDone();
         if (best) { dojo.best = n; saveDojo(); syncProfile(); }
         html += `<p class="dj-g">${n >= 9 ? '👑 ノンストップで最深部まで制覇！' : `🔥 ノンストップ潜行 終了：${n ? `B${n}F まで突破` : 'B1F で力尽きた'}`}${best ? '<b>自己ベスト</b>' : ''}</p>`;
+        if (firstNs) { html += `<p class="dj-title dj-master">🏅 称号「${NONSTOP_TITLE}」を手に入れた！<small>ランキングで名前の横に出ます</small></p>`; if (myRating) saveRating(); }
+        if (n >= 9) html += `<button id="dj-ns-card" class="dj-card dj-ns-card">📷 制覇カードをシェア</button>`;
         gauntlet = null;
       }
     }
@@ -1892,6 +1898,7 @@
     if (nextLv && nextLv <= 9) html += `<div class="dj-rule dj-next-rule"><span>次のルール</span>${HOME_SET.rule.list().map(([v, label]) => `<button class="chip rule-chip" data-v="${v}" aria-pressed="${v === HOME_SET.rule.now()}">${label}</button>`).join('')}</div>`;
     box.innerHTML = html; box.hidden = false;
     if (win) $('#dj-card').onclick = () => dojoCard(lv, shown);
+    if ($('#dj-ns-card')) $('#dj-ns-card').onclick = () => nonstopCard();
     if ($('#dj-retry')) $('#dj-retry').onclick = () => { $('#modal').classList.remove('show'); dojoNext = 0; startDojo(lv); };
     box.querySelectorAll('.dj-next-rule .chip').forEach((b) => { b.onclick = () => { HOME_SET.rule.pick(b.dataset.v); box.querySelectorAll('.dj-next-rule .chip').forEach((c) => c.setAttribute('aria-pressed', c.dataset.v === HOME_SET.rule.now())); }; });
     renderDojoHome();
@@ -1924,6 +1931,34 @@
     openShare(blob, `destroy-go-lv${lv}.png`, true, `デストロイ碁の破壊の迷宮で「B${lv}F ${BOSSES[lv]}」を撃破！${starsText(stars)} https://${PLAY_URL}/?ref=share #デストロイ碁 #囲碁`);
     $('#share-dmg-row').hidden = true;
   }
+  // ノンストップ潜行の制覇カード：金色の背景に「ノンストップ制覇」。B1F〜B9F のボスを並べる
+  async function nonstopCard() {
+    try { await document.fonts.load("80px 'Dela Gothic One'"); } catch (e) { /* 無視 */ }
+    const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
+    const x = c.getContext('2d');
+    const bg = x.createRadialGradient(W / 2, H * 0.4, 40, W / 2, H * 0.4, H * 0.85);
+    bg.addColorStop(0, '#fff2b0'); bg.addColorStop(0.25, '#e0a52a'); bg.addColorStop(0.6, '#5a3208'); bg.addColorStop(1, '#140a02');
+    x.fillStyle = bg; x.fillRect(0, 0, W, H);
+    x.save(); x.translate(W / 2, H * 0.4); x.globalAlpha = 0.18; x.fillStyle = '#fff'; // 放射状の光
+    for (let i = 0; i < 24; i++) { x.rotate(Math.PI / 12); x.beginPath(); x.moveTo(0, 0); x.lineTo(-60, -H); x.lineTo(60, -H); x.closePath(); x.fill(); }
+    x.restore();
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    const ink = (font, text, y, fill, stroke = '#2a1400', lw = 14) => { x.font = font; x.lineWidth = lw; x.strokeStyle = stroke; x.lineJoin = 'round'; x.strokeText(text, W / 2, y); x.fillStyle = fill; x.fillText(text, W / 2, y); };
+    ink("76px 'Dela Gothic One', sans-serif", 'デストロイ碁', 110, '#fff6c8', '#3a1a00', 12);
+    ink("bold 46px sans-serif", '破壊の迷宮', 230, '#fff', '#3a1a00', 10);
+    ink("150px 'Dela Gothic One', sans-serif", 'ノンストップ', 420, '#fff', '#3a1a00', 20);
+    ink("190px 'Dela Gothic One', sans-serif", '制覇！', 620, '#ffe24a', '#3a1a00', 22);
+    ink("bold 44px sans-serif", 'B1F〜B9F を負けずに連続撃破', 800, '#fff', '#3a1a00', 10);
+    x.font = "bold 30px sans-serif"; x.fillStyle = '#fff6c8';
+    for (let i = 1; i <= 9; i++) { const col = (i - 1) % 3, row = Math.floor((i - 1) / 3); x.fillText(`B${i}F ${BOSSES[i]}`, W / 2 + (col - 1) * 330, 900 + row * 52); }
+    ink("bold 50px sans-serif", `称号「${NONSTOP_TITLE}」`, 1110, '#ffe24a', '#3a1a00', 10);
+    x.font = "bold 34px sans-serif"; x.fillStyle = '#fff6c8'; x.fillText(PLAY_URL, W / 2, H - 70);
+    x.font = "26px sans-serif"; x.fillStyle = 'rgba(255,255,255,0.75)'; x.fillText('#デストロイ碁 #囲碁　© ROBIT', W / 2, H - 28);
+    const blob = await toPng(c);
+    shareVideoDmg = null; shareImgs = null;
+    openShare(blob, 'destroy-go-nonstop.png', true, `デストロイ碁の破壊の迷宮を、ノンストップで最深部まで制覇！（称号「${NONSTOP_TITLE}」） https://${PLAY_URL}/?ref=share #デストロイ碁 #囲碁`);
+    $('#share-dmg-row').hidden = true;
+  }
   // 迷宮の画面：B1F〜B9F を上から下へ（階段を下りる）。押すとその階のボスと対局。ルールもここで選べる。ノンストップ潜行もここから
   function openDojo() {
     const next = [1, 2, 3, 4, 5, 6, 7, 8, 9].find((lv) => !dojoCleared(lv));
@@ -1941,7 +1976,7 @@
       <div class="dj-floors abyss">${abyssRows()}</div>` : '<div class="dj-abyss-lock">🔒 B9F の先に、何かがある…</div>'}
       <p class="dj-goal${dojoAll3() ? ' got' : ''}">👑 B1F〜B9F を全部 ★3 で特別な称号：<b>${dojoAll3() ? DOJO_TITLES[10] : '？？？'}</b>（★ ${[1, 2, 3, 4, 5, 6, 7, 8, 9].reduce((t, lv) => t + (dojo.stars[lv] || 0), 0)} / 27）</p>
       <p class="dj-help">★1 勝つ　★2 待ったなしで勝つ　★3 さらに KO・中押し・10目以上の大差<br>碁盤・持ち時間は「対局の設定」のまま</p>
-      <button id="dj-gauntlet" class="dj-gauntlet">🔥 ノンストップ潜行<small>B1F から負けるまで休まず潜る（9路）。自己ベスト：${dojo.best ? `B${dojo.best}F` : 'まだなし'}</small></button>`;
+      <button id="dj-gauntlet" class="dj-gauntlet">🔥 ノンストップ潜行<small>B1F から負けるまで休まず潜る（9路）。自己ベスト：${dojo.best ? `B${dojo.best}F` : 'まだなし'}<br>${nonstopDone() ? `🏅 称号「${NONSTOP_TITLE}」獲得済み` : '🏅 B9F まで勝ち抜くと称号がもらえる'}</small></button>`;
     $('#dojo-body').querySelectorAll('.dj-stage').forEach((b) => { b.onclick = () => startDojo(+b.dataset.lv); });
     $('#dojo-body').querySelectorAll('.dj-rule .chip').forEach((b) => { b.onclick = () => { HOME_SET.rule.pick(b.dataset.v); openDojo(); }; });
     $('#dj-gauntlet').onclick = () => { $('#size-chips .chip[data-size="9"]').click(); startDojo(1, true); };
@@ -2901,8 +2936,8 @@
     return myRating;
   }
   function saveRating() {
-    const { r, n, name, sid, sn } = myRating, cl = dojoTitleLv();
-    Online.setRating({ r, n, name, ...(sid ? { sid, sn } : {}), ...(cl ? { cl } : {}) }).catch(() => {});
+    const { r, n, name, sid, sn } = myRating, cl = dojoTitleLv(), ns = nonstopDone() ? 1 : 0;
+    Online.setRating({ r, n, name, ...(sid ? { sid, sn } : {}), ...(cl ? { cl } : {}), ...(ns ? { ns } : {}) }).catch(() => {});
   }
   // イロレーティング。最初の 10 局は大きく動かす
   function eloNext(me, opp, win) {
@@ -3199,12 +3234,12 @@
     onlineView('<p class="on-wait">ランキングを読み込んでいます</p>');
     try {
       const [list, me, f, sr] = await Promise.all([Online.topRatings(50), loadRating(), loadFounders(), loadSeason()]);
-      const rows = list.map((v, i) => `<li data-u="${v.u}"${v.u === Online.me() ? ' class="on-mine"' : ''}><span>${i + 1}</span><span class="rk-name">${nameHtml(v.name)}<span class="rk-sub">${tagHtml(v.u)}${v.u === DEV_UID || (v.u === Online.me() && isDev()) ? devBadge : founderBadge(f.list[v.u], true)}${seasonBadge(sr, v.u)}${dojoBadge(v.cl)}</span></span><span>${v.r}</span><small>${v.n || 0}局</small></li>`).join('');
+      const rows = list.map((v, i) => `<li data-u="${v.u}"${v.u === Online.me() ? ' class="on-mine"' : ''}><span>${i + 1}</span><span class="rk-name">${nameHtml(v.name)}<span class="rk-sub">${tagHtml(v.u)}${v.u === DEV_UID || (v.u === Online.me() && isDev()) ? devBadge : founderBadge(f.list[v.u], true)}${seasonBadge(sr, v.u)}${dojoBadge(v.cl)}${nonstopBadge(v.ns)}</span></span><span>${v.r}</span><small>${v.n || 0}局</small></li>`).join('');
       onlineView(`<p class="on-set">ランクマッチ（上級・9路）のレート上位 50 人。名前を押すと、直近 5 局の棋譜が見られます</p>
         <p class="on-founder on-season">${seasonLine(me, sr)}</p>
         <p class="on-founder">${founderLeft(f)}</p>
         <ol class="on-rank">${rows || '<li class="on-empty">まだ誰もいません</li>'}</ol>
-        <p class="on-me">あなた：${nameHtml(me.name)}${tagHtml(Online.me())}${meIsDev() ? devBadge : founderBadge(f.list[Online.me()] || myFounder)}${seasonBadge(sr, Online.me())}${dojoBadge(dojoTitleLv())}（レート ${me.r}・${me.n}局）</p>
+        <p class="on-me">あなた：${nameHtml(me.name)}${tagHtml(Online.me())}${meIsDev() ? devBadge : founderBadge(f.list[Online.me()] || myFounder)}${seasonBadge(sr, Online.me())}${dojoBadge(dojoTitleLv())}${nonstopBadge(nonstopDone())}（レート ${me.r}・${me.n}局）</p>
         ${isDev() ? '' : nameGachaBox(me.name)}<button id="on-back">戻る</button>`);
       bindNameGacha();
       claimSeason().catch(() => {});
