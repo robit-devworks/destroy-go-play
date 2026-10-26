@@ -217,7 +217,7 @@
   function renderHome() {
     if (!homeReady) return;
     const rule = mode === 'destroy' ? `デストロイ${dAdvanced ? '上級' : '初級'}` : 'ふつうの囲碁';
-    $('#start-summary').textContent = [opponent === 'cpu' ? `CPU Lv${cpuLevel}` : '2人で対局', `${SIZE}路`, rule, `${minutes()}分`].join('・');
+    $('#start-summary').textContent = [opponent === 'cpu' ? `CPU Lv${cpuLevel}` : '2人で対局', `${SIZE}路`, rule, timeText()].join('・');
     $('#q-cpu').setAttribute('aria-pressed', opponent === 'cpu');
     $('#q-human').setAttribute('aria-pressed', opponent !== 'cpu');
     renderHomeSet();
@@ -232,7 +232,7 @@
       pick: (v) => { $(`#mode-chips .chip[data-mode="${v === 'go' ? 'go' : 'destroy'}"]`).click(); if (v !== 'go') $(`#dlevel-chips .chip[data-level="${v}"]`).click(); } },
     lv: { list: () => [1, 2, 3, 4, 5, 6, 7, 8, 9].map((lv) => [lv, String(lv)]), now: () => cpuLevel, pick: (v) => $(`#level-chips .chip[data-level="${v}"]`).click() },
     size: { list: () => Object.keys(BOARDS).sort((a, b) => b - a).map((n) => [+n, `${n}路`]), now: () => SIZE, pick: (v) => $(`#size-chips .chip[data-size="${v}"]`).click() },
-    time: { list: () => TIME_CHOICES.map((t) => [t, t === 'auto' ? `おすすめ（${AUTO_MINUTES[SIZE]}分）` : `${t}分`]), now: () => timeChoice, pick: (v) => $(`#time-chips .chip[data-time="${v}"]`).click() },
+    time: { list: () => TIME_CHOICES.map((t) => [t, t === 'auto' ? `おすすめ（${AUTO_MINUTES[SIZE]}分）` : t === 'off' ? 'なし' : `${t}分`]), now: () => timeChoice, pick: (v) => $(`#time-chips .chip[data-time="${v}"]`).click() },
   };
   function renderHomeSet() {
     const box = $('#home-set');
@@ -290,10 +290,12 @@
 
   // 持ち時間：おすすめ（碁盤の大きさに合わせる）か、分数を選ぶ。上限も同じ時間
   const AUTO_MINUTES = { 19: 7, 13: 5, 9: 3 };
-  const TIME_CHOICES = ['auto', 3, 5, 7, 10];
+  const TIME_CHOICES = ['auto', 3, 5, 7, 10, 'off']; // off：持ち時間なし（この端末で遊ぶときだけ。オンラインでは使わない）
   let timeChoice = 'auto';
-  try { const t = localStorage.getItem('destroy-go-time'); if (t && TIME_CHOICES.includes(t === 'auto' ? t : +t)) timeChoice = t === 'auto' ? t : +t; } catch (e) { /* 無視 */ }
-  const minutes = () => (timeChoice === 'auto' ? AUTO_MINUTES[SIZE] : timeChoice);
+  try { const t = localStorage.getItem('destroy-go-time'); const v = t === 'auto' || t === 'off' ? t : +t; if (t && TIME_CHOICES.includes(v)) timeChoice = v; } catch (e) { /* 無視 */ }
+  const minutes = () => (timeChoice === 'auto' || timeChoice === 'off' ? AUTO_MINUTES[SIZE] : timeChoice);
+  const timeOff = () => timeChoice === 'off';
+  const timeText = () => (timeOff() ? '時間なし' : `${minutes()}分`);
   TIME_CHOICES.forEach((t) => {
     const chip = document.createElement('button');
     chip.className = 'chip rule-chip'; chip.dataset.time = t;
@@ -316,9 +318,9 @@
 
   function renderRules() {
     document.querySelectorAll('#time-chips .chip').forEach((c) => {
-      const t = c.dataset.time === 'auto' ? 'auto' : +c.dataset.time;
+      const t = c.dataset.time === 'auto' || c.dataset.time === 'off' ? c.dataset.time : +c.dataset.time;
       c.setAttribute('aria-pressed', t === timeChoice);
-      c.textContent = t === 'auto' ? `おすすめ（${AUTO_MINUTES[SIZE]}分）` : `${t}分`;
+      c.textContent = t === 'auto' ? `おすすめ（${AUTO_MINUTES[SIZE]}分）` : t === 'off' ? 'なし' : `${t}分`;
     });
     document.querySelectorAll('#rule-chips .chip').forEach((c) => c.setAttribute('aria-pressed', c.dataset.key === rules));
     document.querySelectorAll('#size-chips .chip').forEach((c) => c.setAttribute('aria-pressed', +c.dataset.size === SIZE));
@@ -329,7 +331,7 @@
   function setupSummary() {
     const hc = effectiveHandicap();
     const parts = [mode === 'destroy' ? `デストロイ（${dAdvanced ? '上級' : '初級'}）` : 'ふつうの囲碁',
-      opponent === 'cpu' ? `CPU Lv${cpuLevel}` : '2人', `${SIZE}路`, `${minutes()}分`];
+      opponent === 'cpu' ? `CPU Lv${cpuLevel}` : '2人', `${SIZE}路`, timeText()];
     if (hc) parts.push(`置き石${hc}`);
     if (mode === 'destroy' && hpBonus) parts.push(`${NAMES[hpBonusColor]}HP+${hpBonus * 100}%`);
     parts.push(`黒:${themeOf(themes[BLACK]).label} 白:${themeOf(themes[WHITE]).label}`);
@@ -1027,7 +1029,7 @@
   function goRulesHTML() {
     const rows = [
       ['打つ順', '黒番から（置き石があるときは白番から）'],
-      ['持ち時間', `おすすめ ${[9, 13, 19].map((z) => `${z}路 ${AUTO_MINUTES[z]}分`).join('・')}（設定で${TIME_CHOICES.filter((t) => t !== 'auto').join('・')}分にも変えられる）`],
+      ['持ち時間', `おすすめ ${[9, 13, 19].map((z) => `${z}路 ${AUTO_MINUTES[z]}分`).join('・')}（設定で${TIME_CHOICES.filter((t) => typeof t === 'number').join('・')}分や「なし」にも変えられる）`],
       ['勝ち負け', Object.keys(RULES).map((k) => `${RULES[k].label}：${RULE_DESC[k]}`).join('<br>')],
       ['コミ', `${Object.keys(RULES).map((k) => `${RULES[k].label} ${RULES[k].komi}目`).join('・')}（置き石ありは0.5目）`],
     ];
@@ -2131,7 +2133,7 @@
       el.classList.toggle('active', active);
       el.classList.toggle('low', active && rem <= 30000);
       el.classList.toggle('over-grace', active && clock.graceLeft() <= 0);
-      el.querySelector('.time').textContent = fmt(rem);
+      el.querySelector('.time').textContent = clock.unlimited ? '∞' : fmt(rem); // 持ち時間なし
       el.querySelector('.cap').textContent = game.captures[color];
       const ratio = active ? clock.graceLeft() / clock.grace : 0;
       el.querySelector('.grace-bar').style.width = (ratio * 100) + '%';
@@ -2208,7 +2210,7 @@
   function newGame() {
     bgmPick = null; playBgm(); // ランダムなら対局ごとに選び直す
     game = new GoGame(SIZE, rules);
-    clock = new GoClock({ base: (net ? net.min : minutes()) * 60 * 1000 });
+    clock = new GoClock({ base: (net ? net.min : minutes()) * 60 * 1000, unlimited: !net && timeOff() });
     $('#btn-result').hidden = true; $('#btn-again').hidden = false; $('#btn-again').disabled = false;
     $('#btn-undo').hidden = $('#btn-pause').hidden = !!net; // オンライン対戦では待った・一時停止はなし
     if (net) Object.assign(net, { zeroAt: 0, again: {}, out: null, deadIn: null, deadWait: null, peerLeft: false, gone: false, nextOnly: false });

@@ -7,8 +7,10 @@
   'use strict';
 
   class GoClock {
-    constructor({ base = 7 * 60 * 1000, grace = 5000, now = () => performance.now() } = {}) {
+    // unlimited：持ち時間なし（CPU 戦などで時計を使わない）。残り時間は減らず、時間切れにもならない
+    constructor({ base = 7 * 60 * 1000, grace = 5000, now = () => performance.now(), unlimited = false } = {}) {
       this.base = base;
+      this.unlimited = unlimited;
       this.grace = grace;
       this.now = now;
       this.remain = { 1: base, 2: base };
@@ -32,11 +34,11 @@
       return Math.max(0, t - this.turnStart);
     }
 
-    graceLeft() { return Math.max(0, this.grace - this.elapsed()); }
+    graceLeft() { return this.unlimited ? this.grace : Math.max(0, this.grace - this.elapsed()); }
 
     // 表示用の残り時間
     remaining(color) {
-      if (!this.running || color !== this.turn) return this.remain[color];
+      if (this.unlimited || !this.running || color !== this.turn) return this.remain[color];
       return Math.max(0, this.remain[color] - Math.max(0, this.elapsed() - this.grace));
     }
 
@@ -44,6 +46,7 @@
 
     // 着手（パス含む）で手番終了。加減算した量（ms）を返す
     endTurn(nextTurn, delay = 0) {
+      if (this.unlimited) { this.start(nextTurn, delay); return 0; }
       const e = this.elapsed();
       const before = this.remain[this.turn];
       const delta = e <= this.grace ? this.grace - e : -(e - this.grace);
