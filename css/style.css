@@ -1007,7 +1007,11 @@ body.timestop #stage, body.timestop #fx { filter: grayscale(1) contrast(1.35); }
 /* ホームのランダムマッチ・ランクマッチに出す、今いる人の数 */
 .on-item .on-live { font-style: normal; font-size: 11px; font-weight: 800; letter-spacing: 0; color: #7dffb0; background: rgba(60, 220, 130, 0.14); border: 1px solid rgba(60, 220, 130, 0.45); border-radius: 999px; padding: 1px 8px; align-self: center; white-space: nowrap; }
 .on-item .on-live[hidden] { display: none; }
-.on-item .on-live.zero { color: #b9aed0; background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.15); }
+.on-item .on-live.hot { color: #fff; background: linear-gradient(180deg, #ff6a3d, #d4001a); border-color: transparent; animation: live-hot 1.2s ease-in-out infinite; }
+#title .on-item.hot-btn > span { display: none; }
+#title .on-item.hot-btn::after { margin-left: auto; }
+#title .on-item.hot-btn { border-color: rgba(255, 106, 61, 0.7); }
+@keyframes live-hot { 50% { box-shadow: 0 0 10px rgba(255, 106, 61, 0.8); } }
 /* CPU 戦の間の「相手を探しています」・対局中の観戦の人数 */
 .float-pill { position: fixed; left: 50%; transform: translateX(-50%); top: max(8px, env(safe-area-inset-top)); z-index: 30; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #ffe7a8; background: rgba(20, 10, 30, 0.85); border: 1px solid rgba(255, 210, 63, 0.5); pointer-events: none; white-space: nowrap; }
 .float-pill[hidden] { display: none; }

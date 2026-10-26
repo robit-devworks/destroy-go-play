@@ -2591,7 +2591,7 @@
       text: '<b>上級</b>（ランクマッチのルール）は、初級に<b>ダメージが増える決まり</b>と<b>回復</b>が加わります。ため撃ち・背水・カウンター・コンボ・ラストスパート・2眼で回復。1 つずつ打って確かめよう' },
     { title: 'ため撃ち', type: 'play', charge: true, hp: {}, adv: true, b: [[2, 4], [5, 4], [3, 3], [4, 3], [3, 5]], w: [[3, 4], [4, 4]], answer: [4, 5],
       text: '取れる場所を<b>長押し</b>して溜めよう。ゲージが MAX になると自動で打ちます。<b>ダメージ 1.5 倍</b>！ ただし……',
-      done: '2 子×2 = 4 が、ため撃ちで <b>6</b> に。でも<b>増えた 2 の分だけ、自分の HP も減ります（反動）</b>。ふだんの撃ち合いでは、相手との HP の差は溜めなくても同じです' },
+      done: '2 子×2 = 4 が、ため撃ちで <b>6</b> に。でも<b>増えた 2 の分だけ、自分の HP も減ります（反動）</b>。使いどころは次で試そう' },
     { title: 'ため撃ちでとどめ', type: 'play', charge: true, hp: { w: 5 }, adv: true, b: [[2, 4], [5, 4], [3, 3], [4, 3], [3, 5]], w: [[3, 4], [4, 4]], answer: [4, 5],
       text: '白の HP は残り 5。ふつうに取ると 4 ダメージで足りない。<b>長押しで溜めて</b>、とどめを刺そう',
       done: '<b>K.O.!!</b> 相手を K.O. したときは<b>反動を受けません</b>。ため撃ちは<b>とどめの一撃</b>に使うのが得です' },
@@ -3928,7 +3928,7 @@
     track('観戦の一覧を開いた');
     openOnline(); watchList();
   };
-  // ホームのランダムマッチ・ランクマッチに、いま探している人と対戦中の数を出す（ホームを見ている間、30 秒ごと）
+  // ホームのランダムマッチ・ランクマッチに、相手が待っているか・対戦中の数を出す（ホームを見ている間、30 秒ごと）
   let liveCountAt = 0;
   async function renderLiveCount() {
     if (!Online.available() || phase !== 'title' || document.hidden || Date.now() - liveCountAt < 25000) return;
@@ -3936,9 +3936,11 @@
     let c;
     try { c = await Online.peek(); } catch (e) { return; }
     for (const k of ['random', 'rank']) {
-      const el = $('#live-' + k), v = c[k], n = v.wait + v.live * 2;
-      el.textContent = n ? `🟢 ${v.wait ? `${v.wait}人待ち` : ''}${v.wait && v.live ? '・' : ''}${v.live ? `${v.live}試合中` : ''}` : '0人';
-      el.classList.toggle('zero', !n); el.hidden = false;
+      // 人数は出さない（人が少ないうちは「0人」が多く、いなくなった人が数から消えるのも遅いため）。待っている人がいるときだけ目立たせる
+      const el = $('#live-' + k), v = c[k];
+      el.textContent = v.wait ? '🔥 相手が待っています！' : v.live ? `🟢 ${v.live}試合中` : '';
+      el.classList.toggle('hot', !!v.wait); el.hidden = !v.wait && !v.live;
+      el.parentElement.classList.toggle('hot-btn', !!v.wait); // 右の小さい説明は隠して、目立たせる
     }
     const g = c.random.live + c.rank.live;
     $('#watch-top-note').textContent = g ? `🟢 ${g}試合 対戦中` : '対戦中の試合を見る';
