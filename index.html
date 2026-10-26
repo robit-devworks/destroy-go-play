@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Black+Ops+One&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=20261026131121">
+  <link rel="stylesheet" href="css/style.css?v=20261026144844">
 </head>
 <body>
   <div id="stage">
@@ -30,19 +30,22 @@
         <h1 class="logo" data-text="デストロイ碁">デストロイ碁</h1>
         <p class="sublogo">DESTROY GO</p>
       </div>
+      <!-- 全画面にする（元の場所）。⚙ 設定はその横の小さいアイコン -->
+      <div class="fs-row"><button id="btn-fs-title" class="fs-btn fs-big">⛶ 全画面にする</button><button id="btn-settings" class="home-gear" title="設定" aria-label="設定">⚙</button></div>
 
-      <button id="btn-fs-title" class="fs-btn fs-big">⛶ 全画面にする</button>
-      <!-- この端末で遊ぶ：CPU 戦・2 人で対局（ルールなどは ⚙ 設定） -->
-      <div class="home-sec">
-        <p class="sec-title"><span>この端末で遊ぶ</span></p>
+      <!-- 🏠 ホーム：破壊の迷宮・CPU と対戦・オンライン・チュートリアル -->
+      <div class="tab-pane" data-pane="home">
         <!-- 破壊の迷宮（CPU のボスを倒して下へ潜る）。石の壁とたいまつの見た目 -->
-        <button id="btn-dojo" class="dungeon-btn"><i class="dg-torch l"><i class="dg-fire"></i></i><span class="dg-text"><b>破壊の迷宮</b><small id="dojo-note"></small><span class="dg-go">潜る ▼</span></span><i class="dg-torch r"><i class="dg-fire"></i></i></button>
-        <button id="btn-start" class="start-item"><b>対局開始</b><small id="start-summary"></small></button>
-        <div class="quick"><button id="q-cpu">CPUと</button><button id="q-human">2人で</button><button id="btn-settings">⚙ 設定</button></div>
-        <!-- 対局の設定：よく変えるものはここで選べる（たたむこともできる）。細かい設定は ⚙ 設定 -->
+        <button id="btn-dojo" class="dungeon-btn"><i class="dg-torch l"><i class="dg-fire"></i></i><span class="dg-text"><b>破壊の迷宮</b><small id="dojo-note"></small><span class="dg-go">潜る ▼</span></span><i class="dg-torch r"><i class="dg-fire"></i></i><em class="card-tag">CPU戦</em></button>
+        <!-- ローカルマッチ：この端末で 2 人で対戦（CPU 戦は破壊の迷宮で）。「変える」で対局の設定をひらく -->
+        <div class="local-card">
+          <button id="btn-local" class="local-btn"><b>👥 ローカルマッチ</b><small id="start-summary"></small><span class="local-go">対戦する ▶</span></button>
+          <button id="hs-toggle" class="card-tag local-chg"><span id="hs-ar">ルール変更</span></button>
+        </div>
+        <button id="btn-start" hidden></button>
         <div class="home-set" id="home-set">
-          <button class="hs-head" id="hs-toggle"><span class="hs-t">対局の設定</span><span class="hs-s" id="hs-sum"></span><span class="hs-ar" id="hs-ar"></span></button>
           <div class="hs-body" id="hs-body">
+            <div class="quick" hidden><button id="q-cpu">CPUと</button><button id="q-human">2人で</button></div>
             <div class="hs-row"><span class="tr-label">ルール</span><div class="chips" data-k="rule"></div></div>
             <div class="hs-row" data-row="lv"><span class="tr-label">CPU の強さ</span><div class="chips" data-k="lv"></div></div>
             <div class="hs-row"><span class="tr-label">碁盤</span><div class="chips" data-k="size"></div></div>
@@ -51,37 +54,57 @@
             <div class="theme-row" data-color="2"><span class="tr-label"><i class="p-stone white"></i>白の演出</span><div class="chips"></div></div>
             <button class="hs-more" id="hs-more">置き石・ルールの細かい設定・音は ⚙ 設定へ ›</button>
           </div>
+          <span id="hs-sum" hidden></span>
         </div>
+        <!-- オンライン（くわしくは下の「⚔️ オンライン」のタブ） -->
+        <p class="home-h">✦ オンライン（β）<em class="on-live hot" id="live-home" hidden>🔥 相手が待っています！</em></p>
+        <div class="home-grid">
+          <button class="home-tile" data-go="btn-random-top"><b>ランダムマッチ</b><small data-note="btn-random-top"></small></button>
+          <button class="home-tile" data-go="btn-rank-top"><b>ランクマッチ</b><small data-note="btn-rank-top"></small></button>
+          <button class="home-tile" data-go="btn-friend-top"><b>フレンド対戦</b><small data-note="btn-friend-top"></small></button>
+          <button class="home-tile" data-go="btn-watch-top"><b>👀 観戦</b><small data-note="btn-watch-top"></small></button>
+        </div>
+        <!-- はじめての人向け：チュートリアルと、押すだけでコンピューター Lv1・9路で始める -->
+        <div class="beginner">
+          <span>📖 囲碁を知らなくても大丈夫！</span>
+          <div class="title-links"><button id="btn-tutorial" class="sub-btn">チュートリアル</button><button id="btn-beginner" class="sub-btn">▶ おすすめで始める</button></div>
+        </div>
+        <button id="btn-tutorial-sm" class="sub-btn" hidden>📖 チュートリアル</button>
       </div>
-      <!-- はじめての人向け：押すだけで、コンピューター Lv1・9路で始める -->
-      <div class="beginner">
-        <span>囲碁を知らなくても大丈夫！ はじめての人は <b>コンピューター Lv1 ＋ 9路</b> で始めてみよう</span>
-        <div class="title-links"><button id="btn-tutorial" class="sub-btn">📖 チュートリアル</button><button id="btn-beginner" class="sub-btn">▶ おすすめで始める</button></div>
-      </div>
-      <!-- オンライン（β）：ランダムマッチ・ランクマッチ・フレンド対戦・ランキング -->
-      <div class="home-sec">
-        <p class="sec-title"><span>オンライン（β）</span></p>
+
+      <!-- ⚔️ オンライン：ランダムマッチ・ランクマッチ・フレンド対戦・観戦・ランキング -->
+      <div class="tab-pane" data-pane="online" hidden>
+        <p class="pane-h">⚔️ オンライン対戦（β）</p>
         <p class="home-me" id="home-me"></p>
-        <p class="on-rule-note">ランダム・ランクは<b>デストロイ碁オリジナルのルール</b>。石を取ると相手にダメージ、HPを0にしても勝ち<button id="btn-online-rules">ルールを見る</button></p>
         <button id="btn-random-top" class="on-item">ランダムマッチ<em class="on-live" id="live-random" hidden></em><span>知らない人とすぐ対戦</span></button>
         <button id="btn-rank-top" class="on-item">ランクマッチ<em class="on-live" id="live-rank" hidden></em><span id="rank-top-note"></span></button>
         <button id="btn-friend-top" class="on-item">フレンド対戦<span>合言葉で友だちと</span></button>
-        <button id="btn-watch-top" class="on-item ghost">観戦<span id="watch-top-note">対戦中の試合を見る</span></button>
-        <button id="btn-ranking-top" class="on-item ghost">ランキング<span>レート上位</span></button>
+        <button id="btn-watch-top" class="on-item">👀 観戦<span id="watch-top-note">対戦中の試合を見る</span></button>
+        <button id="btn-ranking-top" class="on-item ghost">🏆 ランキング<span>レート上位・称号</span></button>
+        <p class="pane-note" id="battle-note"></p>
+        <p class="on-rule-note">ランダム・ランクは<b>デストロイ碁オリジナルのルール</b>。石を取ると相手にダメージ、HPを0にしても勝ち<button id="btn-online-rules">ルールを見る</button></p>
       </div>
-      <!-- これから入る予定の遊び方（押すと「準備中」と出るだけ） -->
-      <div class="home-sec">
-        <p class="sec-title"><span>COMING SOON</span></p>
-        <button class="on-item soon">3人対戦<span>3色の石で三つどもえ</span></button>
-        <button class="on-item soon">4人対戦<span>4人で入り乱れるバトル</span></button>
-        <button class="on-item soon">チーム戦<span>2対2で力を合わせる</span></button>
+
+      <!-- 📼 記録：棋譜・演出・BGM・称号・引き継ぎ・2人で対局。COMING SOON など -->
+      <div class="tab-pane" data-pane="record" hidden>
+        <p class="pane-h">📼 記録</p>
+        <button id="btn-kifu" class="on-item">📼 棋譜を見る<span>最近の20局・ハイライト</span></button>
+        <button id="rec-fx" class="on-item">🎨 演出<span id="rec-fx-note">解放した演出・プレビュー</span></button>
+        <button id="rec-bgm" class="on-item">🎵 BGM・音<span>曲を選ぶ・音量</span></button>
+        <button id="rec-title" class="on-item">🏅 称号<span>名前の横に出す称号（ランキング）</span></button>
+        <button id="btn-account" class="on-item" hidden>🔗 記録の引き継ぎ<span>引き継ぎコード</span></button>
+        <p class="pane-soon"><b>COMING SOON</b>　<button class="soon-link on-item soon">3人対戦</button><button class="soon-link on-item soon">4人対戦</button><button class="soon-link on-item soon">チーム戦</button></p>
+        <p class="title-foot"><a id="feedback" href="#" target="_blank" rel="noopener">不具合・感想を送る</a><span id="version"></span><a href="privacy.html" target="_blank" rel="noopener">プライバシー</a><span>© ROBIT</span><span>音楽：魔王魂</span></p>
       </div>
-      <div class="title-links">
-        <button id="btn-tutorial-sm" class="sub-btn" hidden>📖 チュートリアル</button>
-        <button id="btn-kifu" class="sub-btn">📼 棋譜を見る</button>
-        <button id="btn-account" class="sub-btn" hidden>🔗 記録の引き継ぎ</button>
-      </div>
-      <p class="title-foot"><a id="feedback" href="#" target="_blank" rel="noopener">不具合・感想を送る</a><span id="version"></span><a href="privacy.html" target="_blank" rel="noopener">プライバシー</a><span>© ROBIT</span><span>音楽：魔王魂</span></p>
+
+      <!-- 下のタブ。迷宮・ランキングは、その画面をひらく -->
+      <nav class="home-tabs" id="home-tabs">
+        <button data-tab="home" aria-selected="true"><span>🏠</span>ホーム</button>
+        <button data-tab="online" aria-selected="false"><span>⚔️</span>オンライン<i class="tab-dot" id="tab-dot-online" hidden></i></button>
+        <button data-tab="dojo" aria-selected="false"><span>🏰</span>迷宮</button>
+        <button data-tab="ranking" aria-selected="false"><span>🏆</span>ランキング</button>
+        <button data-tab="record" aria-selected="false"><span>📼</span>記録</button>
+      </nav>
 
       <!-- ⚙ 設定：対局・演出・音・ルール。選んだ内容は端末に保存される -->
       <div id="settings-pop" hidden>
@@ -418,7 +441,7 @@
     </div>
   </div>
 
-  <script src="js/edition.js?v=20261026131121"></script>
+  <script src="js/edition.js?v=20261026144844"></script>
   <!-- アクセス解析（GoatCounter）。Cookie を使わず、個人は分からない（開かれた回数・どこから来たか・端末の種類だけ）。
        公開しているサイトでだけ数える。開発者とテスト用の端末は数えない -->
   <script>
@@ -432,14 +455,14 @@
       document.head.appendChild(s);
     })();
   </script>
-  <script src="js/go.js?v=20261026131121"></script>
-  <script src="js/clock.js?v=20261026131121"></script>
-  <script src="js/sounds.js?v=20261026131121"></script>
-  <script src="js/effects.js?v=20261026131121"></script>
-  <script src="js/boardfx.js?v=20261026131121"></script>
-  <script src="js/destroy-rule.js?v=20261026131121"></script>
-  <script src="js/ai.js?v=20261026131121"></script>
-  <script src="js/online.js?v=20261026131121"></script>
-  <script src="js/app.js?v=20261026131121"></script>
+  <script src="js/go.js?v=20261026144844"></script>
+  <script src="js/clock.js?v=20261026144844"></script>
+  <script src="js/sounds.js?v=20261026144844"></script>
+  <script src="js/effects.js?v=20261026144844"></script>
+  <script src="js/boardfx.js?v=20261026144844"></script>
+  <script src="js/destroy-rule.js?v=20261026144844"></script>
+  <script src="js/ai.js?v=20261026144844"></script>
+  <script src="js/online.js?v=20261026144844"></script>
+  <script src="js/app.js?v=20261026144844"></script>
 </body>
 </html>

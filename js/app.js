@@ -134,8 +134,8 @@
 
   // 対戦相手：2 人で対局か、コンピューター（強さ 1〜9、あなたが黒か白か）
   // 勝ち負けの決め方：ふつうの囲碁（地の多さ）か、デストロイルール（HP バトル）
-  let mode = 'go';
-  try { if (localStorage.getItem('destroy-go-mode') === 'destroy') mode = 'destroy'; } catch (e) { /* 無視 */ }
+  let mode = 'destroy'; // はじめはデストロイルール（このゲームの売り）。ふつうの囲碁を選んだ人はそれを覚えておく
+  try { if (localStorage.getItem('destroy-go-mode') === 'go') mode = 'go'; } catch (e) { /* 無視 */ }
   // HP ハンデ（デストロイルールのとき）：なし／+25%／+50%／+100%、もらうのは黒か白
   let hpBonus = 0, hpBonusColor = BLACK;
   try { const h = JSON.parse(localStorage.getItem('destroy-go-hpbonus') || '{}'); if ([0.25, 0.5, 1].includes(h.rate)) hpBonus = h.rate; if (h.color === WHITE) hpBonusColor = WHITE; } catch (e) { /* 無視 */ }
@@ -219,15 +219,14 @@
   function renderHome() {
     if (!homeReady) return;
     const rule = mode === 'destroy' ? `デストロイ${dAdvanced ? '上級' : '初級'}` : 'ふつうの囲碁';
-    $('#start-summary').textContent = [opponent === 'cpu' ? `CPU Lv${cpuLevel}` : '2人で対局', `${SIZE}路`, rule, timeText()].join('・');
+    $('#start-summary').textContent = ['2人で対戦', rule, `${SIZE}路`, timeText()].join('・');
     $('#q-cpu').setAttribute('aria-pressed', opponent === 'cpu');
     $('#q-human').setAttribute('aria-pressed', opponent !== 'cpu');
     renderHomeSet();
   }
   // タイトルの「対局の設定」：ルール・CPU の強さ・碁盤・持ち時間を選ぶ（⚙ 設定の同じボタンを押す）。演出は .theme-row で共通
-  // はじめはひらいておく（気づいてもらうため）。たたんだら覚えておく
-  let homeSetOpen = true;
-  try { homeSetOpen = localStorage.getItem('destroy-go-homeset') !== '0'; } catch (e) { /* 無視 */ }
+  // ふだんはたたんでおき、「変える」で開く（ホームを短くするため）
+  let homeSetOpen = false;
   const HOME_SET = {
     rule: { list: () => [['go', 'ふつうの囲碁'], ['simple', 'デストロイ初級'], ['advanced', 'デストロイ上級']],
       now: () => (mode === 'destroy' ? (dAdvanced ? 'advanced' : 'simple') : 'go'),
@@ -239,9 +238,7 @@
   function renderHomeSet() {
     const box = $('#home-set');
     box.classList.toggle('open', homeSetOpen);
-    $('#hs-ar').textContent = homeSetOpen ? 'たたむ ▲' : 'ひらく ▼';
-    // たたんでいるときは演出だけ出す（ルール・碁盤・持ち時間は「対局開始」に出ている）
-    $('#hs-sum').textContent = homeSetOpen ? '' : `演出 黒：${themeOf(themes[BLACK]).label}／白：${themeOf(themes[WHITE]).label}`;
+    $('#hs-ar').textContent = homeSetOpen ? '閉じる ▲' : 'ルール変更';
     box.querySelectorAll('.hs-row .chips').forEach((row) => {
       const k = row.dataset.k, items = HOME_SET[k].list();
       if (row.children.length !== items.length || k === 'time') { // 持ち時間の「おすすめ（N分）」は碁盤で変わるので作り直す
@@ -255,9 +252,34 @@
       }
       row.querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', c.dataset.v === String(HOME_SET[k].now())));
     });
-    box.querySelector('[data-row="lv"]').hidden = opponent !== 'cpu';
+    box.querySelector('[data-row="lv"]').hidden = true; // ホームの設定はローカルマッチ用（CPU の強さは迷宮で）
   }
-  $('#hs-toggle').onclick = () => { homeSetOpen = !homeSetOpen; lsSet('destroy-go-homeset', homeSetOpen ? '1' : '0'); renderHomeSet(); };
+  $('#hs-toggle').onclick = () => { homeSetOpen = !homeSetOpen; renderHomeSet(); };
+  // ---------- ホームの下のタブ：ホーム・オンライン・記録は中身を切り替え、迷宮・ランキングはその画面をひらく ----------
+  function showHomeTab(tab) {
+    if (tab === 'dojo') { $('#btn-dojo').click(); return; }
+    if (tab === 'ranking') { $('#btn-ranking-top').click(); return; }
+    document.querySelectorAll('#home-tabs button').forEach((b) => b.setAttribute('aria-selected', b.dataset.tab === tab));
+    document.querySelectorAll('#title .tab-pane').forEach((p) => { p.hidden = p.dataset.pane !== tab; });
+    $('#title').scrollTop = 0;
+    if (tab === 'online') track('オンラインのタブを開いた');
+  }
+  document.querySelectorAll('#home-tabs button').forEach((b) => { b.onclick = () => showHomeTab(b.dataset.tab); });
+  // ホームのオンラインの 4 つのマス：オンラインのタブの同じボタンを押す。下の小さい字もそちらと同じにする
+  document.querySelectorAll('.home-tile').forEach((t) => { t.onclick = () => $('#' + t.dataset.go).click(); });
+  function syncHomeTiles() {
+    document.querySelectorAll('.home-tile').forEach((t) => {
+      const src = $('#' + t.dataset.go), sp = src.querySelector('span');
+      t.querySelector('small').textContent = sp ? sp.textContent : '';
+      t.classList.toggle('locked', src.classList.contains('locked'));
+    });
+  }
+  // 📼 記録のタブ
+  $('#rec-fx').onclick = () => { showSettingsTab('fx'); $('#settings-pop').hidden = false; };
+  $('#rec-bgm').onclick = () => { showSettingsTab('sound'); $('#settings-pop').hidden = false; };
+  $('#rec-title').onclick = () => $('#btn-ranking-top').click();
+  // ローカルマッチ：この端末で 2 人で対戦（CPU と戦うのは破壊の迷宮で）
+  $('#btn-local').onclick = () => { $('#opp-chips .chip[data-opp="human"]').click(); track('ローカルマッチを始めた'); $('#btn-start').click(); };
   $('#hs-more').onclick = () => $('#btn-settings').click();
   $('#q-cpu').onclick = () => $('#opp-chips .chip[data-opp="cpu"]').click();
   $('#q-human').onclick = () => $('#opp-chips .chip[data-opp="human"]').click();
@@ -1756,9 +1778,7 @@
       return;
     }
     el.className = '';
-    $('#save-note-text').innerHTML = isIOS || isAndroid
-      ? '解放した演出・レート・ランキングは、この端末のブラウザに保存されます。<b>引き継ぎコード</b>や<b>ホーム画面に追加</b>で守れます'
-      : '解放した演出・レート・ランキングは、このブラウザに保存されます。<b>引き継ぎコード</b>を発行しておくと、データを消しても戻せます';
+    $('#save-note-text').innerHTML = '💾 記録はこの端末に保存されています'; // くわしくは「記録を守る」で（ホームを短くするため 1 行に）
     $('#save-note-how').hidden = false; $('#save-note-how').textContent = isIOS || isAndroid ? '消えないようにする' : '記録を守る';
     el.hidden = lsGet('destroy-go-save-note') === '1';
   }
@@ -3987,8 +4007,10 @@
       el.classList.toggle('hot', !!v.wait); el.hidden = !v.wait && !v.live;
       el.parentElement.classList.toggle('hot-btn', !!v.wait); // 右の小さい説明は隠して、目立たせる
     }
-    const g = c.random.live + c.rank.live;
+    const g = c.random.live + c.rank.live, hot = !!(c.random.wait || c.rank.wait);
     $('#watch-top-note').textContent = g ? `🟢 ${g}試合 対戦中` : '対戦中の試合を見る';
+    $('#live-home').hidden = !hot; $('#tab-dot-online').hidden = !hot; // ホームの見出しと、オンラインのタブに「待っている」を出す
+    syncHomeTiles();
   }
   setTimeout(renderLiveCount, 2500);
   setInterval(renderLiveCount, 30000);
@@ -4004,6 +4026,8 @@
     $('#rank-top-note').textContent = !btn ? `🔒 あと${rankRandomLeft()}局で開放` : open ? 'レートをかけて対戦' : 'まず上級をCPUで1勝';
     if (myRating && !myRating.fresh) $('#home-me').innerHTML = `${nameHtml(myRating.name)}${isDev() ? devBadge : founderBadge(myFounder)}　レート ${myRating.r}`;
     $('#btn-rank-top').title = open ? 'デストロイ上級・9路でレートをかけて対戦' : `ランクマッチまで：${rankLockText()}`;
+    $('#battle-note').textContent = isBattleTime() ? '🔥 いまは対戦タイム！ 人が集まりやすい時間です' : `🔥 人が集まりやすいのは、毎晩 ${BATTLE_FROM}〜${BATTLE_TO} 時の対戦タイム`;
+    syncHomeTiles();
   }
   renderRankTop();
   setInterval(() => { if (phase === 'title') renderRankTop(); }, 60000); // 対戦タイムの始まり・終わりで表示を変える

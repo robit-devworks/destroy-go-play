@@ -1029,3 +1029,72 @@ body.timestop #stage, body.timestop #fx { filter: grayscale(1) contrast(1.35); }
 #online-body .on-live-item small { margin-left: auto; font-size: 11px; color: var(--muted); font-weight: 600; }
 /* 観戦中は、ハイライト・速さ・共有のボタンを出さない */
 .watching #rp-auto, .watching #rp-speed, .watching #rp-rec, .watching #rp-dmg { display: none; }
+
+/* ---------- ホーム：上の 1 行・タブで切り替える中身・下のタブ ---------- */
+#title { gap: 12px; padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+#title > :last-child { margin-bottom: 0; }
+.fs-row { display: flex; align-items: center; gap: 10px; }
+.fs-row .fs-big { margin-top: 0; }
+.home-gear { width: 44px; height: 44px; padding: 0; border-radius: 999px; font-size: 19px; color: #fff; background: rgba(20, 10, 30, 0.85); border: 1px solid rgba(176, 102, 255, 0.6); box-shadow: 0 0 14px rgba(176, 102, 255, 0.3); }
+.home-gear:active { transform: scale(0.94); }
+#title .title-wrap { margin-top: 8px; }
+#save-note, #maint-note { width: min(420px, 100%); }
+.tab-pane { width: min(420px, 100%); display: flex; flex-direction: column; gap: 10px; }
+.tab-pane[hidden] { display: none; }
+/* CPU と対戦（対局開始）と「変える」 */
+.cpu-bar { display: flex; gap: 8px; }
+.cpu-bar .start-item { flex: 1; min-width: 0; align-items: flex-start; border-radius: 16px; padding: 12px 16px; }
+.cpu-bar .start-item b { font-size: 20px; letter-spacing: 0.06em; }
+.cpu-bar .start-item small { text-align: left; }
+.cpu-chg { flex: none; border-radius: 16px; padding: 0 14px; font-size: 13px; font-weight: 800; color: #fff; border: 1px solid rgba(255, 210, 63, 0.5); background: rgba(255, 210, 63, 0.1); }
+.home-set:not(.open) { display: none; }
+.home-set .hs-body { padding-top: 12px; }
+.home-set .quick button { padding: 6px 4px; font-size: 13px; }
+/* ホームのオンライン：見出しと 4 つのマス */
+.home-h { display: flex; align-items: center; gap: 8px; margin: 6px 2px 0; font-size: 13px; font-weight: 800; letter-spacing: 0.1em; color: var(--gold); }
+.home-h .on-live { margin-left: auto; font-style: normal; font-size: 11px; letter-spacing: 0; padding: 2px 9px; border-radius: 999px; color: #fff; background: linear-gradient(180deg, #ff6a3d, #d4001a); animation: live-hot 1.2s ease-in-out infinite; }
+.home-h .on-live[hidden] { display: none; }
+.home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.home-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; padding: 10px 12px; border-radius: 12px; text-align: left; color: #fff; border: 1px solid transparent;
+  background: linear-gradient(rgba(22, 12, 34, 0.88), rgba(22, 12, 34, 0.88)) padding-box, linear-gradient(120deg, rgba(255, 210, 63, 0.45), rgba(176, 102, 255, 0.45)) border-box; }
+.home-tile b { font-size: 14px; font-weight: 800; }
+.home-tile small { font-size: 10.5px; color: #c9b8e8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.home-tile.locked { opacity: 0.5; }
+.home-tile:active { transform: scale(0.97); }
+#title .tab-pane .beginner { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; font-size: 12.5px; text-align: center; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255, 210, 63, 0.4); background: rgba(255, 210, 63, 0.07); }
+#title .tab-pane .beginner .title-links { flex-wrap: nowrap; }
+#title .tab-pane .beginner .sub-btn { padding: 6px 12px; font-size: 13px; }
+/* オンライン・記録のタブ */
+.pane-h { margin: 4px 2px 2px; font-size: 20px; font-weight: 900; }
+.pane-note { margin: 0; text-align: center; font-size: 12px; color: var(--gold); }
+.pane-soon { margin: 6px 0 0; text-align: center; font-size: 11px; color: var(--muted); }
+.pane-soon b { color: var(--gold); letter-spacing: 0.08em; }
+.pane-soon .on-item { display: inline; width: auto; padding: 2px 6px; font-size: 11px; font-weight: 600; color: var(--muted); border: 0; background: none; letter-spacing: 0; }
+.pane-soon .on-item::after { content: none; }
+#title .tab-pane .on-item span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 下のタブ */
+.home-tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; display: flex; justify-content: center; padding: 6px 4px max(8px, env(safe-area-inset-bottom));
+  background: rgba(12, 6, 20, 0.94); border-top: 1px solid rgba(255, 255, 255, 0.12); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.home-tabs button { flex: 1; max-width: 100px; position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; border: 0; background: none; color: #a99bc4; font-size: 11px; font-weight: 700; }
+.home-tabs button span { font-size: 20px; line-height: 1.1; filter: grayscale(0.6); }
+.home-tabs button[aria-selected="true"] { color: var(--gold); }
+.home-tabs button[aria-selected="true"] span { filter: none; }
+.tab-dot { position: absolute; top: 2px; left: calc(50% + 8px); width: 9px; height: 9px; border-radius: 50%; background: #ff3d1f; box-shadow: 0 0 8px #ff3d1f; }
+.tab-dot[hidden] { display: none; }
+body:has(#title.active) #gtoast { bottom: calc(84px + env(safe-area-inset-bottom)); }
+#save-note:not(.warn) { padding: 6px 10px; font-size: 11px; gap: 6px; flex-wrap: nowrap; }
+#save-note:not(.warn) > span { flex: 1 1 auto; min-width: 0; }
+#save-note:not(.warn) button { padding: 2px 10px; font-size: 11.5px; white-space: nowrap; }
+/* ホームのカードの右上の小さい札（迷宮の「CPU戦」・ローカルマッチの「ルール変更」） */
+.card-tag { position: absolute; top: 8px; right: 8px; z-index: 2; font-style: normal; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; padding: 3px 10px; border-radius: 999px; color: var(--gold); background: rgba(20, 10, 30, 0.75); border: 1px solid rgba(255, 210, 63, 0.55); line-height: 1.4; }
+.dungeon-btn .card-tag { top: 6px; right: 6px; color: #ffd9a0; border-color: rgba(255, 170, 60, 0.6); }
+/* ローカルマッチ：オンラインのマスと同じ光るふちのカード */
+.local-card { position: relative; }
+.local-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; width: 100%; padding: 14px 16px; border-radius: 14px; text-align: left; color: #fff; border: 1px solid transparent;
+  background: linear-gradient(rgba(40, 20, 60, 0.9), rgba(28, 14, 44, 0.9)) padding-box, linear-gradient(120deg, var(--gold), var(--magic), var(--frost)) border-box; box-shadow: 0 0 16px rgba(176, 102, 255, 0.25); }
+.local-btn b { font-size: 19px; font-weight: 900; letter-spacing: 0.06em; }
+.local-btn small { font-size: 12px; color: #c9b8e8; }
+.local-go { align-self: flex-end; margin-top: -18px; font-size: 13px; font-weight: 800; color: var(--gold); }
+.local-btn:active { transform: scale(0.98); }
+.local-chg { cursor: pointer; }
+.local-chg:active { transform: scale(0.95); }
