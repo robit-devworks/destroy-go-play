@@ -995,11 +995,3 @@ body.timestop #stage, body.timestop #fx { filter: grayscale(1) contrast(1.35); }
   background: rgba(20, 10, 24, 0.92); border: 1px solid var(--accent2); color: #fff; font-size: 14px; font-weight: 700; line-height: 1.5; text-align: center;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6); opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s; }
 #dhint.show { opacity: 1; transform: translate(-50%, 0); }
-
-/* メンテナンスのお知らせ */
-#maint-note {
-  width: min(420px, 100%); padding: 10px 14px; border-radius: 12px; text-align: center; line-height: 1.6;
-  background: rgba(255, 190, 40, 0.14); border: 1px solid rgba(255, 190, 40, 0.6); color: #ffe7a8; font-size: 14px;
-}
-#maint-note b { color: #ffd23f; font-size: 15px; }
-#maint-note[hidden] { display: none; }

@@ -2795,17 +2795,6 @@
     $('.beginner').hidden = false; $('#btn-tutorial-sm').hidden = true; void seen; // 案内はいつも出す
   }
   renderBeginner();
-  // メンテナンスのお知らせ：始まる前は予告、始まったら「メンテナンス中」。終わったら on を false にする
-  const MAINT = { on: true, start: new Date('2026-10-26T21:30:00+09:00'), label: '10月26日（月）21:30' };
-  function renderMaint() {
-    const el = $('#maint-note');
-    if (!MAINT.on) { el.hidden = true; return; }
-    el.innerHTML = Date.now() < MAINT.start
-      ? `<b>⚠ 緊急メンテナンスのお知らせ</b><br>${MAINT.label} から<br>緊急メンテナンスを行います。<br>一部の機能が使えないことがあります。`
-      : '<b>⚠ ただいま緊急メンテナンス中です</b><br>一部の機能が使えないことがあります。<br>終わりしだいお知らせします。ご迷惑をおかけします。';
-    el.hidden = false;
-  }
-  renderMaint(); setInterval(renderMaint, 60000);
   // はじめて開いた人には、チュートリアルをやるか 1 回だけ聞く（強制はしない。チュートリアルを終えた・1 局でも遊んだ人には出さない）
   (function askTutorial() {
     const ask = !lsGet('destroy-go-tut-asked') && lsGet('destroy-go-tut-done') !== '1' && !(+lsGet('destroy-go-played') > 0);
