@@ -628,6 +628,22 @@
   // スマホのアプリの中で開いているか（埋め込まれていて、指で操作する端末）
   const EMBEDDED = window.self !== window.top && window.matchMedia('(pointer: coarse)').matches;
   if (EMBEDDED) document.documentElement.classList.add('embedded');
+  // PC など、広くて指で触らない画面か（スマホ・タブレットは今のまま）
+  const pcScreen = () => window.innerWidth >= 900 && window.innerHeight >= 600 && !window.matchMedia('(pointer: coarse)').matches;
+  // ホーム：PC では、スマホと同じ並びのまま、画面の高さに入るいちばん大きい倍率に拡大する（最大 1.5 倍）
+  function fitHome() {
+    const root = document.documentElement, el = $('#title');
+    if (!pcScreen()) { root.style.setProperty('--hz', 1); return; }
+    root.style.setProperty('--hz', 1);
+    // 中身の高さ（いちばん上の要素の上から、いちばん下の要素の下まで）と、下のタブの高さを足す
+    const kids = [...el.children].filter((k) => k.id !== 'settings-pop' && !k.classList.contains('home-tabs') && k.offsetParent !== null);
+    const rs = kids.map((k) => k.getBoundingClientRect()), tabs = $('#home-tabs').getBoundingClientRect().height;
+    const h = Math.max(...rs.map((r) => r.bottom)) - Math.min(...rs.map((r) => r.top)) + tabs + 40;
+    const z = Math.max(0.8, Math.min(1.5, window.innerHeight / h)); // 背の低い PC では少し縮めて 1 画面に収める
+    root.style.setProperty('--hz', z.toFixed(3));
+  }
+  window.addEventListener('resize', () => { if (phase === 'title') fitHome(); });
+  setTimeout(fitHome, 0); if (document.fonts) document.fonts.ready.then(() => { if (phase === 'title') fitHome(); });
   function layout() {
     // 埋め込まれていると、ページの下のほうが画面の外にはみ出して作られる。見えている高さは
     // 画面の高さから、上のアプリの欄（約 100px）と一番下のホームバーの分（約 40px）を引いたくらい
@@ -641,8 +657,11 @@
         + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     };
     const fit = (other) => Math.floor(Math.max(200, Math.min(vw - 16, vh - other - 4, 900)));
+    // PC（広い画面）では、碁盤のまわりの名前欄・ボタンを大きく（--gz 倍）する。幅は大きくした分だけ割って碁盤にそろえる
+    const gz = pcScreen() ? 1.25 : 1;
+    document.documentElement.style.setProperty('--gz', gz);
     // 名前欄・ボタン欄は碁盤より細くしない（画面が低いと碁盤だけ小さくなり、文字が縦に折り返してしまうため）
-    const uiWidth = (b) => document.documentElement.style.setProperty('--ui-width', Math.max(b, Math.min(vw - 16, 360)) + 'px');
+    const uiWidth = (b) => document.documentElement.style.setProperty('--ui-width', Math.max(b, Math.min(vw - 16, 360)) / gz + 'px');
     let size = fit(2 * 66 + 52 + 38 + 40 + (gameEl.classList.contains('previewing') ? 30 : 0));
     document.documentElement.style.setProperty('--board-size', size + 'px'); uiWidth(size);
     if (gameEl.classList.contains('active')) {
@@ -2347,6 +2366,8 @@
   // ---------- 画面遷移 ----------
   function showScreen(id) {
     document.querySelectorAll('.screen').forEach((s) => s.classList.toggle('active', s.id === id));
+    if (id === 'game') requestAnimationFrame(() => layout()); // 画面を出してから測り直す（出す前は目安の高さで碁盤を決めているため）
+    if (id === 'title') requestAnimationFrame(fitHome);
     // 前の対局の「二眼完成！」などが残っていると、画面を出し直したときにもう一度再生されるので消す
     $('#eyes').className = '';
   }

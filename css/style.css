@@ -1287,3 +1287,22 @@ body, button, input, select, textarea { font-family: var(--px-font); }
   .dungeon-btn.dg-small { padding-top: 8px; padding-bottom: 8px; }
   #title .fs-big { padding-top: 6px; padding-bottom: 6px; }
 }
+
+/* ---------- PC：スマホと同じ並びのまま、文字やボタンを大きく ---------- */
+#title > *:not(#settings-pop) { zoom: var(--hz, 1); }
+#game > :not(#board-wrap) { zoom: var(--gz, 1); }
+/* PC のホームは、スマホ（幅 390 くらい）と同じ大きさのロゴにしてから、画面全体をまとめて拡大する */
+@media (min-width: 900px) and (min-height: 600px) and (pointer: fine) {
+  #title .logo { font-size: 52px; }
+  #title .sublogo { font-size: 20px; }
+  #title .tab-pane, #title #save-note, #title #maint-note { width: 390px; max-width: 390px; }
+}
+/* PC のホーム：タイトルを大きく、マスを横長に（横の余白を減らす） */
+@media (min-width: 900px) and (min-height: 600px) and (pointer: fine) {
+  #title .logo { font-size: 104px; }
+  #title .sublogo { font-size: 30px; }
+  #title .tab-pane { width: 660px; max-width: 660px; }
+  #title #save-note, #title #maint-note { width: auto; max-width: 660px; }
+}
+#title .tab-pane > .beginner, #title .tab-pane .tut-tile { width: 100%; }
+#title .tab-pane > .beginner { max-width: none; }
