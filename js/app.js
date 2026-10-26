@@ -2598,12 +2598,20 @@
     { title: '背水', type: 'play', hp: { b: 8 }, adv: true, b: [[2, 3], [2, 4], [5, 3], [5, 4], [3, 2], [4, 2], [3, 5]], w: [[3, 3], [4, 3], [3, 4], [4, 4]], answer: [4, 5],
       text: '黒の HP は残り 8（最大 HP の 4 分の 1 以下）。この状態で白の 4 子を取ろう',
       done: '<b>背水</b>：自分の HP が最大の 4 分の 1 以下のときは、ダメージ <b>1.2 倍</b>。追いつめられてからの逆転のチャンスです' },
-    { title: 'カウンター', type: 'play', hp: {}, adv: true, pre: { last: [4, 4] }, b: [[3, 4], [5, 4], [3, 3], [5, 3], [4, 2]], w: [[4, 4], [4, 3]], answer: [4, 5],
-      text: '白は今、真ん中の <b>E5</b> に打って黒の石を取ったところ（という場面）。その<b>取りに来た白の石ごと</b>取り返そう',
+    { title: 'カウンター', type: 'play', hp: {}, adv: true, b: [[3, 4], [5, 4], [3, 3], [5, 3], [4, 2], [4, 5]], w: [[4, 3], [3, 5], [5, 5], [4, 6]], answer: [4, 5],
+      foe: [4, 4], text: '白の番です。白が打つのを見ていよう……',
+      foeText: '白が <b>E5</b> に打って、黒の石を取りました！ すぐに<b>取りに来た白の石ごと</b>取り返そう',
       done: '<b>COUNTER!!</b> 相手に取られた<b>直後</b>に、<b>相手が今打った石を含めて</b>取り返すと 1.5 倍（打って返しなど）。別の場所の石を取り返すだけではカウンターになりません' },
-    { title: 'コンボ', type: 'play', hp: {}, adv: true, pre: { combo: 1 }, b: [[2, 3], [2, 4], [5, 3], [5, 4], [3, 2], [4, 2], [3, 5]], w: [[3, 3], [4, 3], [3, 4], [4, 4]], answer: [4, 5],
-      text: '黒は前の手でも石を取った（という場面）。続けて白の 4 子を取ろう',
-      done: '<b>2 COMBO!</b> 自分の手番で<b>続けて取る</b>と倍率アップ（2 連続 1.2 倍、3 連続 1.4 倍…最大 2 倍）。取れなかった手やパスで途切れます' },
+    { title: 'コンボ', type: 'play', hp: {}, adv: true,
+      b: [[0, 1], [3, 1], [1, 0], [2, 0], [1, 2], [5, 1], [8, 1], [6, 0], [7, 0], [7, 2], [2, 6], [5, 6], [3, 7], [4, 7], [3, 5]],
+      w: [[1, 1], [2, 1], [6, 1], [7, 1], [3, 6], [4, 6]],
+      seq: [
+        { at: [2, 2], reply: [6, 4], text: '白の 2 子が <b>3 か所</b>で取れる形。<b>3 回続けて取って</b>コンボをつなげよう。まずは左上から' },
+        { at: [6, 2], reply: [7, 6], text: '白は別の場所に打ちました。<b>続けて取ろう</b>（2 回目）。右上の 2 子' },
+        { at: [4, 5], text: 'もう 1 回！ 下の 2 子を取って <b>3 コンボ</b>' },
+      ],
+      text: '白の 2 子が <b>3 か所</b>で取れる形。<b>3 回続けて取って</b>コンボをつなげよう。まずは左上から',
+      done: '<b>3 COMBO!</b> 自分の手番で<b>続けて取る</b>と倍率アップ（2 連続 1.2 倍、3 連続 1.4 倍…最大 2 倍）。取れなかった手やパスで途切れます' },
     { title: 'ラストスパート', type: 'play', spurt: true, hp: {}, adv: true, b: [[2, 3], [2, 4], [5, 3], [5, 4], [3, 2], [4, 2], [3, 5]], w: [[3, 3], [4, 3], [3, 4], [4, 4]], answer: [4, 5],
       text: '終盤（盤の 7 割が石で埋まるか、2 人の残り時間が少なくなった）という場面。白の 4 子を取ろう',
       done: '<b>LAST SPURT</b>：終盤に入ると、最後まで<b>2 人とも 1.5 倍</b>。最後まで逆転があります' },
@@ -2616,7 +2624,7 @@
   let TUT = TUT_BASIC; // 今やっているチュートリアル（囲碁の基本／デストロイルール）
   const tutKey = () => (TUT === TUT_ADV ? 'destroy-go-tut-a' : TUT === TUT_DESTROY ? 'destroy-go-tut-d' : 'destroy-go-tut');
   const tut = { i: 0, solved: false, hint: -1, saved: null, wrong: 0, step: 0 };
-  const tutAnswer = () => { const q = TUT[tut.i]; return game.idx(...(tut.step ? q.next : q.answer)); };
+  const tutAnswer = () => { const q = TUT[tut.i]; return game.idx(...(q.seq ? q.seq[tut.step].at : tut.step ? q.next : q.answer)); };
   function tutLoad(i) {
     tut.i = i; tut.solved = TUT[i].type === 'view'; tut.hint = -1; tut.wrong = 0; tut.step = 0; lockUntil = 0; tut.finished = null;
     $('#tut-prev').textContent = '◀ 前へ';
@@ -2636,6 +2644,27 @@
     $('#tut-text').innerHTML = q.text;
     tutButtons(); draw(); updatePanels(); renderHp();
     lsSet(tutKey(), i);
+    const tok = tut.tok = (tut.tok || 0) + 1;
+    if (q.foe) { // 先に白が打って黒を取る（カウンター）。打ち終わるまで黒は打てない
+      game.turn = WHITE; lockUntil = Infinity;
+      setTimeout(() => { if (tut.tok === tok && phase === 'tutorial') tutFoe(q); }, 1200);
+    }
+  }
+  // 白の手：石を取る演出と、黒へのダメージを見せる
+  function tutFoe(q) {
+    const [x, y] = q.foe, p = game.idx(x, y), r = game.play(x, y);
+    if (r.captured.length) {
+      const k = canvas.getBoundingClientRect().width / geo.css;
+      FX.capture(r.captured.map(stoneScreenPos), BLACK, geo.cell * 0.96 * k, themes[WHITE], 0);
+      BoardFX.apply(themes[WHITE], FX.tierIndex(r.captured.length), r.captured.map((c) => { const [cx, cy] = game.xy(c); return { x: px(cx), y: px(cy) }; }), geo);
+      if (dstate) {
+        const n = r.captured.length, h = dstate.hit(WHITE, n, { point: p, stones: r.captured });
+        later(() => { popDamage(BLACK, `-${h.amount}`, h.kind, h.tags); showFormula(BLACK, h, n); renderHp(); }, 700);
+      }
+    } else FX.stoneClick();
+    draw(); updatePanels();
+    lockUntil = performance.now() + 1400;
+    later(() => { if (TUT[tut.i] === q && !tut.solved) $('#tut-text').innerHTML = q.foeText; }, 1200);
   }
   function tutButtons() {
     $('#tut-prev').disabled = tut.i === 0;
@@ -2657,6 +2686,18 @@
       return;
     }
     tut.hint = -1; tut.wrong = 0;
+    if (q.seq && tut.step < q.seq.length - 1) { // コンボ：取ったら白が別の場所に打ち、続けて取る
+      const st = q.seq[tut.step], tok = tut.tok;
+      tutHit(p, opts, q, false); tut.step++; draw(); updatePanels();
+      lockUntil = performance.now() + 2400;
+      setTimeout(() => {
+        if (tut.tok !== tok || phase !== 'tutorial') return;
+        const [rx, ry] = st.reply; game.play(rx, ry);
+        if (dstate) dstate.hit(WHITE, 0, { point: game.idx(rx, ry), stones: [] });
+        FX.stoneClick(); $('#tut-text').innerHTML = q.seq[tut.step].text; draw(); updatePanels();
+      }, 2000);
+      return;
+    }
     if (q.reply && tut.step === 0) { // 途中の手：黒を打ってから、白が打ち返す
       const [x, y] = game.xy(p); game.play(x, y); FX.stoneClick(); draw();
       tut.step = 1; lockUntil = performance.now() + 900;
@@ -2666,22 +2707,7 @@
     tut.solved = true;
     if (q.type === 'forbid') { FX.blip(140, 0.12, 'sawtooth', 0.08); showBigNote('打てない！', '#ff6a6a'); }
     else {
-      const [x, y] = game.xy(p), r = game.play(x, y);
-      if (r.captured.length) {
-        const k = canvas.getBoundingClientRect().width / geo.css;
-        FX.capture(r.captured.map(stoneScreenPos), WHITE, geo.cell * 0.96 * k, themes[BLACK], opts.level || 0);
-        BoardFX.apply(themes[BLACK], FX.tierIndex(r.captured.length), r.captured.map((c) => { const [cx, cy] = game.xy(c); return { x: px(cx), y: px(cy) }; }), geo);
-      } else FX.stoneClick();
-      checkNewEyes(300);
-      if (dstate && r.captured.length) { // デストロイルール：ダメージを見せる
-        const n = r.captured.length, h = dstate.hit(BLACK, n, { point: p, stones: r.captured, maxCharge: !!opts.max, spurt: !!q.spurt });
-        if (h.recoil > 0) later(() => { popDamage(BLACK, `反動 -${h.recoil}`, 'recoil'); showRecoilFormula(BLACK, h); renderHp(); }, 1200);
-        later(() => {
-          popDamage(WHITE, h.kind === 'ko' || dstate.hp[WHITE] <= 0 ? 'K.O.!!' : `${h.kind === 'critical' ? 'CRITICAL!! ' : ''}-${h.amount}`, h.kind === 'ko' || dstate.hp[WHITE] <= 0 ? 'ko' : h.kind, h.tags);
-          showFormula(WHITE, h, n); renderHp();
-        }, 700);
-        later(() => showBigNote(dstate.hp[WHITE] <= 0 ? 'K.O.!!' : '正解！', dstate.hp[WHITE] <= 0 ? '#ffd23f' : '#5cff8a'), 1500);
-      } else later(() => showBigNote('正解！', '#5cff8a'), r.captured.length ? 900 : 0);
+      tutHit(p, opts, q, true);
       if (dstate && q.heal) { // 2眼で回復
         const healed = dstate.heal(game.board);
         if (healed[BLACK]) later(() => { popDamage(BLACK, `+${healed[BLACK]}`, 'heal'); FX.heal(); showHealFormula(BLACK, healed[BLACK]); renderHp(); }, 700);
@@ -2689,6 +2715,25 @@
     }
     $('#tut-text').innerHTML = `<span class="tut-ok">⭕ ${q.done}</span>`;
     tutButtons(); draw(); updatePanels();
+  }
+  // 黒が打つ：石を取る演出とダメージを見せる。note なら最後に「正解！」も出す
+  function tutHit(p, opts, q, note) {
+    const [x, y] = game.xy(p), r = game.play(x, y);
+    if (r.captured.length) {
+      const k = canvas.getBoundingClientRect().width / geo.css;
+      FX.capture(r.captured.map(stoneScreenPos), WHITE, geo.cell * 0.96 * k, themes[BLACK], opts.level || 0);
+      BoardFX.apply(themes[BLACK], FX.tierIndex(r.captured.length), r.captured.map((c) => { const [cx, cy] = game.xy(c); return { x: px(cx), y: px(cy) }; }), geo);
+    } else FX.stoneClick();
+    checkNewEyes(300);
+    if (dstate && r.captured.length) { // デストロイルール：ダメージを見せる
+      const n = r.captured.length, h = dstate.hit(BLACK, n, { point: p, stones: r.captured, maxCharge: !!opts.max, spurt: !!q.spurt });
+      if (h.recoil > 0) later(() => { popDamage(BLACK, `反動 -${h.recoil}`, 'recoil'); showRecoilFormula(BLACK, h); renderHp(); }, 1200);
+      later(() => {
+        popDamage(WHITE, h.kind === 'ko' || dstate.hp[WHITE] <= 0 ? 'K.O.!!' : `${h.kind === 'critical' ? 'CRITICAL!! ' : ''}-${h.amount}`, h.kind === 'ko' || dstate.hp[WHITE] <= 0 ? 'ko' : h.kind, h.tags);
+        showFormula(WHITE, h, n); renderHp();
+      }, 700);
+      if (note) later(() => showBigNote(dstate.hp[WHITE] <= 0 ? 'K.O.!!' : '正解！', dstate.hp[WHITE] <= 0 ? '#ffd23f' : '#5cff8a'), 1500);
+    } else if (note) later(() => showBigNote('正解！', '#5cff8a'), r.captured.length ? 900 : 0);
   }
   function startTutorial(from = 0, course = TUT_BASIC) {
     TUT = course;
