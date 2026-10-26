@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Black+Ops+One&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=20261026121150">
+  <link rel="stylesheet" href="css/style.css?v=20261026122953">
 </head>
 <body>
   <div id="stage">
@@ -63,9 +63,10 @@
         <p class="sec-title"><span>オンライン（β）</span></p>
         <p class="home-me" id="home-me"></p>
         <p class="on-rule-note">ランダム・ランクは<b>デストロイ碁オリジナルのルール</b>。石を取ると相手にダメージ、HPを0にしても勝ち<button id="btn-online-rules">ルールを見る</button></p>
-        <button id="btn-random-top" class="on-item">ランダムマッチ<span>知らない人とすぐ対戦</span></button>
-        <button id="btn-rank-top" class="on-item">ランクマッチ<span id="rank-top-note"></span></button>
+        <button id="btn-random-top" class="on-item">ランダムマッチ<em class="on-live" id="live-random" hidden></em><span>知らない人とすぐ対戦</span></button>
+        <button id="btn-rank-top" class="on-item">ランクマッチ<em class="on-live" id="live-rank" hidden></em><span id="rank-top-note"></span></button>
         <button id="btn-friend-top" class="on-item">フレンド対戦<span>合言葉で友だちと</span></button>
+        <button id="btn-watch-top" class="on-item ghost">観戦<span id="watch-top-note">対戦中の試合を見る</span></button>
         <button id="btn-ranking-top" class="on-item ghost">ランキング<span>レート上位</span></button>
       </div>
       <!-- これから入る予定の遊び方（押すと「準備中」と出るだけ） -->
@@ -311,6 +312,14 @@
     <div class="log-head"><b>オンライン対戦（β）</b><button id="online-close">閉じる</button></div>
     <div id="online-body"></div>
   </div>
+  <!-- CPU 戦の間も相手を探す：探している間の小さな表示と、見つかったときの確認 -->
+  <div id="bg-pill" class="float-pill" hidden></div>
+  <div id="watch-pill" class="float-pill" hidden></div>
+  <div id="bg-found" hidden>
+    <p class="bg-found-t">⚔️ 対戦相手が見つかりました！</p>
+    <p>CPU 戦をやめて対戦しますか？<br><small><span id="bg-found-n">10</span> 秒たつと、CPU 戦を続けます</small></p>
+    <button id="bg-found-go" class="accent">対戦する</button><button id="bg-found-no">CPU 戦を続ける</button>
+  </div>
   <!-- 対局中に見るルール（？ ルール） -->
   <div id="rules-pop" hidden>
     <div class="log-head"><b>ルール</b><button id="rules-close">閉じる</button></div>
@@ -409,7 +418,7 @@
     </div>
   </div>
 
-  <script src="js/edition.js?v=20261026121150"></script>
+  <script src="js/edition.js?v=20261026122953"></script>
   <!-- アクセス解析（GoatCounter）。Cookie を使わず、個人は分からない（開かれた回数・どこから来たか・端末の種類だけ）。
        公開しているサイトでだけ数える。開発者とテスト用の端末は数えない -->
   <script>
@@ -423,14 +432,14 @@
       document.head.appendChild(s);
     })();
   </script>
-  <script src="js/go.js?v=20261026121150"></script>
-  <script src="js/clock.js?v=20261026121150"></script>
-  <script src="js/sounds.js?v=20261026121150"></script>
-  <script src="js/effects.js?v=20261026121150"></script>
-  <script src="js/boardfx.js?v=20261026121150"></script>
-  <script src="js/destroy-rule.js?v=20261026121150"></script>
-  <script src="js/ai.js?v=20261026121150"></script>
-  <script src="js/online.js?v=20261026121150"></script>
-  <script src="js/app.js?v=20261026121150"></script>
+  <script src="js/go.js?v=20261026122953"></script>
+  <script src="js/clock.js?v=20261026122953"></script>
+  <script src="js/sounds.js?v=20261026122953"></script>
+  <script src="js/effects.js?v=20261026122953"></script>
+  <script src="js/boardfx.js?v=20261026122953"></script>
+  <script src="js/destroy-rule.js?v=20261026122953"></script>
+  <script src="js/ai.js?v=20261026122953"></script>
+  <script src="js/online.js?v=20261026122953"></script>
+  <script src="js/app.js?v=20261026122953"></script>
 </body>
 </html>

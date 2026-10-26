@@ -6,6 +6,8 @@
 // 合言葉を match/pairs/{待っていた人} に送る。待っていた人はそれを見て部屋に入る。match/{種類}/seek/{人} は探している人の数を出すため
 // レート：ratings/{人} = { r: レート, n: 対局数, name: 名前, t: 更新した時刻 }（自分の分だけ書ける）
 // ランクマッチの棋譜：kifus/{人}/{送った順} = 棋譜（新しい 5 局だけ残す。ランキングから誰でも見られる）
+// 観戦：対戦中のランダム・ランクマッチは live/{合言葉} = { k: 種類, t: 始めた時刻, size, adv, r: 結果 } に出す（部屋を作った人が書き、抜けたら消える）。
+// 見る人は rooms/{合言葉}/moves を読み、rooms/{合言葉}/watch/{人} に自分を置く（対戦している 2 人に観戦の人数を出す）
 (function (root) {
   'use strict';
   const FB_VER = '10.12.2';
@@ -33,7 +35,8 @@
     });
   }
   const randomCode = () => String(Math.floor(1000 + Math.random() * 9000));
-  const LOBBY_TTL = 60000, HEARTBEAT = 20000; // 待っている人は 20 秒ごとに時刻を更新する。1 分更新がなければいないものとする
+  const LIVE_MAX = 2 * 60 * 60 * 1000; // 2 時間より前に始まった対局は、観戦の一覧に出さない（消し忘れの分）
+  const LOBBY_TTL = 90000, HEARTBEAT = 20000; // 待っている人は 20 秒ごとに時刻を更新する。1 分半更新がなければいないものとする（裏に回したタブはタイマーが 1 分ごとに遅れることがある）
   // 決まった時間で返ってこなければあきらめる（無料プランの同時接続の上限を超えると、つながらずに待ち続けるため）
   const BUSY = 'いま混み合っていて、つながりませんでした。少ししてからもう一度試してください';
   function withTimeout(p, ms, onTimeout) {
@@ -48,15 +51,19 @@
     const KEY = 'destroy-go-online-local';
     const rooms = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { return {}; } };
     const save = (r) => localStorage.setItem(KEY, JSON.stringify(r));
-    let bc = null, code = null;
+    let bc = null, code = null, watchers = 0;
+    const LIVE = 'destroy-go-local-live';
+    const lives = () => { try { return JSON.parse(localStorage.getItem(LIVE) || '{}'); } catch (e) { return {}; } };
     const listen = (h) => {
       bc = new BroadcastChannel('destroy-go-online-' + code);
       bc.onmessage = (e) => {
         const m = e.data;
         if (m.k === 'move') h.onMove(m.v);
         else if (m.k === 'peer') h.onPeer(m.v);
+        else if (m.k === 'watch' && h.onWatch) { watchers = Math.max(0, watchers + m.d); h.onWatch(watchers); }
       };
     };
+    const liveSet = (c, v) => { const all = lives(); if (v) all[c] = v; else delete all[c]; localStorage.setItem(LIVE, JSON.stringify(all)); const ch = new BroadcastChannel('destroy-go-online-live-' + c); ch.postMessage(v); ch.close(); };
     return {
       me,
       async create(settings, h) {
@@ -75,8 +82,34 @@
         bc.postMessage({ k: 'peer', v: { joined: me } });
         return r.settings;
       },
-      send(v) { const m = { ...v, u: me }; bc.postMessage({ k: 'move', v: m }); return m; },
-      leave() { if (bc) { bc.postMessage({ k: 'peer', v: { left: me } }); bc.close(); bc = null; } },
+      send(v) {
+        const m = { ...v, u: me }; bc.postMessage({ k: 'move', v: m });
+        const all = rooms(); if (all[code]) { (all[code].moves = all[code].moves || []).push(m); save(all); } // 観戦の人があとから読めるように
+        return m;
+      },
+      leave() {
+        if (bc) { bc.postMessage({ k: 'peer', v: { left: me } }); bc.close(); bc = null; }
+        if (code && lives()[code] && rooms()[code] && rooms()[code].host === me) liveSet(code, null);
+      },
+      livePut(info) { liveSet(code, { ...info, t: Date.now() }); },
+      liveEnd(r) { const v = lives()[code]; if (v) liveSet(code, { ...v, r }); },
+      async liveList() { return Object.entries(lives()).map(([c, v]) => ({ code: c, ...v })).filter((v) => !v.r).sort((a, b) => b.t - a.t); },
+      async peek() {
+        const lobby = (q) => { try { const v = JSON.parse(localStorage.getItem('destroy-go-online-lobby-' + q) || 'null'); return v && Date.now() - v.t < LOBBY_TTL ? 1 : 0; } catch (e) { return 0; } };
+        const live = Object.values(lives()).filter((v) => !v.r);
+        return { random: { wait: lobby('random'), live: live.filter((v) => v.k === 'random').length }, rank: { wait: lobby('rank'), live: live.filter((v) => v.k === 'rank').length } };
+      },
+      async watch(c, h) {
+        const r = rooms()[c];
+        if (!r || !r.settings) throw new Error('その対局は終わりました');
+        const ch = new BroadcastChannel('destroy-go-online-' + c), lc = new BroadcastChannel('destroy-go-online-live-' + c);
+        (r.moves || []).forEach((m) => h.onMove(m));
+        ch.onmessage = (e) => { if (e.data.k === 'move') h.onMove(e.data.v); };
+        lc.onmessage = (e) => h.onLive(e.data);
+        setTimeout(() => h.onLive(lives()[c] || null), 0);
+        ch.postMessage({ k: 'watch', d: 1 });
+        return { settings: r.settings, host: r.host, stop() { ch.postMessage({ k: 'watch', d: -1 }); ch.close(); lc.close(); } };
+      },
       seek(onMatch, onCount, queue = 'random') {
         const LKEY = 'destroy-go-online-lobby-' + queue, pb = new BroadcastChannel('destroy-go-online-pairs');
         let done = false, hb = 0;
@@ -142,6 +175,7 @@
     const me = user.uid, db = app.database();
     let offset = 0; // サーバーとの時計のずれ（待っている人がまだいるかの判定に使う）
     db.ref('.info/serverTimeOffset').on('value', (s) => { offset = s.val() || 0; });
+    const now = () => Date.now() + offset;
     let ref = null, offs = [];
     const listen = (h) => {
       const moves = ref.child('moves'), on = ref.child('on'), guest = ref.child('guest');
@@ -151,6 +185,8 @@
       guest.on('value', g); offs.push(() => guest.off('value', g));
       const pres = (s) => { const v = s.val() || {}; for (const u of Object.keys(v)) if (u !== me) h.onPeer(v[u] ? { back: u } : { left: u }); };
       on.on('value', pres); offs.push(() => on.off('value', pres));
+      const watch = ref.child('watch'), wc = (s) => { if (h.onWatch) h.onWatch(s.numChildren()); };
+      watch.on('value', wc); offs.push(() => watch.off('value', wc));
       // 接続が切れたら、相手の画面に「切れた」と出す
       on.child(me).onDisconnect().set(false);
       on.child(me).set(true);
@@ -159,8 +195,10 @@
     let epoch = 0; // あきらめたあとに遅れて返ってきた結果は使わない
     const offline = () => { epoch++; try { db.goOffline(); } catch (e) { /* 無視 */ } };
     // 部屋を作る・入る・相手を探すたびに数える。部屋を抜けて「少しあとで切る」間に次の相手を探し始めたら、その接続は切らない
-    let uses = 0;
+    let uses = 0, seeking = false, watching = false, liveRef = null;
     const online = () => { uses++; db.goOnline(); };
+    // 部屋・相手探し・観戦のどれもしていなければ切る（人数を見に来ただけのとき）
+    const idle = (u) => { if (u === uses && !ref && !seeking && !watching) offline(); };
     return {
       me,
       offline,
@@ -201,19 +239,20 @@
         online();
         const q = 'match/' + queue;
         const lobby = db.ref(q + '/lobby'), mine = db.ref('match/pairs/' + me), seekRef = db.ref(q + '/seek/' + me), seekAll = db.ref(q + '/seek');
-        let done = false, hb = 0, taken = null;
-        const now = () => Date.now() + offset;
+        let done = false, hb = 0, taken = null, lost = 0;
+        seeking = true;
         mine.remove(); // 前に届いて読まれなかった合言葉が残っていると、新しいものを受け取れないので消しておく
         seekRef.onDisconnect().remove(); seekRef.set(true);
         const cnt = (snap) => { if (onCount) onCount(snap.numChildren()); };
         seekAll.on('value', cnt);
-        const stop = () => { clearInterval(hb); seekAll.off('value', cnt); mine.off('value', got); seekRef.onDisconnect().cancel(); seekRef.remove(); };
+        const stop = () => { seeking = false; clearInterval(hb); seekAll.off('value', cnt); mine.off('value', got); seekRef.onDisconnect().cancel(); seekRef.remove(); };
         const got = (snap) => {
           const v = snap.val();
           if (done || !v || !v.code) return;
           done = true; stop(); mine.remove(); onMatch({ host: false, code: v.code });
         };
-        lobby.transaction((cur) => {
+        // 待っている人がいれば取り出し、いなければ自分が待つ側になる
+        const tryMatch = () => lobby.transaction((cur) => {
           taken = null;
           if (cur && cur.u !== me && now() - cur.t < LOBBY_TTL) { taken = cur.u; return null; } // 待っている人を取り出す
           return { u: me, t: now() };
@@ -221,9 +260,19 @@
           if (done) return;
           if (err || !committed) { done = true; stop(); onMatch({ error: true }); return; }
           if (taken) { done = true; stop(); onMatch({ host: true, partner: taken }); return; }
-          mine.on('value', got); // 自分が待つ側になった。相手から合言葉が届くのを待つ
-          hb = setInterval(() => lobby.transaction((cur) => (cur && cur.u === me ? { u: me, t: now() } : undefined)), HEARTBEAT);
+          lost = 0;
+          if (!hb) { // 自分が待つ側になった。相手から合言葉が届くのを待つ
+            mine.on('value', got);
+            hb = setInterval(beat, HEARTBEAT);
+          }
         }, false);
+        // 20 秒ごとに「まだいる」を書く。裏に回したタブなどで更新が遅れ、待つ場所を別の人に取られていたら（探しているのに
+        // 待つ場所にいない状態）、もう一度並び直す。取られた直後は合言葉が届く途中かもしれないので、2 回続いたときだけ
+        const beat = () => lobby.transaction((cur) => (cur && cur.u === me ? { u: me, t: now() } : undefined), (err, committed) => {
+          if (done || err || committed) { lost = 0; return; }
+          if (++lost >= 2) tryMatch();
+        }, false);
+        tryMatch();
         return () => {
           if (done) return;
           done = true; stop();
@@ -231,6 +280,51 @@
         };
       },
       pair(partner, code) { return db.ref('match/pairs/' + partner).set({ code, t: fb.database.ServerValue.TIMESTAMP }); },
+      // 観戦：対戦が始まったら部屋を作った人が出し、終わったら結果を書く（抜けたら消す）
+      livePut(info) {
+        if (!ref) return;
+        liveRef = db.ref('live/' + ref.key);
+        liveRef.onDisconnect().remove();
+        liveRef.set({ ...info, t: fb.database.ServerValue.TIMESTAMP }).catch(() => {});
+      },
+      liveEnd(r) { if (liveRef) liveRef.update({ r }).catch(() => {}); },
+      async liveList() {
+        online(); const u = uses;
+        const snap = await db.ref('live').orderByChild('t').limitToLast(30).get();
+        const out = []; snap.forEach((c) => { const v = c.val(); if (v && !v.r && now() - v.t < LIVE_MAX) out.push({ code: c.key, ...v }); });
+        idle(u);
+        return out.reverse();
+      },
+      // ランダムマッチ・ランクマッチに今いる人：探している人の数と、対戦中の数
+      async peek() {
+        online(); const u = uses;
+        const [a, b, l] = await Promise.all([db.ref('match/random/seek').get(), db.ref('match/rank/seek').get(),
+          db.ref('live').orderByChild('t').limitToLast(50).get().catch(() => null)]); // 観戦のルールを入れる前でも、待っている人の数は出す
+        const live = { random: 0, rank: 0 };
+        if (l) l.forEach((c) => { const v = c.val(); if (v && !v.r && now() - v.t < LIVE_MAX && live[v.k] !== undefined) live[v.k]++; });
+        idle(u);
+        return { random: { wait: a.numChildren(), live: live.random }, rank: { wait: b.numChildren(), live: live.rank } };
+      },
+      // 観戦する：今までの手と、これからの手を onMove に、結果を onLive に届ける
+      async watch(code, h) {
+        online();
+        const r = db.ref('rooms/' + code), v = (await r.child('settings').get()).val(), host = (await r.child('host').get()).val();
+        if (!v) throw new Error('その対局は終わりました');
+        watching = true;
+        const moves = r.child('moves'), live = db.ref('live/' + code), wme = r.child('watch/' + me);
+        const add = (s) => h.onMove(s.val()), lv = (s) => h.onLive(s.val());
+        moves.on('child_added', add); live.on('value', lv);
+        wme.onDisconnect().remove(); wme.set(true).catch(() => {});
+        return {
+          settings: v, host,
+          stop() {
+            moves.off('child_added', add); live.off('value', lv);
+            wme.onDisconnect().cancel(); watching = false;
+            const u = uses;
+            withTimeout(wme.remove(), 3000).catch(() => {}).finally(() => idle(u));
+          },
+        };
+      },
       async getRating() { db.goOnline(); return (await db.ref('ratings/' + me).get()).val(); },
       async setRating(v) { db.goOnline(); return db.ref('ratings/' + me).set({ ...v, t: fb.database.ServerValue.TIMESTAMP }); },
       async topRatings(n) {
@@ -310,6 +404,7 @@
       },
       leave() {
         offs.forEach((f) => f()); offs = [];
+        if (liveRef) { liveRef.onDisconnect().cancel(); liveRef.remove().catch(() => {}); liveRef = null; }
         if (ref) {
           ref.child('on/' + me).onDisconnect().cancel();
           // 「抜けた」を書き込んでから切る（書き込みが届かなくても、切れたときの設定で相手には伝わる）
@@ -344,6 +439,12 @@
     // ランダムマッチ：相手を探す（戻り値の Promise は、やめるための関数を返す）／見つけた側が合言葉を相手に送る
     async seek(onMatch, onCount, queue) { return withTimeout(transport().then((t) => t.seek(onMatch, onCount, queue)), LIMIT, giveUp); },
     pair(partner, code) { return tp ? tp.pair(partner, code) : null; },
+    // 観戦：対戦中の一覧・人数・見る（見るのをやめるときは戻り値の stop を呼ぶ）。livePut / liveEnd は部屋を作った人が呼ぶ
+    livePut(info) { if (tp) tp.livePut(info); },
+    liveEnd(r) { if (tp) tp.liveEnd(r); },
+    async liveList() { return withTimeout(transport().then((t) => t.liveList()), LIMIT); },
+    async peek() { return withTimeout(transport().then((t) => t.peek()), LIMIT, giveUp); },
+    async watch(code, h) { return withTimeout(transport().then((t) => t.watch(code, h)), LIMIT, giveUp); },
     // レートとランキング（ランクマッチ）
     async getRating() { return withTimeout(transport().then((t) => t.getRating()), LIMIT); },
     async setRating(v) { return (await transport()).setRating(v); },

@@ -25,6 +25,8 @@
   let pending = -1;     // 2回タップモードで仮置きしている交点
   let hover = -1;
   let lockUntil = 0;    // 演出中は着手できない
+  let bgSeek = null;    // 待っている間の CPU 戦で、裏で相手を探している種類（'random' / 'rank'）
+  let watching = null;  // 観戦している対局
   let geo = { css: 0, margin: 0, cell: 0 };
 
   const opt = {
@@ -1347,7 +1349,7 @@
   function setThinking(on) { for (const c of [BLACK, WHITE]) $('#p' + c).classList.toggle('thinking', on && c === cpuSide); }
   function renderNames() {
     for (const c of [BLACK, WHITE]) {
-      const who = net ? (c === net.color ? '（あなた）' : '（相手）') : !cpuSide ? '' : c === cpuSide ? (curFloor > 9 ? `（B${curFloor}F ${BOSSES[curFloor]}）` : `（Lv${cpuLevelInGame} ${BOSSES[cpuLevelInGame]}）`) : '（あなた）';
+      const who = watching ? (watching.names[c] ? `（${watching.names[c]}）` : '') : net ? (c === net.color ? '（あなた）' : '（相手）') : !cpuSide ? '' : c === cpuSide ? (curFloor > 9 ? `（B${curFloor}F ${BOSSES[curFloor]}）` : `（Lv${cpuLevelInGame} ${BOSSES[cpuLevelInGame]}）`) : '（あなた）';
       $('#p' + c + ' .p-name').firstChild.nodeValue = NAMES[c] + who + ' ';
     }
   }
@@ -2066,6 +2068,7 @@
     saveKifu(title, body, winner);
     $('#m-rate').textContent = '';
     if (net) { onlineIdle(); onlineGameEnd(winner); } // 結果の画面のまま放置されたら、接続を切る
+    if (net && net.host) Online.liveEnd({ title, w: winner }); // 観戦している人に結果を知らせる
     const show = () => {
       $('.m-title').textContent = title;
       $('.m-body').textContent = body;
@@ -2899,7 +2902,8 @@
   function rpRender() {
     draw(); renderHp(); updatePanels();
     if (!$('#log-pop').hidden) renderLog();
-    $('#rp-info').textContent = `${rpIdx} / ${rpk.moves.length}手${rpIdx === rpk.moves.length && rpk.result ? `　${rpk.result.title}` : ''}`;
+    $('#rp-info').textContent = watching ? `👀 観戦中　${rpIdx} / ${rpk.moves.length}手${rpk.result ? `　${rpk.result.title}` : ''}`
+      : `${rpIdx} / ${rpk.moves.length}手${rpIdx === rpk.moves.length && rpk.result ? `　${rpk.result.title}` : ''}`;
     $('#rp-auto').textContent = rpTimer ? '⏸ 止める' : '▶ ハイライト';
   }
   function rpGoTo(n) { // n 手目まで、演出なしで一気に進める
@@ -2957,6 +2961,7 @@
     renderNames(); renderThemes(); rpRender();
   }
   function endReplay() {
+    stopWatch();
     stopRec(true); rpLogAll = null;
     if (!rpSaved) return;
     $('#log-pop').hidden = true; $('#btn-log').hidden = true;
@@ -3054,7 +3059,14 @@
   // ---------- オンライン対戦（β）：合言葉の部屋で、打った手を送り合う ----------
   // 部屋を作った人の設定（碁盤・ルール・持ち時間）で対局する。色は部屋を作った人がランダムに決め、もう一局ごとに入れ替える。
   // 待った・一時停止はなし。パスで終局したら死に石は自動で判定する（部屋を作った人の画面で判定して送る）
-  const onlineHandlers = { onMove: (m) => onlineMove(m), onPeer: (e) => onlinePeer(e) };
+  const onlineHandlers = { onMove: (m) => onlineMove(m), onPeer: (e) => onlinePeer(e), onWatch: (n) => onlineWatchers(n) };
+  // 観戦している人の数を、対戦している 2 人の画面の右下に出す（増えたら知らせる）
+  function onlineWatchers(n) {
+    if (!net) return;
+    const prev = net.watchers || 0; net.watchers = n;
+    const el = $('#watch-pill'); el.textContent = `👀 観戦 ${n}人`; el.hidden = !n;
+    if (n > prev) toast(`👀 観戦している人がいます（${n}人）`);
+  }
   const settingText = (st) => `${st.size}路・${st.mode === 'destroy' ? `デストロイ${st.adv ? '上級' : '初級'}` : `ふつうの囲碁（${RULES[st.rules].label}）`}・持ち時間${st.min}分`;
   function onlineView(html) { $('#online-body').innerHTML = html; }
   // ランダムマッチ（β）のルール。人が少ないうちは分かれないよう 1 つだけ。ランクマッチは上級でレートが動く
@@ -3148,7 +3160,52 @@
   }
   const RANDOM_CPU_AFTER = 30000; // これだけ待っても相手が来なければ、CPU と対戦するボタンを出す
   let seekStop = null;
-  function stopSeek() { if (seekStop) { seekStop(); seekStop = null; } clearTimeout(stopSeek.t); }
+  function stopSeek() { if (seekStop) { seekStop(); seekStop = null; } clearTimeout(stopSeek.t); clearTimeout(stopSeek.idle); clearInterval(stopSeek.iv); bgSeek = null; $('#bg-pill').hidden = true; }
+  // 置きっぱなし対策：探す画面で 3 分たったら「まだ探しますか？」と聞き、30 秒返事がなければやめてホームへ。
+  // タブを裏に回したまま 1 分たったときもやめる（いない人が「探している人」に数えられ続けないように）
+  const SEEK_ASK = 3 * 60 * 1000, SEEK_ASK_WAIT = 30, SEEK_HIDDEN = 60000;
+  function giveUpSeek(msg) {
+    stopSeek(); if (!net) Online.leave();
+    if (!$('#online-pop').hidden && $('#on-still')) $('#online-pop').hidden = true;
+    renderRankTop(); toast(msg);
+  }
+  function armSeekAsk() {
+    clearTimeout(stopSeek.idle); clearInterval(stopSeek.iv);
+    stopSeek.idle = setTimeout(() => {
+      const box = $('#on-still');
+      if (!seekStop || bgSeek || !box) return;
+      let left = SEEK_ASK_WAIT;
+      const tick = () => { $('#on-still-n').textContent = left; if (left-- <= 0) giveUpSeek('相手が見つからなかったので、探すのをやめました'); };
+      box.hidden = false; tick(); stopSeek.iv = setInterval(tick, 1000);
+      $('#on-still-yes').onclick = () => { box.hidden = true; armSeekAsk(); };
+    }, SEEK_ASK);
+  }
+  document.addEventListener('visibilitychange', () => {
+    clearTimeout(stopSeek.hid);
+    if (document.hidden && seekStop) stopSeek.hid = setTimeout(() => { if (document.hidden && seekStop) giveUpSeek('画面を離れていたので、相手を探すのをやめました'); }, SEEK_HIDDEN);
+  });
+  // 待っている間の CPU 戦でも、裏で相手を探し続ける（見つかったら、CPU 戦をやめて対戦するか聞く）
+  const renderBgPill = (n) => { const el = $('#bg-pill'); el.hidden = !bgSeek; if (bgSeek) el.textContent = `🔍 ${bgSeek === 'rank' ? 'ランクマッチ' : 'ランダムマッチ'}の相手を探しています${n ? `（${n}人）` : ''}`; };
+  function bgFound(m, kind, RULE) {
+    bgSeek = null; $('#bg-pill').hidden = true;
+    if (m.error) return;
+    const box = $('#bg-found');
+    let left = 10, iv = 0;
+    const close = () => { clearInterval(iv); box.hidden = true; };
+    const decline = (timeout) => { close(); toast(timeout ? '返事がなかったので、相手探しを止めました' : '相手探しを止めました。CPU 戦を続けます'); };
+    const tick = () => { $('#bg-found-n').textContent = left; if (left-- <= 0) decline(true); };
+    box.hidden = false; tick(); iv = setInterval(tick, 1000);
+    try { navigator.vibrate && navigator.vibrate([120, 80, 120]); } catch (e) { /* 無視 */ }
+    FX.stoneClick();
+    $('#bg-found-no').onclick = () => decline(false);
+    $('#bg-found-go').onclick = () => {
+      close();
+      // CPU 戦はここでやめる（オンライン対戦が始まると盤は新しくなる）
+      warmupCpu = false; cpuToken++; setThinking(false); cancelCharge(); if (clock) clock.stop(); lockUntil = Infinity;
+      openOnline(); onlineView('<p class="on-wait">相手とつないでいます</p>');
+      matched(m, kind, RULE);
+    };
+  }
   // view：'friend'（フレンド対戦の画面）か 'blank'（ランダム・ランク・ランキングの入口。中身はすぐ差し替える）
   let onlineEntry = 'blank';
   function openOnline(view = 'blank') {
@@ -3513,6 +3570,7 @@
       <p class="on-rule"><b>デストロイ碁オリジナルのルール</b>です。石を取ると相手にダメージ、HPを0にしても勝ち。<b>死に石は判定しない</b>ので、終わる前に取りきろう。待っている間にどうぞ<button id="on-rules">ルールを見る</button></p>
       <p class="on-founder" id="on-founder" hidden></p>
       <p class="on-set" id="on-count">${n ? `${label}を開いている人：${n}人` : ''}</p>
+      <div class="on-box" id="on-still" hidden><p class="on-box-title">まだ探しますか？</p><p class="on-set"><span id="on-still-n">30</span> 秒たつと、探すのをやめてホームに戻ります</p><button id="on-still-yes" class="accent">探し続ける</button></div>
       <div id="on-cpu-box" hidden>${cpuLevelRow()}</div>
       <button id="on-cpu" hidden>待っている間、CPU と対戦する${kind === 'random' && randomPlayed() < RANK_UNLOCK ? '<small>勝つとランクマッチまでの 1 局に数えます</small>' : ''}</button><button id="on-cancel">やめる</button>`);
     view(0);
@@ -3523,30 +3581,40 @@
       if (!$('#on-cpu')) return;
       $('#on-cpu').hidden = false; $('#on-cpu-box').hidden = false; bindCpuLevelRow();
       // ランダムマッチの待ち時間は初級、ランクマッチの待ち時間は上級で
-      $('#on-cpu').onclick = () => { stopSeek(); Online.leave(); startOnlineCpu(kind === 'rank'); warmupCpu = kind === 'random'; };
+      $('#on-cpu').onclick = () => {
+        startOnlineCpu(kind === 'rank'); warmupCpu = kind === 'random';
+        if (seekStop) { bgSeek = kind; renderBgPill(0); toast('CPU 戦の間も相手を探します。見つかったらお知らせします'); }
+      };
     };
     stopSeek.t = setTimeout(showCpu, RANDOM_CPU_AFTER);
+    armSeekAsk();
     try {
-      seekStop = await Online.seek(async (m) => {
+      seekStop = await Online.seek((m) => {
         seekStop = null; clearTimeout(stopSeek.t);
-        if (m.error) { onlineError(new Error('相手を探せませんでした。少ししてからもう一度試してください')); return; }
-        if (!m.host) { onlineJoin(m.code, kind); return; }
-        // 見つけた側：部屋を作って合言葉を相手に送る。15 秒たっても相手が入らなければ、探し直す
-        const settings = { ...RULE, hostColor: Math.random() < 0.5 ? BLACK : WHITE };
-        try {
-          const code = await Online.create(settings, onlineHandlers);
-          net = { code, host: true, settings, color: settings.hostColor, g: 1, min: settings.min, waiting: true, kind };
-          Online.pair(m.partner, code);
-          const n = net;
-          setTimeout(() => { if (net === n && net.waiting) { leaveOnline(); onlineRandom(kind); } }, 15000);
-        } catch (e) { onlineError(e); }
+        if (bgSeek) { bgFound(m, kind, RULE); return; }
+        matched(m, kind, RULE);
       }, (n) => {
+        if (bgSeek) renderBgPill(n);
         const el = $('#on-count'); if (el) el.textContent = `${label}を開いている人：${n}人`;
         if (n <= 1) { // 自分しかいないときは、待たずに CPU 戦のボタンを出す（探すのは続ける）
           clearTimeout(stopSeek.t); showCpu();
           if (el && !isBattleTime()) el.textContent += `（人が集まりやすいのは、毎晩 ${BATTLE_FROM}〜${BATTLE_TO} 時の対戦タイムです）`;
         }
       }, kind);
+    } catch (e) { onlineError(e); }
+  }
+  // 相手が見つかった：待っていた側は届いた合言葉の部屋に入り、見つけた側は部屋を作って合言葉を送る
+  async function matched(m, kind, RULE) {
+    if (m.error) { onlineError(new Error('相手を探せませんでした。少ししてからもう一度試してください')); return; }
+    if (!m.host) { onlineJoin(m.code, kind); return; }
+    // 見つけた側：部屋を作って合言葉を相手に送る。15 秒たっても相手が入らなければ、探し直す
+    const settings = { ...RULE, hostColor: Math.random() < 0.5 ? BLACK : WHITE };
+    try {
+      const code = await Online.create(settings, onlineHandlers);
+      net = { code, host: true, settings, color: settings.hostColor, g: 1, min: settings.min, waiting: true, kind };
+      Online.pair(m.partner, code);
+      const n = net;
+      setTimeout(() => { if (net === n && net.waiting) { leaveOnline(); onlineRandom(kind); } }, 15000);
     } catch (e) { onlineError(e); }
   }
   function onlineError(e) {
@@ -3603,6 +3671,7 @@
     newGame();
     toast(`${{ random: 'ランダムマッチ', rank: 'ランクマッチ' }[net.kind] || 'オンライン対戦'}：あなたは${NAMES[net.color]}です`);
     if (net.kind === 'rank' && myRating) Online.send({ t: 'rt', r: myRating.r, n: myRating.n, name: myRating.name, g: net.g });
+    if (net.host && (net.kind === 'random' || net.kind === 'rank')) Online.livePut({ k: net.kind, size: st.size, adv: !!st.adv }); // 観戦の一覧に出す
   }
   function leaveOnline() {
     stopSeek();
@@ -3611,7 +3680,7 @@
     Online.send({ t: 'bye', g: net.g });
     Online.leave();
     const sv = net.saved;
-    net = null;
+    net = null; $('#watch-pill').hidden = true;
     if (rankedNow) { rankedNow = false; buildThemeChips(); }
     if (sv) { SIZE = sv.SIZE; mode = sv.mode; dAdvanced = sv.dAdvanced; rules = sv.rules; Object.assign(themes, sv.themes); renderThemes(); renderRules(); }
     $('#btn-undo').hidden = $('#btn-pause').hidden = false;
@@ -3761,6 +3830,122 @@
   document.querySelectorAll('.on-item.soon').forEach((el) => { el.onclick = () => toast(`「${el.firstChild.textContent}」は準備中です。お楽しみに！`); });
   $('#btn-random-top').onclick = () => { FX.unlock(); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; } openOnline(); onlineRandom('random'); };
   $('#btn-online-rules').onclick = () => openRulesFor(false);
+  // ---------- 👀 観戦：対戦中のランダムマッチ・ランクマッチを、ハイライトの再生と同じ画面で見る ----------
+  const KIND_NAME = { random: 'ランダムマッチ', rank: 'ランクマッチ' };
+  async function watchList() {
+    onlineView('<p class="on-wait">対戦中の試合を探しています</p>');
+    let list;
+    try { list = await Online.liveList(); } catch (e) { onlineError(e); return; }
+    const ago = (t) => { const m = Math.max(0, Math.round((Date.now() - t) / 60000)); return m < 1 ? 'いま始まった' : `${m}分前から`; };
+    onlineView(`<p class="on-title">👀 観戦</p>
+      ${list.length ? `<p class="on-set">見たい試合を選んでください（${list.length}試合）</p>${list.map((v) => `<button class="on-live-item" data-code="${esc(String(v.code))}"><b>${KIND_NAME[v.k] || 'オンライン対戦'}</b><span>${v.adv ? 'デストロイ上級' : 'デストロイ初級'}・${+v.size || 9}路</span><small>${ago(+v.t || Date.now())}</small></button>`).join('')}`
+        : `<p>いま対戦中の試合はありません。</p><p class="on-set">人が集まりやすいのは、毎晩 ${BATTLE_FROM}〜${BATTLE_TO} 時の対戦タイムです。</p>`}
+      <button id="on-live-reload">🔄 更新</button><button id="on-back">戻る</button>`);
+    $('#online-body').querySelectorAll('.on-live-item').forEach((b) => { b.onclick = () => watchGame(b.dataset.code); });
+    $('#on-live-reload').onclick = watchList;
+    $('#on-back').onclick = onlineBack;
+  }
+  async function watchGame(code) {
+    onlineView('<p class="on-wait">つないでいます</p>');
+    const w = watching = { code, buf: [], names: {}, ready: false, result: null, busy: false, live: undefined, stop: null };
+    const h = {
+      onMove: (m) => { if (watching !== w) return; if (w.ready) watchMove(m, true); else w.buf.push(m); },
+      onLive: (v) => { if (watching !== w) return; if (w.ready) watchLive(v); else w.live = v; },
+    };
+    let r;
+    try { r = await Online.watch(code, h); } catch (e) { if (watching === w) watching = null; onlineError(e); return; }
+    if (watching !== w) { r.stop(); return; }
+    track('観戦した');
+    w.stop = r.stop; w.host = r.host; w.hostColor = r.settings.hostColor === WHITE ? WHITE : BLACK;
+    const st = r.settings;
+    $('#online-pop').hidden = true;
+    startReplay({ date: Date.now(), size: st.size, rules: st.rules, mode: st.mode, adv: !!st.adv, hc: 0, hpb: { color: BLACK, rate: 0 }, cpu: null, moves: [], result: null });
+    rpLogAll = null; // 📜 履歴は、届いた手までの分を出す
+    gameEl.classList.add('watching');
+    w.buf.forEach((m) => watchMove(m, false)); w.buf = [];
+    w.ready = true;
+    rpGoTo(rpk.moves.length);
+    if (w.live !== undefined) watchLive(w.live);
+    toast('👀 観戦中です。手が打たれると盤が進みます');
+  }
+  function stopWatch() {
+    if (!watching) return;
+    const w = watching; watching = null;
+    if (w.stop) w.stop();
+    gameEl.classList.remove('watching');
+  }
+  // 届いたもの：手（打った・パス）は棋譜に足し、最新の手を見ていたらそのまま進める。投了・時間切れ・名前・演出も反映する
+  function watchMove(m, animate) {
+    if (!watching || !rpk || !m || m.g !== 1) return; // ランダム・ランクマッチは 1 局だけ
+    const w = watching, colorOf = (u) => (u === w.host ? w.hostColor : otherColor(w.hostColor));
+    if (m.t === 'th') { if ((m.c === BLACK || m.c === WHITE) && typeof m.k === 'string') { themes[m.c] = m.k; renderThemes(); if (animate) draw(); } return; }
+    if (m.t === 'rt') { w.names[colorOf(m.u)] = String(m.name || '').slice(0, 20); renderNames(); return; }
+    if (m.t === 'resign' || m.t === 'timeout') {
+      const win = otherColor(m.c === WHITE ? WHITE : BLACK);
+      watchResult({ title: `${NAMES[win]}の${m.t === 'resign' ? '中押し' : '時間切れ'}勝ち`, winner: win }, animate);
+      return;
+    }
+    if (m.t === 'bye') { if (animate && !w.result) toast('対局している人が抜けました'); return; }
+    if (m.t !== 'p' && m.t !== 'pass') return;
+    const atEnd = rpIdx === rpk.moves.length;
+    rpk.moves.push(m.t === 'pass' ? { p: -1 } : { p: +m.p, c: +m.c || 0, x: m.x ? 1 : 0, s: m.s ? 1 : 0 });
+    if (!animate) return;
+    if (atEnd) watchFollow(); else rpRender();
+  }
+  // 最新の手まで、1 手ずつ演出つきで進める（石を取る演出の間は次の手を待つ）
+  function watchFollow() {
+    const w = watching;
+    if (!w || w.busy || !rpk || rpTimer) return;
+    if (rpIdx >= rpk.moves.length) { watchShowResult(); return; }
+    w.busy = true;
+    const hold = rpApply(true);
+    rpRender();
+    setTimeout(() => { if (watching !== w) return; w.busy = false; watchFollow(); }, Math.max(350, Math.min(hold, 1600)));
+  }
+  function watchResult(res, animate) {
+    const w = watching;
+    if (!w || w.result) return;
+    w.result = res;
+    if (animate !== false) watchFollow();
+  }
+  function watchShowResult() {
+    const w = watching;
+    if (!w || !w.result || rpk.result || rpIdx < rpk.moves.length) return;
+    rpk.result = w.result;
+    rpFinish(); rpRender();
+    if (!w.result.winner) showBigNote(w.result.title, '#ffd23f');
+    toast('対局が終わりました。「← タイトルへ」で戻れます');
+  }
+  // live/{合言葉}：終わったら結果が書かれる。消えたら（部屋を作った人が抜けた）終わったものとする
+  function watchLive(v) {
+    const w = watching;
+    if (!w) return;
+    if (v && v.r && typeof v.r.title === 'string') watchResult({ title: v.r.title.slice(0, 40), winner: v.r.w === BLACK || v.r.w === WHITE ? v.r.w : 0 });
+    else if (!v && !w.result) toast('この対局は終わりました');
+  }
+  $('#btn-watch-top').onclick = () => {
+    FX.unlock(); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; }
+    track('観戦の一覧を開いた');
+    openOnline(); watchList();
+  };
+  // ホームのランダムマッチ・ランクマッチに、いま探している人と対戦中の数を出す（ホームを見ている間、1 分ごと）
+  let liveCountAt = 0;
+  async function renderLiveCount() {
+    if (!Online.available() || phase !== 'title' || document.hidden || Date.now() - liveCountAt < 50000) return;
+    liveCountAt = Date.now();
+    let c;
+    try { c = await Online.peek(); } catch (e) { return; }
+    for (const k of ['random', 'rank']) {
+      const el = $('#live-' + k), v = c[k], n = v.wait + v.live * 2;
+      el.textContent = n ? `🟢 ${v.wait ? `${v.wait}人待ち` : ''}${v.wait && v.live ? '・' : ''}${v.live ? `${v.live}試合中` : ''}` : '0人';
+      el.classList.toggle('zero', !n); el.hidden = false;
+    }
+    const g = c.random.live + c.rank.live;
+    $('#watch-top-note').textContent = g ? `🟢 ${g}試合 対戦中` : '対戦中の試合を見る';
+  }
+  setTimeout(renderLiveCount, 2500);
+  setInterval(renderLiveCount, 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) renderLiveCount(); });
   $('#btn-friend-top').onclick = () => { FX.unlock(); track('フレンド対戦を開いた'); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; } openOnline('friend'); };
   // ランクマッチは開放の条件をそろえるまで押せない（押すと、あと何が必要か案内する）
   function renderRankTop() {
