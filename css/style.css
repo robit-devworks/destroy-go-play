@@ -536,6 +536,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .dj-abyss-open { color: #d8b8ff; }
 .badge-f.badge-dojo.dj-ns { color: #fff2c0; background: linear-gradient(90deg, #8a4a00, #e09a1a, #8a4a00); border-color: #ffd27a; }
 .dj-ns-card { display: block; margin: 6px auto 0; background: linear-gradient(#ffe27a, #e09a1a); color: #2a1400; border-color: #fff2b0; }
+.badge-f.badge-dojo.pi-1 { color: #2a1400; background: linear-gradient(90deg, #ffd23f, #fff6c8, #ffb02e, #ffd23f); background-size: 200% 100%; border-color: #fff2b0; animation: dj-shine 2.4s linear infinite; font-weight: 900; box-shadow: 0 0 8px rgba(255, 210, 63, 0.8); }
+.badge-f.badge-dojo.pi-2 { color: #1a1c22; background: linear-gradient(90deg, #b8bcc6, #f4f6fa, #b8bcc6); border-color: #ffffff; font-weight: 800; }
+.badge-f.badge-dojo.pi-3 { color: #2a1406; background: linear-gradient(90deg, #b06a2a, #f0b07a, #b06a2a); border-color: #ffd0a0; font-weight: 800; }
 .badge-f.badge-dojo.dj-18 { color: #f0e0ff; background: linear-gradient(90deg, #3a0a6a, #7a2ac8, #3a0a6a); background-size: 200% 100%; border-color: #c890ff; animation: dj-shine 3s linear infinite; font-weight: 900; }
 .dj-help { font-size: 11px; color: var(--muted); text-align: center; line-height: 1.6; margin: 10px 0; }
 .dj-gauntlet { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%; padding: 10px; border-radius: 999px; border: 0; font: inherit;
@@ -743,6 +746,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
   animation: slam-god 0.9s cubic-bezier(.2, 1.6, .4, 1), god-glow 0.3s 0.9s infinite alternate; }
 #banner.rainbow .b-main { animation-name: slam, hue; animation-duration: 0.45s, 0.6s; animation-iteration-count: 1, infinite; }
 #banner.t6.rainbow .b-main { animation-name: slam-god, hue; animation-duration: 0.9s, 0.5s; animation-iteration-count: 1, infinite; }
+/* 時間停止（消滅）：一瞬だけ画面を白黒に */
+body.timestop #stage, body.timestop #fx { filter: grayscale(1) contrast(1.35); }
 #banner.t6.th-clear .b-main { font-size: clamp(40px, 12vw, 120px); } /* ALL CLEAR は長いので、画面からはみ出さない大きさに */
 /* 虹滅：技の名前は虹のグラデーションで塗り、白と濃い紫で縁取る（パチンコの「祝」のような見た目） */
 #banner.th-kometsu .b-main, #banner.th-kometsu .b-sub {

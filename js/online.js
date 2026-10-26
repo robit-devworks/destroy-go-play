@@ -120,6 +120,13 @@
         const n = (v.count || 0) + 1; if (n > max) return 0;
         v.count = n; v.list[me] = n; localStorage.setItem('destroy-go-local-founders', JSON.stringify(v)); return n;
       },
+      async pioneers() { const v = JSON.parse(localStorage.getItem('destroy-go-local-pioneers') || '{}'); return { count: v.count || 0, list: v.list || {} }; },
+      async claimPioneer(max) {
+        const v = JSON.parse(localStorage.getItem('destroy-go-local-pioneers') || '{}'); v.list = v.list || {};
+        if (v.list[me]) return v.list[me];
+        const n = (v.count || 0) + 1; if (n > max) return 0;
+        v.count = n; v.list[me] = n; localStorage.setItem('destroy-go-local-pioneers', JSON.stringify(v)); return n;
+      },
     };
   }
 
@@ -286,6 +293,18 @@
         }
         return 0;
       },
+      // 深淵の開拓者：破壊の迷宮の深淵層の最深部を最初に突破した先着の人（しくみは初代デストロイヤーと同じ）
+      async pioneers() { db.goOnline(); const v = (await db.ref('pioneers').get()).val() || {}; return { count: v.count || 0, list: v.list || {} }; },
+      async claimPioneer(max) {
+        db.goOnline();
+        for (let i = 0; i < 6; i++) {
+          const v = (await db.ref('pioneers').get()).val() || {};
+          if (v.list && v.list[me]) return v.list[me];
+          const n = (v.count || 0) + 1; if (n > max) return 0;
+          try { await db.ref('pioneers').update({ count: n, ['list/' + me]: n }); return n; } catch (e) { /* 同時に取られた。やり直す */ }
+        }
+        return 0;
+      },
       leave() {
         offs.forEach((f) => f()); offs = [];
         if (ref) {
@@ -332,6 +351,8 @@
     // 初代デストロイヤー（ランクマッチを最初に終えた先着の人）
     async founders() { return withTimeout(transport().then((t) => t.founders()), LIMIT); },
     async claimFounder(max) { return withTimeout(transport().then((t) => t.claimFounder(max)), LIMIT); },
+    async pioneers() { return withTimeout(transport().then((t) => t.pioneers()), LIMIT); },
+    async claimPioneer(max) { return withTimeout(transport().then((t) => t.claimPioneer(max)), LIMIT); },
     // 記録の引き継ぎ。ready() で先に準備しておく（Google のログイン画面は、ボタンを押してすぐ開かないと止められる）
     async ready() { return withTimeout(transport(), LIMIT); },
     account() { return tp ? tp.account() : { linked: false, email: '' }; },

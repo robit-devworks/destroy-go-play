@@ -1870,6 +1870,7 @@
       html += `<p class="dj-win">B${lv}F ${boss} 撃破！</p><p class="dj-stars">${starsText(stars)}${first ? '<b>初撃破</b>' : more ? '<b>星が増えた</b>' : ''}</p>`;
       if (first && lv === 9 && !abyssCount()) html += `<p class="dj-title dj-abyss-open">▼ 迷宮の底に、さらに深い階層への道が開いた…<small>破壊の迷宮の画面で「深淵層」に挑めます</small></p>`;
       if (first && ABYSS_GIFTS[lv]) { html += `<p class="dj-title">🎁 ${ABYSS_GIFTS[lv]}！</p>`; if (lv === 18) { unlockAll(); if (CLEAR_READY) grantFx('clear'); } }
+      if (lv === 18) claimPioneer();
       if (stars < 3) html += `<p class="dj-tip">${stars === 1 && usedUndo ? '待ったなしで勝つと ★2' : stars === 1 ? '置き石なし・待ったなしで勝つと ★2' : 'KO・中押し・10目以上の大差で勝つと ★3'}</p>`;
       const newTitle = dojoTitleLv() !== hadTitle && DOJO_TITLES[dojoTitleLv()];
       if (newTitle) track(`称号「${newTitle}」を獲得`);
@@ -1980,7 +1981,7 @@
         <span class="dj-st">${st ? starsText(st) : lv === next ? '▼ 次はここ' : '☆☆☆'}</span>${st ? '<i class="dj-stamp">突破</i>' : ''}</button>`;
     }).join('');
     const rule = HOME_SET.rule.now();
-    $('#dojo-body').innerHTML = `<p class="dj-head">${dojoCount()} / 9 階 突破${DOJO_TITLES[dojoTitleLv()] ? `　称号：<b>${DOJO_TITLES[dojoTitleLv()]}</b>` : ''}</p>
+    $('#dojo-body').innerHTML = `${myPioneer ? `<p class="dj-head">👑 あなたは<b>${pioneerName(myPioneer)}</b>です</p>` : ''}<p class="dj-head">${dojoCount()} / 9 階 突破${DOJO_TITLES[dojoTitleLv()] ? `　称号：<b>${DOJO_TITLES[dojoTitleLv()]}</b>` : ''}</p>
       <div class="dj-rule"><span>ルール</span>${HOME_SET.rule.list().map(([v, label]) => `<button class="chip rule-chip" data-v="${v}" aria-pressed="${v === rule}">${label}</button>`).join('')}</div>
       <div class="dj-floors">${floors}</div>
       ${abyssOpen() ? `<div class="dj-abyss-head">▼ さらに深く… <b>深淵層</b><small>ルールはデストロイ固定。CPU がハンデ（置き石・HP）をもらって待ち構える</small></div>
@@ -3019,6 +3020,33 @@
     : f.list[Online.me()] || myFounder ? `👑 あなたは<b>初代デストロイヤー #${String(f.list[Online.me()] || myFounder).padStart(2, '0')}</b>です（先着${FOUNDER_MAX}人・残り${Math.max(0, FOUNDER_MAX - f.count)}枠）`
     : f.count >= FOUNDER_MAX ? '👑 初代デストロイヤー（先着100人）は締め切りました'
     : `👑 ランクマッチを1局終えると<b>初代デストロイヤー</b>の印がもらえます（先着${FOUNDER_MAX}人・残り${FOUNDER_MAX - f.count}枠）`);
+  // 深淵の開拓者（先着 3 人）：破壊の迷宮の深淵層の最深部 B18F を突破した人が、ゲームを開いたとき（または突破したとき）に名乗り出る
+  const PIONEER_MAX = 3;
+  let myPioneer = +lsGet('destroy-go-pioneer') || 0, pioneersCache = null, pioneersAt = 0;
+  async function loadPioneers() {
+    if (pioneersCache && Date.now() - pioneersAt < 60000) return pioneersCache;
+    try {
+      pioneersCache = await Online.pioneers(); pioneersAt = Date.now();
+      const n = pioneersCache.list[Online.me()] || 0;
+      if (n !== myPioneer) { myPioneer = n; lsSet('destroy-go-pioneer', String(n)); }
+    } catch (e) { pioneersCache = pioneersCache || { count: 0, list: {} }; }
+    return pioneersCache;
+  }
+  const pioneerName = (n) => (n === 1 ? '深淵の開拓者' : `深淵の先駆者 #${n}`);
+  const pioneerBadge = (n) => (n ? `<i class="badge-f badge-dojo pi-${n}" title="破壊の迷宮の深淵層を ${n} 番目に踏破した">${pioneerName(n)}</i>` : '');
+  async function claimPioneer() {
+    if (myPioneer || meIsDev() || isTester() || !dojoCleared(18) || !Online.available()) return;
+    let n = 0;
+    try { n = await Online.claimPioneer(PIONEER_MAX); } catch (e) { return; }
+    if (!n) return;
+    myPioneer = n; pioneersCache = null; lsSet('destroy-go-pioneer', String(n));
+    track(`称号「${pioneerName(n)}」を獲得`); renderDojoHome();
+    const el = $('#unlock-pop');
+    el.innerHTML = `<b>👑 称号「${pioneerName(n)}」を手に入れた！</b><small>破壊の迷宮の深淵層を、世界で ${n} 番目に踏破した証。ランキングで名前の横に出ます</small>`;
+    el.style.setProperty('--tc', n === 1 ? '#ffd23f' : n === 2 ? '#d8dce4' : '#e09a5a');
+    el.className = ''; void el.offsetWidth; el.className = 'show';
+    FX.heal();
+  }
   async function claimFounder() {
     if (myFounder || meIsDev() || isTester()) return;
     let n = 0;
@@ -3249,13 +3277,13 @@
   async function showRanking() {
     onlineView('<p class="on-wait">ランキングを読み込んでいます</p>');
     try {
-      const [list, me, f, sr] = await Promise.all([Online.topRatings(50), loadRating(), loadFounders(), loadSeason()]);
-      const rows = list.map((v, i) => `<li data-u="${v.u}"${v.u === Online.me() ? ' class="on-mine"' : ''}><span>${i + 1}</span><span class="rk-name">${nameHtml(v.name)}<span class="rk-sub">${tagHtml(v.u)}${v.u === DEV_UID || (v.u === Online.me() && isDev()) ? devBadge : founderBadge(f.list[v.u], true)}${seasonBadge(sr, v.u)}${dojoBadge(v.cl)}${nonstopBadge(v.ns)}</span></span><span>${v.r}</span><small>${v.n || 0}局</small></li>`).join('');
+      const [list, me, f, sr, pi] = await Promise.all([Online.topRatings(50), loadRating(), loadFounders(), loadSeason(), loadPioneers()]);
+      const rows = list.map((v, i) => `<li data-u="${v.u}"${v.u === Online.me() ? ' class="on-mine"' : ''}><span>${i + 1}</span><span class="rk-name">${nameHtml(v.name)}<span class="rk-sub">${tagHtml(v.u)}${v.u === DEV_UID || (v.u === Online.me() && isDev()) ? devBadge : founderBadge(f.list[v.u], true)}${seasonBadge(sr, v.u)}${pioneerBadge(pi.list[v.u])}${dojoBadge(v.cl)}${nonstopBadge(v.ns)}</span></span><span>${v.r}</span><small>${v.n || 0}局</small></li>`).join('');
       onlineView(`<p class="on-set">ランクマッチ（上級・9路）のレート上位 50 人。名前を押すと、直近 5 局の棋譜が見られます</p>
         <p class="on-founder on-season">${seasonLine(me, sr)}</p>
         <p class="on-founder">${founderLeft(f)}</p>
         <ol class="on-rank">${rows || '<li class="on-empty">まだ誰もいません</li>'}</ol>
-        <p class="on-me">あなた：${nameHtml(me.name)}${tagHtml(Online.me())}${meIsDev() ? devBadge : founderBadge(f.list[Online.me()] || myFounder)}${seasonBadge(sr, Online.me())}${dojoBadge(dojoTitleLv())}${nonstopBadge(nonstopDone())}（レート ${me.r}・${me.n}局）</p>
+        <p class="on-me">あなた：${nameHtml(me.name)}${tagHtml(Online.me())}${meIsDev() ? devBadge : founderBadge(f.list[Online.me()] || myFounder)}${seasonBadge(sr, Online.me())}${pioneerBadge(pi.list[Online.me()] || myPioneer)}${dojoBadge(dojoTitleLv())}${nonstopBadge(nonstopDone())}（レート ${me.r}・${me.n}局）</p>
         ${isDev() ? '' : nameGachaBox(me.name)}<button id="on-back">戻る</button>`);
       bindNameGacha();
       claimSeason().catch(() => {});
@@ -3616,6 +3644,7 @@
   $('#online-close').onclick = () => { if (seekStop) { stopSeek(); Online.leave(); } if (net && net.waiting) leaveOnline(); $('#online-pop').hidden = true; };
 
   homeReady = true;
+  setTimeout(claimPioneer, 3000); // B18F を突破済みなら、深淵の開拓者に名乗り出る（オンラインの準備ができてから）
   // ホーム画面のアイコンから開いた（＝ホーム画面に追加してくれた）ことを、1 台につき 1 日 1 回だけ数える
   (function trackHomeScreen() {
     const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;

@@ -212,21 +212,14 @@
         for (let i = 0; i < 4; i++) { const a = rnd(0, 6.3), d = r * rnd(1.15, 1.6); x.fillStyle = 'rgba(40,20,6,0.5)'; x.beginPath(); x.arc(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, e.cell * rnd(0.03, 0.06), 0, Math.PI * 2); x.fill(); } // 飛んだ木くず
         if (e.full) continue; // 大技は真ん中の大きなくぼみに光を集める
         const glow = gx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 1.3);
-        glow.addColorStop(0, 'rgba(200,235,255,0.45)'); glow.addColorStop(1, 'rgba(160,220,255,0)');
+        glow.addColorStop(0, 'rgba(255,255,255,0.4)'); glow.addColorStop(1, 'rgba(255,255,255,0)');
         gx.fillStyle = glow; gx.beginPath(); gx.arc(p.x, p.y, r * 1.3, 0, Math.PI * 2); gx.fill();
       }
       if (e.full) { // 盤の真ん中が大きくえぐり取られ、まわりにえぐった筋が走る
         const cx = e.center.x, cy = e.center.y, R = S * (e.ti >= 6 ? 0.3 : 0.22);
-        for (let i = 0; i < (e.ti >= 6 ? 16 : 10); i++) {
-          const a = rnd(0, Math.PI * 2), r0 = R * rnd(0.95, 1.05), r1 = R * rnd(1.2, e.ti >= 6 ? 1.9 : 1.5), w = e.cell * rnd(0.06, 0.14);
-          x.strokeStyle = 'rgba(40,20,6,0.75)'; x.lineWidth = w; x.lineCap = 'round';
-          x.beginPath(); x.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); x.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); x.stroke();
-          x.strokeStyle = 'rgba(255,230,190,0.35)'; x.lineWidth = w * 0.3;
-          x.beginPath(); x.moveTo(cx + Math.cos(a) * r0 + w * 0.3, cy + Math.sin(a) * r0 + w * 0.3); x.lineTo(cx + Math.cos(a) * r1 + w * 0.3, cy + Math.sin(a) * r1 + w * 0.3); x.stroke();
-        }
         gouge(x, cx, cy, R, 0.07, e.cell * 0.2);
         const glow = gx.createRadialGradient(cx, cy, 0, cx, cy, R);
-        glow.addColorStop(0, 'rgba(220,242,255,0.35)'); glow.addColorStop(1, 'rgba(160,220,255,0)');
+        glow.addColorStop(0, 'rgba(255,255,255,0.3)'); glow.addColorStop(1, 'rgba(255,255,255,0)');
         gx.fillStyle = glow; gx.fillRect(0, 0, S, S);
       }
     },
@@ -362,7 +355,7 @@
     clear(e) { // くぼみから、白い光の粒がゆっくり昇る
       if (Math.random() < (e.full ? 0.7 : 0.35)) {
         const p = seedNear(e);
-        e.parts.push({ kind: 'ember', color: pick(['#ffffff', '#e8f6ff', '#bfe6ff']), x: p.x, y: p.y, vx: rnd(-0.15, 0.15), vy: -rnd(0.3, 0.9), t: 0, life: rnd(40, 80), size: rnd(0.8, 1.8) });
+        e.parts.push({ kind: 'ember', color: pick(['#ffffff', '#dddddd', '#ffffff']), x: p.x, y: p.y, vx: rnd(-0.15, 0.15), vy: -rnd(0.3, 0.9), t: 0, life: rnd(40, 80), size: rnd(0.8, 1.8) });
       }
     },
     ice(e) {
@@ -676,7 +669,7 @@
 
   // ---------- 陣地ヒント ----------
   // にじみの色（木の盤の上で見える色）
-  const HINT_COLOR = { default: '25,15,15', fire: '255,90,0', ice: '40,170,255', thunder: '255,225,0', dark: '130,50,220', light: '255,255,255', clear: '130,205,255' };
+  const HINT_COLOR = { default: '25,15,15', fire: '255,90,0', ice: '40,170,255', thunder: '255,225,0', dark: '130,50,220', light: '255,255,255', clear: '200,200,200' };
   const AURA_BOOST = { thunder: 0.8 }; // 黄色は主張が強いので控えめにする
   const AURA_EDGE = { thunder: '60,35,0' }; // 暗い縁
   // 色違いの演出（シーズン報酬）のにじみ。青や紫は木の黄色と混ざると濁るので、暗い縁を先に敷く
@@ -705,7 +698,7 @@
       x.lineCap = 'round';
       x.strokeStyle = 'rgba(255,236,200,0.55)'; x.lineWidth = cell * 0.07; x.save(); x.translate(cell * 0.025, cell * 0.025); polyline(x, [a, b]); x.restore();
       x.strokeStyle = 'rgba(45,24,8,0.85)'; x.lineWidth = cell * 0.06; polyline(x, [a, b]);
-      x.strokeStyle = 'rgba(170,225,255,0.5)'; x.lineWidth = cell * 0.015; polyline(x, [a, b]);
+      x.strokeStyle = 'rgba(255,255,255,0.45)'; x.lineWidth = cell * 0.015; polyline(x, [a, b]);
     },
     default(x, a, b, cell, rand) { // 木のひび
       const pts = jagged(a[0], a[1], b[0], b[1], cell * 0.12, 7, rand);

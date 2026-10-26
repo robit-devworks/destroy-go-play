@@ -56,11 +56,11 @@
       flash: ['#ffffff', '#fff6d8', '#ffe7a3', '#fff0c0'], vignette: 'holy',
     },
     clear: { // 破壊の迷宮・深淵層の最深部の報酬：石が光に包まれて消える（CLEAR と消滅をかけた）。盤は丸くえぐれる
-      label: '消滅', mark: '消', color: '#9ad8ff', palette: ['#ffffff', '#e8f6ff', '#bfe6ff', '#9ad8ff'],
+      label: '消滅', mark: '消', color: '#d8d8d8', palette: ['#ffffff', '#e0e0e0', '#8a8a8a', '#111111'], // 無機質な白と黒
       // いちばん上の技は「神を呼ぶ」のではなく、自分が神になってすべてを消す（ALL CLEAR）
       names: ['CLEAR!!!', 'MEGA CLEAR!!!', 'ULTRA CLEAR!!!!', 'ALL CLEAR'],
-      subs: ['消え去れ', 'メガ・クリア', 'ウルトラ・クリア', '我、神となりて 無に還す'],
-      flash: ['#ffffff', '#e8f6ff', '#9ad8ff', '#06121e'], vignette: 'holy',
+      subs: ['消え去れ', 'メガ・クリア', 'ウルトラ・クリア', ''], calmGod: true, // ALL CLEAR は飾らない。時間が止まり、すべてが静かに消える
+      flash: ['#ffffff', '#cfcfcf', '#000000', '#000000'], vignette: 'meteor',
     },
     // ---- 色違い（シーズンのランキング報酬）。動きは base の演出のまま、色だけ変える ----
     crimson: { // 1〜3 位：赤黒い雷
@@ -421,7 +421,7 @@
       sfx((a, t) => noiseHit(a, t, { dur: g ? 3.8 : 2.8, f0: 320, f1: 35, q: 0.6, vol: 0.55 }), 0.8);
     },
     dark() {}, // 闇は渦が潰れるときに専用の音（implode）を鳴らす
-    clear(g) { suck(1, 0.2); suck(0.8, 0.6); chime(1, 1.1); if (g) { suck(1, 1.6); chime(1, 2.2); } }, // 吸い込む音が重なって、最後に澄んだ音
+    clear(g) { if (g) { chime(0.6, 1.4); return; } suck(1, 0.2); suck(0.8, 0.6); chime(1, 1.1); }, // 吸い込む音が重なって、最後に澄んだ音。ALL CLEAR は静かに 1 音だけ
     light(g) { // 天使の合唱のような和音と、高く昇っていくきらめき
       sfx((a, t) => {
         const dur = g ? 3.4 : 2.4;
@@ -544,10 +544,10 @@
     if (p.vanish) { // 消滅：白く光りながら縮んで、消える
       const k = Math.min(1, p.t / p.life);
       c2.globalCompositeOperation = 'lighter';
-      c2.fillStyle = `rgba(230,245,255,${0.4 + 0.6 * k})`;
+      c2.fillStyle = `rgba(255,255,255,${0.4 + 0.6 * k})`;
       c2.beginPath(); c2.arc(0, 0, s * 1.02, 0, Math.PI * 2); c2.fill();
       const halo = c2.createRadialGradient(0, 0, s * 0.5, 0, 0, s * 2.4);
-      halo.addColorStop(0, `rgba(200,235,255,${0.7 * k})`); halo.addColorStop(1, 'rgba(160,220,255,0)');
+      halo.addColorStop(0, `rgba(255,255,255,${0.7 * k})`); halo.addColorStop(1, 'rgba(255,255,255,0)');
       c2.fillStyle = halo; c2.beginPath(); c2.arc(0, 0, s * 2.4, 0, Math.PI * 2); c2.fill();
       c2.globalCompositeOperation = 'source-over';
     }
@@ -829,12 +829,21 @@
     parts = parts.filter((p) => p.t < p.life && p.y < H + 150 && p.y > -H * 1.5);
     dying.forEach((p) => { tintNow = p.tint || null; p.onDeath(p); tintNow = null; });
   }
-  const FRAME = 1000 / 60, MAX_STEPS = 6; // 一度に追いつくのは 0.1 秒ぶんまで（止まっていたあとに一気に飛ばないように）
+  const FRAME = 1000 / 60, MAX_STEPS = 6;
+  let freezeUntil = 0;
+  // 時間停止：画面を一瞬だけ白黒にして、演出の動きを止める（消滅の、石が消える瞬間）
+  function timeStop(ms) {
+    freezeUntil = performance.now() + ms;
+    document.body.classList.add('timestop');
+    clearTimeout(timeStop._t); timeStop._t = setTimeout(() => document.body.classList.remove('timestop'), ms);
+    sfx((a, t) => noiseHit(a, t, { dur: 0.08, type: 'highpass', f0: 3000, q: 0.7, vol: 0.5 })); // 「カチッ」と止まる音
+  } // 一度に追いつくのは 0.1 秒ぶんまで（止まっていたあとに一気に飛ばないように）
   let lastT = 0, carry = 0;
   function loop(now) {
     carry += Math.max(0, now - lastT); lastT = now;
     let n = Math.min(MAX_STEPS, Math.max(1, Math.floor(carry / FRAME)));
     carry = Math.max(0, carry - n * FRAME); if (carry > FRAME * MAX_STEPS) carry = 0;
+    if (now < freezeUntil) { n = 0; carry = 0; } // 時間停止（消滅）：粒は止めたまま描く
     while (n--) step();
 
     c2.clearRect(0, 0, W, H);
@@ -1294,39 +1303,39 @@
   RUN.clear = (c) => {
     const { points, ti } = c;
     const god = ti >= GOD, ultra = ti >= ULTRA, pal = c.theme.palette;
-    const motes = (x, y, n, spread) => {
+    const motes = (x, y, n, spread) => { // 白と黒の四角い粒が、上へ吸い込まれていく
       for (let i = 0; i < n; i++) {
         spawn({ kind: 'dot', x: x + rnd(-spread, spread), y: y + rnd(-spread, spread), vx: rnd(-0.3, 0.3), vy: -rnd(0.6, 2.6), g: -0.03, drag: 0.98,
-          size: rnd(1, 2.8), life: rnd(40, 90), color: pick(pal) });
+          size: rnd(1, 2.8), life: rnd(40, 90), color: Math.random() < 0.65 ? '#ffffff' : '#111111' });
       }
     };
+    const vanishAt = (ultra ? 650 : 280);
     points.forEach((p, i) => {
-      const ms = (ultra ? 650 : 280) + stagger(i, c.n, ultra ? 1100 : 700);
-      later(Math.max(0, ms - 230), () => ring(p.x, p.y, 1, 'rgba(210,240,255,0.95)', { w: 3, life: 14, r0: c.stone * 2.6 })); // 縮む輪
+      const ms = vanishAt + stagger(i, c.n, ultra ? 1100 : 700);
+      later(Math.max(0, ms - 230), () => ring(p.x, p.y, 1, 'rgba(255,255,255,0.95)', { w: 3, life: 14, r0: c.stone * 2.6 })); // 縮む輪
       holdStone(p, c, ms, () => {
         spawn({ kind: 'stone', vanish: true, static: true, white: c.white, x: p.x, y: p.y, size: c.stone / 2, life: 16,
           onDeath: (q) => {
-            spawn({ kind: 'orb', x: q.x, y: q.y, size: c.stone * 1.5, life: 10, color: '#e8f6ff' });
+            spawn({ kind: 'orb', x: q.x, y: q.y, size: c.stone * 1.5, life: 10, color: '#ffffff' });
             spawn({ kind: 'star', x: q.x, y: q.y, vx: 0, vy: 0, size: c.stone * 0.18, life: 18, color: '#ffffff' });
             motes(q.x, q.y, 8 + Math.round(c.power * 10), c.stone * 0.35);
-            ring(q.x, q.y, c.stone * 1.8, 'rgba(255,255,255,0.7)', { w: 2, life: 14 });
+            ring(q.x, q.y, c.stone * 1.8, 'rgba(0,0,0,0.6)', { w: 2, life: 14 });
           } });
       });
     });
-    if (ti >= 3 && !ultra) ring(c.cx, c.cy, 2, 'rgba(200,235,255,0.8)', { w: 6, life: 26, r0: 90 + c.power * W * 0.4 }); // まわりから縮む輪
+    // 石が消える瞬間に、時間が止まる（大きい技ほど長く）
+    if (ti >= 2) later(Math.max(0, vanishAt - 40), () => timeStop(god ? 1300 : ultra ? 650 : ti >= 3 ? 380 : 250));
+    if (ti >= 3 && !ultra) ring(c.cx, c.cy, 2, 'rgba(255,255,255,0.85)', { w: 6, life: 26, r0: 90 + c.power * W * 0.4 }); // まわりから縮む輪
+    if (god) return; // ALL CLEAR：時間が止まって、石が静かに消えるだけ
     if (ultra) {
       const R = Math.max(W, H);
       ring(c.cx, c.cy, 2, '#ffffff', { w: 16, life: 40, r0: R * 0.8 });
-      ring(c.cx, c.cy, 2, 'rgba(160,220,255,0.9)', { w: 10, life: 44, r0: R * 0.6, delay: 6 });
-      emit(frames(c.hold - 500), (t) => { // 画面中の光の粒が、上へ吸い込まれていく
+      ring(c.cx, c.cy, 2, 'rgba(0,0,0,0.85)', { w: 10, life: 44, r0: R * 0.6, delay: 6 });
+      emit(frames(c.hold - 500), (t) => { // 画面中の粒が、上へ吸い込まれていく
         if (t % (god ? 2 : 4)) return;
-        for (let i = 0; i < (god ? 6 : 3); i++) spawn({ kind: 'dot', x: rnd(0, W), y: rnd(H * 0.2, H * 1.1), vx: rnd(-0.2, 0.2), vy: -rnd(2, 6), drag: 0.99, size: rnd(1, 2.6), life: rnd(50, 90), color: pick(pal) });
+        for (let i = 0; i < (god ? 6 : 3); i++) spawn({ kind: 'dot', x: rnd(0, W), y: rnd(H * 0.2, H * 1.1), vx: rnd(-0.2, 0.2), vy: -rnd(2, 6), drag: 0.99, size: rnd(1, 2.6), life: rnd(50, 90), color: Math.random() < 0.65 ? '#ffffff' : '#111111' });
       });
-      later(700, () => spawn({ kind: 'orb', x: c.cx, y: c.cy, size: R * (god ? 0.6 : 0.4), life: 26, color: '#dff2ff' })); // 吸い込んだあとの白い光
-    }
-    if (god) { // 2 度目の吸い込みと、静かに回る光の筋
-      later(900, () => { ring(c.cx, c.cy, 2, '#ffffff', { w: 22, life: 46, r0: Math.max(W, H) }); ring(c.cx, c.cy, 2, 'rgba(154,216,255,0.9)', { w: 12, life: 50, r0: Math.max(W, H) * 0.75, delay: 8 }); });
-      spawn({ kind: 'rays', x: c.cx, y: c.cy, size: Math.max(W, H) * 0.7, count: 18, spin: 0.006, static: true, life: frames(c.hold) });
+      later(vanishAt + 700, () => spawn({ kind: 'orb', x: c.cx, y: c.cy, size: R * (god ? 0.6 : 0.4), life: 26, color: '#ffffff' })); // 吸い込んだあとの白い光
     }
   };
 
@@ -1337,7 +1346,7 @@
       const x = rnd(0, W);
       if (key === 'fire') spawn({ kind: 'flame', x, y: H + rnd(0, H), vx: rnd(-1, 1), vy: -rnd(4, 12), size: rnd(4, 9), life: rnd(80, 160) });
       else if (key === 'ice') spawn({ kind: 'snow', x, y: rnd(-H, 0), vx: rnd(-1, 1), vy: rnd(2, 6), size: rnd(1.5, 4), life: rnd(100, 180), rot: rnd(0, 6) });
-      else if (key === 'clear') spawn({ kind: 'star', x, y: H + rnd(0, H * 0.6), vx: rnd(-0.3, 0.3), vy: -rnd(2, 5), size: rnd(1, 2.5), life: rnd(80, 150), color: '#e8f6ff' }); // 光が昇っていく
+      else if (key === 'clear') spawn({ kind: 'star', x, y: H + rnd(0, H * 0.6), vx: rnd(-0.3, 0.3), vy: -rnd(2, 5), size: rnd(1, 2.5), life: rnd(80, 150), color: '#ffffff' }); // 光が昇っていく
       else if (key !== 'default' && key !== 'dark' && key !== 'light') spawn({ kind: 'dot', x, y: rnd(-H, 0), vx: rnd(-1, 1), vy: rnd(4, 12), g: 0.05, size: rnd(2, 5), life: rnd(80, 160), color: color(c) });
     }
     if (key === 'default') { // 空を横切る流星群
@@ -1435,22 +1444,23 @@
     // デストロイの録音を鳴らすときは、合成音を重ねない
     c.quiet = themeKey === 'default' && hasDestroySample(ti);
     RUN[themeKey](c);
+    const calm = theme.calmGod && ti >= GOD; // 静かな大技（消滅の ALL CLEAR）：衝撃波・降り注ぐもの・揺れ・暗くなる演出を出さない
     // 闇は外へ広がる衝撃波を出さず、渦が潰れたときの衝撃波だけにする
-    for (let i = 0; i < (themeKey === 'dark' ? 0 : tier.rings); i++) {
+    for (let i = 0; i < (themeKey === 'dark' || calm ? 0 : tier.rings); i++) {
       // 隕石は着弾してから衝撃波を出す
       const wait = themeKey === 'default' && ti >= ULTRA ? 30 : 0;
       ring(c.cx, c.cy, 60 + i * 50 + c.power * Math.max(W, H) * 0.6, i % 2 ? '#fff' : color(c), { w: 10 + c.power * 30, life: 40 + i * 6, delay: wait + i * 6 });
     }
-    if (ti >= GOD) godRain(c);
+    if (ti >= GOD && !calm) godRain(c);
     kick();
 
-    if (charge) chargeBurst(c);
-    shake(tier.shake * (1 + charge * 0.5) + charge * 6, Math.max(300 + charge * 200, tier.hold));
+    if (charge && !calm) chargeBurst(c);
+    if (!calm) shake(tier.shake * (1 + charge * 0.5) + charge * 6, Math.max(300 + charge * 200, tier.hold));
     const flashCls = ti >= GOD && themeKey !== 'default' ? 'god' : themeKey === 'thunder' && ti >= 3 ? 'strobe'
       : ti >= 4 ? 'multi' : 'on';
     const destroyGod = themeKey === 'default' && ti >= GOD, fireGod = themeKey === 'fire' && ti >= GOD;
-    flash(Math.min(1, tier.flash + charge * 0.12), flashCls, destroyGod ? { flash: ['#ffffff', '#e0e2ea', '#d4001a', '#200000'].map(tintCol) } : theme);
-    if (ti >= 4) showVignette((fireGod ? 'volcano' : destroyGod ? 'meteor-god' : ti >= ULTRA ? theme.vignette : theme.vignette + ' soft') + (theme.tint ? ' v-' + theme.tint : ''), Math.max(1200, tier.hold + 400));
+    if (!calm) flash(Math.min(1, tier.flash + charge * 0.12), flashCls, destroyGod ? { flash: ['#ffffff', '#e0e2ea', '#d4001a', '#200000'].map(tintCol) } : theme);
+    if (ti >= 4 && !calm) showVignette((fireGod ? 'volcano' : destroyGod ? 'meteor-god' : ti >= ULTRA ? theme.vignette : theme.vignette + ' soft') + (theme.tint ? ' v-' + theme.tint : ''), Math.max(1200, tier.hold + 400));
     showBanner(c);
 
     THEME_SOUND[themeKey](c.power, ti);
@@ -1458,7 +1468,7 @@
     if (!c.quiet) {
       // 大技の音はテーマごと（以前は全テーマ共通で爆発音を 2 発鳴らしていた）
       if (ti >= ULTRA) (THEME_BIG_SOUND[themeKey] || (() => {}))(ti >= GOD);
-      [523, 659, 784, 1047, 1319, 1568, 2093].slice(0, ti + 1).forEach((f, i) => blip(f, 0.1, 'square', 0.08, i * 0.06));
+      if (!calm) [523, 659, 784, 1047, 1319, 1568, 2093].slice(0, ti + 1).forEach((f, i) => blip(f, 0.1, 'square', 0.08, i * 0.06));
     }
   }
 
