@@ -131,7 +131,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 @keyframes blink { 50% { opacity: 0.3; } }
 /* デストロイルールの HP */
 .p-hp { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
-.hp-bar { width: 72px; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.hp-bar { width: 72px; flex: none; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
 .hp-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #4cff7a, #c8ff4c); transition: width 0.4s ease-out; }
 .p-hp.low .hp-fill { background: linear-gradient(90deg, #ff2b2b, #ff7a3d); }
 .hp-carry { display: inline-flex; gap: 2px; margin-left: 2px; }
@@ -1085,10 +1085,10 @@ body:has(#title.active) #gtoast { bottom: calc(84px + env(safe-area-inset-bottom
 #save-note:not(.warn) { padding: 6px 10px; font-size: 11px; gap: 6px; flex-wrap: nowrap; }
 #save-note:not(.warn) > span { flex: 1 1 auto; min-width: 0; }
 #save-note:not(.warn) button { padding: 2px 10px; font-size: 11.5px; white-space: nowrap; }
-/* ホームのカードの右上の小さい札（迷宮の「CPU戦」・ローカルマッチの「ルール変更」） */
+/* ホームのカードの右上の小さい札（迷宮の「CPU戦」・「この端末で遊ぶ」の「ルール変更」） */
 .card-tag { position: absolute; top: 8px; right: 8px; z-index: 2; font-style: normal; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; padding: 3px 10px; border-radius: 999px; color: var(--gold); background: rgba(20, 10, 30, 0.75); border: 1px solid rgba(255, 210, 63, 0.55); line-height: 1.4; }
 .dungeon-btn .card-tag { top: 6px; right: 6px; color: #ffd9a0; border-color: rgba(255, 170, 60, 0.6); }
-/* ローカルマッチ：オンラインのマスと同じ光るふちのカード */
+/* この端末で遊ぶ：オンラインのマスと同じ光るふちのカード */
 .local-card { position: relative; }
 .local-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; width: 100%; padding: 14px 16px; border-radius: 14px; text-align: left; color: #fff; border: 1px solid transparent;
   background: linear-gradient(rgba(40, 20, 60, 0.9), rgba(28, 14, 44, 0.9)) padding-box, linear-gradient(120deg, var(--gold), var(--magic), var(--frost)) border-box; box-shadow: 0 0 16px rgba(176, 102, 255, 0.25); }
@@ -1098,3 +1098,192 @@ body:has(#title.active) #gtoast { bottom: calc(84px + env(safe-area-inset-bottom
 .local-btn:active { transform: scale(0.98); }
 .local-chg { cursor: pointer; }
 .local-chg:active { transform: scale(0.95); }
+/* 一画面に収める：⚙ 設定は右上、ランクマッチは横いっぱい、破壊の迷宮はいちばん下に小さく */
+.home-gear { position: absolute; top: max(12px, env(safe-area-inset-top)); right: 12px; z-index: 3; }
+#title #save-note:not([hidden]) { align-self: flex-start; width: auto; max-width: calc(100% - 52px); }
+#title .fs-big { margin-top: -4px; padding: 8px 26px; font-size: 15px; }
+.home-tile.wide { grid-column: 1 / -1; position: relative; padding: 12px 14px; }
+.home-tile.wide b { font-size: 16px; }
+.home-tile.wide .on-live { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-style: normal; font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; color: #fff; background: linear-gradient(180deg, #ff6a3d, #d4001a); animation: live-hot 1.2s ease-in-out infinite; }
+.home-tile.wide .on-live[hidden] { display: none; }
+.home-tile.wide:has(.on-live:not([hidden])) { border-color: rgba(255, 106, 61, 0.7); }
+.dungeon-btn.dg-small { min-height: 0; padding: 12px 56px; }
+.dg-small .dg-text { gap: 2px; }
+.dg-small .dg-text b { font-size: 22px; }
+.dg-small .dg-text small { font-size: 11px; }
+.dg-small .dg-torch { height: 30px; margin-top: -4px; }
+.dg-small .dg-torch.l { left: 18px; } .dg-small .dg-torch.r { right: 18px; }
+.dg-small .dg-fire { width: 16px; height: 24px; margin-left: -8px; }
+.dg-small .card-tag { top: 50%; right: 44px; transform: translateY(-50%); }
+#title .tab-pane .beginner { padding: 8px 10px; gap: 6px; }
+#title .tab-pane .beginner > span { font-size: 12px; }
+/* 背の低いスマホ（iPhone SE など）は、ロゴを少し小さく */
+@media (max-height: 720px) {
+  #title .logo { font-size: clamp(40px, 11vw, 120px); }
+  #title .sublogo { font-size: 16px; margin-top: 2px; }
+  #title { gap: 9px; }
+}
+#title .tab-pane .on-item { white-space: nowrap; }
+#title .tab-pane .on-item span { min-width: 0; }
+/* 残りのため撃ち（1 局 3 回の必殺技） */
+.hp-charge { display: inline-flex; gap: 1px; margin-left: 6px; }
+.hp-charge[hidden] { display: none; }
+.hp-charge i { font-style: normal; font-size: 13px; line-height: 1; opacity: 0.2; filter: grayscale(1); transition: opacity 0.2s, filter 0.2s; }
+.hp-charge i::before { content: '⚡'; }
+.hp-charge i.on { opacity: 1; filter: drop-shadow(0 0 4px rgba(255, 210, 63, 0.9)); }
+.p-hp .hp-charge, .p-hp .hp-carry { flex: none; }
+/* アップデートのお知らせ */
+#news-pop { position: fixed; inset: 0; z-index: 41; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0, 0, 0, 0.7); }
+#news-pop[hidden] { display: none; }
+#news-pop .modal-box { max-width: 380px; }
+.news-list { margin: 12px 0; padding-left: 20px; text-align: left; font-size: 13.5px; line-height: 1.7; }
+.news-list li { margin-bottom: 4px; }
+.news-list b { color: var(--gold); }
+/* ホームのランクマッチ：右上に「観戦」の札 */
+.rank-card { position: relative; grid-column: 1 / -1; }
+.rank-card .home-tile.wide { width: 100%; }
+.watch-tag { cursor: pointer; }
+.watch-tag:active { transform: scale(0.95); }
+.home-tile.wide b .on-live { position: static; transform: none; display: inline-block; margin-left: 6px; vertical-align: middle; }
+.home-tile.wide b .on-live[hidden] { display: none; }
+.rank-card:has(.on-live:not([hidden])) .home-tile { border-color: rgba(255, 106, 61, 0.7); }
+/* ランクマッチをいちばん大きく（いちばん遊んでほしい）。この端末で遊ぶは、ほかのマスと同じ大きさに */
+.rank-card .home-tile.wide { padding: 20px 16px; border-radius: 16px; gap: 4px;
+  background: linear-gradient(rgba(70, 20, 30, 0.92), rgba(40, 12, 36, 0.92)) padding-box, linear-gradient(120deg, var(--gold), #ff6a3d, var(--magic)) border-box;
+  box-shadow: 0 0 22px rgba(255, 106, 61, 0.35); }
+.rank-card .home-tile.wide b { font-size: 24px; font-weight: 900; letter-spacing: 0.04em; }
+.rank-card .home-tile.wide small { font-size: 12.5px; color: #f0d9c8; }
+.rank-card .home-tile.wide::after { content: '対戦する ▶'; position: absolute; right: 14px; bottom: 12px; font-size: 13px; font-weight: 800; color: var(--gold); }
+.local-btn { padding: 10px 12px; border-radius: 12px; box-shadow: none;
+  background: linear-gradient(rgba(22, 12, 34, 0.88), rgba(22, 12, 34, 0.88)) padding-box, linear-gradient(120deg, rgba(255, 210, 63, 0.45), rgba(176, 102, 255, 0.45)) border-box; }
+.local-btn b { font-size: 14px; font-weight: 800; letter-spacing: 0; }
+.local-btn small { font-size: 10.5px; }
+.local-go { display: none; }
+.local-card .card-tag { top: 50%; transform: translateY(-50%); }
+.local-chg:active { transform: translateY(-50%) scale(0.95); }
+#title .tab-pane .beginner { flex-direction: row; flex-wrap: nowrap; justify-content: space-between; text-align: left; }
+/* チュートリアルのマス（大きい字がチュートリアル） */
+#title .tab-pane .beginner { display: block; padding: 0; border: 0; background: none; }
+.tut-tile { width: 100%; border-color: transparent; background: linear-gradient(rgba(40, 30, 12, 0.88), rgba(30, 20, 10, 0.88)) padding-box, linear-gradient(120deg, rgba(255, 210, 63, 0.6), rgba(255, 170, 60, 0.4)) border-box; }
+.tut-tile::after { content: '›'; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 18px; color: var(--gold); }
+.tut-tile { position: relative; }
+
+/* ---------- ダンジョン風（シンプル）：石の壁・たいまつの明かり・鉄の札。紫の光・魔法陣・光の粒はやめる ---------- */
+:root { --gold: #e8b65a; --magic: #8a6a4a; --frost: #8a7a66; --stone: #1d1916; --stone2: #27211c; --edge: #4a3d31; --ember: #ff7a2e; --parch: #f1e2c4; }
+#title {
+  background:
+    radial-gradient(ellipse at 50% -10%, rgba(255, 130, 40, 0.28), transparent 55%),
+    radial-gradient(ellipse at 50% 120%, rgba(0, 0, 0, 0.8), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.35) 0 2px, transparent 2px 46px),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.25) 0 2px, transparent 2px 92px),
+    #15110f;
+}
+#title::before, .title-wrap::before { display: none; }
+.home-tile, .local-btn, .tut-tile, #title .on-item, #title .sub-btn {
+  background: linear-gradient(180deg, var(--stone2), var(--stone)) !important; border: 1px solid var(--edge) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 6px rgba(0, 0, 0, 0.5) !important; color: var(--parch);
+}
+.home-tile small, .local-btn small, #title .on-item span { color: #b9a88f !important; }
+.rank-card .home-tile.wide {
+  background: linear-gradient(180deg, #3a2418, #221510) !important; border: 1px solid #a8642c !important;
+  box-shadow: inset 0 0 18px rgba(255, 122, 46, 0.18), 0 0 18px rgba(255, 122, 46, 0.25) !important;
+}
+.rank-card .home-tile.wide b { color: #ffe3b0; }
+.rank-card .home-tile.wide::after, .local-go { color: var(--ember) !important; }
+.card-tag { background: #141110; border: 1px solid #6b5644; color: #e8c79a; }
+.tut-tile b { color: #ffd98a; }
+.tut-tile::after { color: var(--gold); }
+.fs-big { background: var(--stone2) !important; border: 1px solid var(--edge) !important; box-shadow: none !important; }
+.home-gear { background: var(--stone2); border: 1px solid var(--edge); box-shadow: none; }
+#save-note { background: rgba(0, 0, 0, 0.35) !important; border: 1px solid var(--edge) !important; }
+.home-tabs { background: #100d0b; border-top: 1px solid var(--edge); }
+.home-tabs button[aria-selected="true"] { color: var(--ember); }
+.logo { filter: drop-shadow(0 0 10px rgba(255, 110, 30, 0.55)) drop-shadow(0 4px 0 #2a0a00); }
+.logo::before, .logo::after { display: none; }
+.sublogo { text-shadow: 0 0 6px rgba(255, 110, 30, 0.7); }
+.pane-h { color: var(--parch); }
+/* ほかの画面も同じ石の色に（もとの紫の夜空・パネルの色を置きかえる） */
+:root { --bg: #120e0c; --panel: #1f1a16; --panel-active: #2e241d; --text: #f3e9d8; --muted: #a8988a; }
+/* もう少し明るく、灰色の石に（茶色をおさえる） */
+:root { --stone: #33322f; --stone2: #403e3a; --edge: #625d56; --parch: #eeeae3;
+  --bg: #232325; --panel: #2e2d2c; --panel-active: #3b3937; --text: #f1eee9; --muted: #aba69e; }
+#title {
+  background:
+    radial-gradient(ellipse at 50% -10%, rgba(255, 150, 60, 0.22), transparent 55%),
+    radial-gradient(ellipse at 50% 120%, rgba(0, 0, 0, 0.55), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.22) 0 2px, transparent 2px 46px),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.16) 0 2px, transparent 2px 92px),
+    #2a2a2c;
+}
+.home-tile small, .local-btn small, #title .on-item span { color: #b8b3aa !important; }
+.card-tag { background: #232325; border-color: #77706a; color: #e9d6b4; }
+.home-tabs { background: #1d1d1f; }
+.rank-card .home-tile.wide { background: linear-gradient(180deg, #4a3326, #2f2420) !important; }
+
+/* 石の壁：大きさがそろった石を、段ごとにずらして積んだ見た目（石ごとに少しずつ色がちがう） */
+:root { --wall: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='360'%20height='360'%20viewBox='0%200%20360%20360'%3E%3Crect%20width='360'%20height='360'%20fill='%231c1c1e'/%3E%3Cg%20stroke='%23000'%20stroke-opacity='.45'%20stroke-width='1.2'%20stroke-linejoin='round'%3E%3Cpolygon%20points='-57.5,0.6%20-27.7,3.4%20-3.6,1.5%200.7,17.8%20-3.4,41.4%20-24.2,45.6%20-56.0,43.6%20-56.8,22.3'%20fill='%233c3f3d'/%3E%3Cpolygon%20points='302.5,0.6%20332.3,3.4%20356.4,1.5%20360.7,17.8%20356.6,41.4%20335.8,45.6%20304.0,43.6%20303.2,22.3'%20fill='%233c3f3d'/%3E%3Cpolygon%20points='9.1,0.3%2051.7,0.7%2094.5,2.4%2097.7,17.9%2087.6,43.5%2055.2,46.5%207.7,41.8%206.0,21.4'%20fill='%23414240'/%3E%3Cpolygon%20points='104.6,-0.5%20115.5,3.8%20139.5,3.6%20145.4,20.2%20140.6,44.7%20120.1,42.8%20106.5,41.8%20100.9,20.2'%20fill='%23393634'/%3E%3Cpolygon%20points='152.2,6.3%20170.1,2.0%20191.3,2.2%20195.2,25.9%20191.1,42.4%20170.7,45.7%20156.9,44.5%20149.0,22.6'%20fill='%233d3a38'/%3E%3Cpolygon%20points='202.1,5.6%20250.4,-0.5%20304.3,0.2%20309.3,24.9%20306.9,41.5%20245.9,46.9%20209.6,44.2%20204.9,24.4'%20fill='%23343634'/%3E%3Cpolygon%20points='317.9,2.2%20338.4,-0.5%20365.9,2.5%20361.9,21.7%20362.8,39.8%20339.2,44.3%20321.6,43.9%20311.6,18.2'%20fill='%23454543'/%3E%3Cpolygon%20points='-42.1,2.2%20-21.6,-0.5%205.9,2.5%201.9,21.7%202.8,39.8%20-20.8,44.3%20-38.4,43.9%20-48.4,18.2'%20fill='%23454543'/%3E%3Cpolygon%20points='-30.2,48.8%20-9.3,44.9%207.9,52.8%2010.8,74.5%206.5,86.2%20-6.4,91.9%20-31.2,90.5%20-33.9,70.9'%20fill='%233e403e'/%3E%3Cpolygon%20points='329.8,48.8%20350.7,44.9%20367.9,52.8%20370.8,74.5%20366.5,86.2%20353.6,91.9%20328.8,90.5%20326.1,70.9'%20fill='%233e403e'/%3E%3Cpolygon%20points='16.2,49.2%2062.3,51.8%20118.9,50.6%20117.1,69.5%20114.9,86.3%2065.6,90.3%2022.2,87.6%2014.8,73.3'%20fill='%23434442'/%3E%3Cpolygon%20points='130.4,46.6%20153.3,47.9%20188.8,52.9%20192.3,67.8%20186.8,86.5%20154.6,88.8%20130.5,90.8%20123.8,73.5'%20fill='%233d3a38'/%3E%3Cpolygon%20points='197.7,48.9%20210.6,51.9%20235.9,45.0%20241.3,68.6%20233.8,90.1%20214.7,87.0%20198.1,90.7%20193.6,73.3'%20fill='%23343634'/%3E%3Cpolygon%20points='250.6,50.8%20270.7,47.7%20291.9,45.7%20290.3,64.0%20293.9,85.2%20271.8,89.7%20248.2,89.9%20244.8,63.7'%20fill='%2344413f'/%3E%3Cpolygon%20points='298.1,52.8%20346.3,49.2%20389.2,52.5%20391.5,64.6%20392.0,91.6%20342.8,88.0%20300.3,86.9%20299.7,61.7'%20fill='%233d3f3d'/%3E%3Cpolygon%20points='-61.9,52.8%20-13.7,49.2%2029.2,52.5%2031.5,64.6%2032.0,91.6%20-17.2,88.0%20-59.7,86.9%20-60.3,61.7'%20fill='%233d3f3d'/%3E%3Cpolygon%20points='0.8,94.7%2027.1,94.7%2067.2,94.4%2070.3,122.9%2064.0,141.3%2027.4,138.1%201.5,138.5%20-5.0,126.5'%20fill='%2344413f'/%3E%3Cpolygon%20points='360.8,94.7%20387.1,94.7%20427.2,94.4%20430.3,122.9%20424.0,141.3%20387.4,138.1%20361.5,138.5%20355.0,126.5'%20fill='%2344413f'/%3E%3Cpolygon%20points='76.5,93.6%2097.1,94.1%20119.4,97.3%20118.8,120.7%20119.5,139.0%2094.4,144.2%2076.1,141.5%2075.1,125.7'%20fill='%23373937'/%3E%3Cpolygon%20points='131.1,96.5%20183.8,93.6%20233.3,94.8%20239.5,118.1%20234.6,144.0%20189.1,140.1%20131.5,144.5%20130.7,113.7'%20fill='%23414240'/%3E%3Cpolygon%20points='242.9,91.6%20287.1,95.4%20333.3,98.2%20331.2,112.9%20332.7,142.3%20282.8,145.1%20248.7,138.8%20245.6,111.6'%20fill='%23373735'/%3E%3Cpolygon%20points='340.3,94.5%20370.3,94.1%20380.7,92.6%20383.5,122.0%20383.8,137.2%20371.0,141.5%20339.1,139.7%20341.0,122.1'%20fill='%23414341'/%3E%3Cpolygon%20points='-19.7,94.5%2010.3,94.1%2020.7,92.6%2023.5,122.0%2023.8,137.2%2011.0,141.5%20-20.9,139.7%20-19.0,122.1'%20fill='%23414341'/%3E%3Cpolygon%20points='2.8,143.8%2036.8,144.1%2055.3,149.2%2060.2,176.5%2056.0,198.4%2041.7,202.6%20-2.9,196.2%20-0.6,177.3'%20fill='%23333634'/%3E%3Cpolygon%20points='362.8,143.8%20396.8,144.1%20415.3,149.2%20420.2,176.5%20416.0,198.4%20401.7,202.6%20357.1,196.2%20359.4,177.3'%20fill='%23333634'/%3E%3Cpolygon%20points='68.5,150.2%20120.5,144.2%20173.1,143.7%20178.1,176.6%20177.9,196.8%20117.6,197.0%2067.1,203.0%2067.3,181.6'%20fill='%233b3e3c'/%3E%3Cpolygon%20points='192.5,150.8%20201.2,144.1%20225.4,150.5%20232.0,175.5%20228.2,196.6%20200.5,201.4%20187.2,201.4%20190.0,170.0'%20fill='%23454745'/%3E%3Cpolygon%20points='240.1,145.0%20292.6,145.6%20346.3,148.2%20349.3,178.7%20345.4,202.1%20298.2,198.5%20237.7,196.8%20234.6,183.3'%20fill='%23363432'/%3E%3Cpolygon%20points='353.4,144.0%20408.5,142.6%20464.9,145.0%20463.3,171.2%20459.7,201.7%20412.9,201.4%20355.3,196.9%20352.3,170.7'%20fill='%23464846'/%3E%3Cpolygon%20points='-6.6,144.0%2048.5,142.6%20104.9,145.0%20103.3,171.2%2099.7,201.7%2052.9,201.4%20-4.7,196.9%20-7.7,170.7'%20fill='%23464846'/%3E%3Cpolygon%20points='6.7,208.8%2032.1,204.4%2061.0,208.7%2064.5,225.2%2061.9,247.0%2030.7,251.8%203.0,248.6%200.0,219.2'%20fill='%23383937'/%3E%3Cpolygon%20points='366.7,208.8%20392.1,204.4%20421.0,208.7%20424.5,225.2%20421.9,247.0%20390.7,251.8%20363.0,248.6%20360.0,219.2'%20fill='%23383937'/%3E%3Cpolygon%20points='71.3,201.2%2086.9,202.4%20109.9,205.7%20115.2,226.8%20114.0,252.3%2089.5,255.0%2074.1,249.6%2075.9,222.6'%20fill='%233f3c3a'/%3E%3Cpolygon%20points='125.7,205.1%20169.8,203.4%20228.6,205.0%20233.3,231.9%20229.0,251.5%20173.6,248.1%20125.5,253.4%20122.7,237.4'%20fill='%23494745'/%3E%3Cpolygon%20points='240.1,208.7%20256.9,203.0%20287.6,201.4%20287.2,222.5%20288.3,249.0%20254.0,251.7%20235.6,254.5%20239.2,217.6'%20fill='%23464846'/%3E%3Cpolygon%20points='302.5,207.8%20338.4,201.9%20371.1,202.8%20373.2,227.7%20368.7,253.8%20333.4,255.3%20298.3,247.4%20298.1,224.1'%20fill='%23414442'/%3E%3Cpolygon%20points='-57.5,207.8%20-21.6,201.9%2011.1,202.8%2013.2,227.7%208.7,253.8%20-26.6,255.3%20-61.7,247.4%20-61.9,224.1'%20fill='%23414442'/%3E%3Cpolygon%20points='-1.5,258.0%2044.8,253.1%2097.9,256.9%20104.8,281.8%2094.8,300.7%2044.7,305.7%20-4.7,302.7%20-3.9,287.7'%20fill='%23454745'/%3E%3Cpolygon%20points='358.5,258.0%20404.8,253.1%20457.9,256.9%20464.8,281.8%20454.8,300.7%20404.7,305.7%20355.3,302.7%20356.1,287.7'%20fill='%23454745'/%3E%3Cpolygon%20points='109.8,255.3%20130.5,252.6%20157.1,261.0%20164.0,275.0%20156.1,306.3%20135.7,300.6%20106.7,305.0%20105.1,273.3'%20fill='%23434543'/%3E%3Cpolygon%20points='165.9,255.9%20223.6,256.0%20277.0,256.2%20274.3,277.4%20277.6,304.5%20222.5,305.8%20168.3,302.0%20163.0,275.3'%20fill='%234a4745'/%3E%3Cpolygon%20points='289.5,254.6%20318.9,252.1%20358.9,255.0%20356.5,278.8%20356.1,306.0%20313.8,307.4%20288.0,305.8%20281.2,273.4'%20fill='%23413e3c'/%3E%3Cpolygon%20points='-70.5,254.6%20-41.1,252.1%20-1.1,255.0%20-3.5,278.8%20-3.9,306.0%20-46.2,307.4%20-72.0,305.8%20-78.8,273.4'%20fill='%23413e3c'/%3E%3Cpolygon%20points='-47.9,309.1%20-11.5,305.5%208.0,312.6%2015.1,330.0%2011.5,358.0%20-6.6,361.5%20-45.6,358.8%20-52.6,332.8'%20fill='%233f3d3b'/%3E%3Cpolygon%20points='312.1,309.1%20348.5,305.5%20368.0,312.6%20375.1,330.0%20371.5,358.0%20353.4,361.5%20314.4,358.8%20307.4,332.8'%20fill='%233f3d3b'/%3E%3Cpolygon%20points='19.3,305.4%2047.5,311.4%2063.0,308.8%2067.7,334.7%2064.4,358.9%2053.3,356.1%2022.2,355.4%2018.5,333.5'%20fill='%23434240'/%3E%3Cpolygon%20points='81.2,309.0%20125.6,305.8%20187.3,313.0%20186.6,329.5%20181.1,354.5%20120.7,356.7%2074.7,354.9%2073.1,330.3'%20fill='%233b3937'/%3E%3Cpolygon%20points='198.0,306.7%20254.4,306.2%20303.0,309.0%20304.6,331.6%20299.9,358.5%20254.8,360.3%20198.8,353.7%20196.2,330.2'%20fill='%23363432'/%3E%3Cpolygon%20points='315.5,312.7%20339.9,305.0%20368.4,311.1%20374.4,330.7%20372.7,356.9%20334.8,361.4%20316.4,357.2%20309.7,330.1'%20fill='%23484846'/%3E%3Cpolygon%20points='-44.5,312.7%20-20.1,305.0%208.4,311.1%2014.4,330.7%2012.7,356.9%20-25.2,361.4%20-43.6,357.2%20-50.3,330.1'%20fill='%23484846'/%3E%3C/g%3E%3Cg%20fill='none'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M162.9%20201.5%20L170.7%20201.7%20L181.7%20201.5%20L192.1%20194.6%20L196.8%20181.6%20L202.6%20172.3%20L202.3%20165.6%20L203.3%20153.4'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='3.2'/%3E%3Cpath%20d='M163.8%20202.4%20L171.6%20202.6%20L182.6%20202.4%20L193.0%20195.5%20L197.7%20182.5%20L203.5%20173.2%20L203.2%20166.5%20L204.2%20154.3'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.6'/%3E%3Cpath%20d='M181.7%20201.5%20L185.6%20207.1%20L189.0%20211.5'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='2'/%3E%3Cpath%20d='M182.6%20202.4%20L186.5%20208.0%20L189.9%20212.4'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.1'/%3E%3Cpath%20d='M202.6%20172.3%20L198.4%20168.1%20L193.2%20167.0'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='2'/%3E%3Cpath%20d='M203.5%20173.2%20L199.3%20169.0%20L194.1%20167.9'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.1'/%3E%3Cpath%20d='M305.0%200.2%20L301.2%208.9%20L300.5%2016.0%20L292.2%2025.0%20L291.5%2035.0'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='3.2'/%3E%3Cpath%20d='M305.9%201.1%20L302.1%209.8%20L301.4%2016.9%20L293.1%2025.9%20L292.4%2035.9'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.6'/%3E%3Cpath%20d='M305.0%20360.2%20L301.2%20368.9%20L300.5%20376.0%20L292.2%20385.0%20L291.5%20395.0'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='3.2'/%3E%3Cpath%20d='M305.9%20361.1%20L302.1%20369.8%20L301.4%20376.9%20L293.1%20385.9%20L292.4%20395.9'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.6'/%3E%3Cpath%20d='M301.2%208.9%20L307.8%2012.4%20L312.6%2014.3'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='2'/%3E%3Cpath%20d='M302.1%209.8%20L308.7%2013.3%20L313.5%2015.2'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.1'/%3E%3Cpath%20d='M301.2%20368.9%20L307.8%20372.4%20L312.6%20374.3'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='2'/%3E%3Cpath%20d='M302.1%20369.8%20L308.7%20373.3%20L313.5%20375.2'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.1'/%3E%3Cpath%20d='M292.2%2025.0%20L295.0%2031.3%20L301.3%2035.5'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='2'/%3E%3Cpath%20d='M293.1%2025.9%20L295.9%2032.2%20L302.2%2036.4'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.1'/%3E%3Cpath%20d='M219.7%20298.9%20L214.3%20302.6%20L208.7%20308.1%20L202.8%20314.3%20L200.8%20320.0'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='3.2'/%3E%3Cpath%20d='M220.6%20299.8%20L215.2%20303.5%20L209.6%20309.0%20L203.7%20315.2%20L201.7%20320.9'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.6'/%3E%3Cpath%20d='M294.4%2089.8%20L300.2%2099.6%20L314.5%20105.5%20L322.7%20114.7%20L323.2%20123.0%20L321.2%20135.4'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='3.2'/%3E%3Cpath%20d='M295.3%2090.7%20L301.1%20100.5%20L315.4%20106.4%20L323.6%20115.6%20L324.1%20123.9%20L322.1%20136.3'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.6'/%3E%3Cpath%20d='M300.2%2099.6%20L307.1%2098.0%20L314.4%2094.8'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='2'/%3E%3Cpath%20d='M301.1%20100.5%20L308.0%2098.9%20L315.3%2095.7'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.1'/%3E%3Cpath%20d='M314.5%20105.5%20L316.5%20114.9%20L320.1%20119.2%20L320.4%20124.6'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='2'/%3E%3Cpath%20d='M315.4%20106.4%20L317.4%20115.8%20L321.0%20120.1%20L321.3%20125.5'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.1'/%3E%3Cpath%20d='M322.7%20114.7%20L325.8%20112.7%20L332.0%20111.1%20L338.1%20111.3'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='2'/%3E%3Cpath%20d='M323.6%20115.6%20L326.7%20113.6%20L332.9%20112.0%20L339.0%20112.2'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.1'/%3E%3Cpath%20d='M321.2%20135.4%20L324.2%20137.2%20L325.6%20140.2%20L330.6%20142.8'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='2'/%3E%3Cpath%20d='M322.1%20136.3%20L325.1%20138.1%20L326.5%20141.1%20L331.5%20143.7'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.1'/%3E%3Cpath%20d='M4.5%2026.0%20L11.5%2039.8%20L13.5%2053.7%20L10.5%2062.4%20L15.0%2075.9'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='3.2'/%3E%3Cpath%20d='M5.4%2026.9%20L12.4%2040.7%20L14.4%2054.6%20L11.4%2063.3%20L15.9%2076.8'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.6'/%3E%3Cpath%20d='M364.5%2026.0%20L371.5%2039.8%20L373.5%2053.7%20L370.5%2062.4%20L375.0%2075.9'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='3.2'/%3E%3Cpath%20d='M365.4%2026.9%20L372.4%2040.7%20L374.4%2054.6%20L371.4%2063.3%20L375.9%2076.8'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.6'/%3E%3Cpath%20d='M82.9%20251.4%20L77.0%20256.4%20L74.0%20262.6%20L68.5%20269.3%20L64.3%20278.5%20L59.2%20283.5%20L55.9%20289.2%20L46.2%20295.3'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='3.2'/%3E%3Cpath%20d='M83.8%20252.3%20L77.9%20257.3%20L74.9%20263.5%20L69.4%20270.2%20L65.2%20279.4%20L60.1%20284.4%20L56.8%20290.1%20L47.1%20296.2'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.6'/%3E%3Cpath%20d='M64.3%20278.5%20L57.9%20282.9%20L50.8%20283.8%20L41.7%20282.8'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='2'/%3E%3Cpath%20d='M65.2%20279.4%20L58.8%20283.8%20L51.7%20284.7%20L42.6%20283.7'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.1'/%3E%3Cpath%20d='M59.2%20283.5%20L57.8%20288.3%20L55.1%20292.5%20L50.8%20297.1'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='2'/%3E%3Cpath%20d='M60.1%20284.4%20L58.7%20289.2%20L56.0%20293.4%20L51.7%20298.0'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.1'/%3E%3Cpath%20d='M145.9%2068.4%20L143.6%2062.8%20L139.3%2054.0%20L139.0%2042.1%20L135.2%2034.1%20L132.9%2028.7%20L134.9%2020.0'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='3.2'/%3E%3Cpath%20d='M146.8%2069.3%20L144.5%2063.7%20L140.2%2054.9%20L139.9%2043.0%20L136.1%2035.0%20L133.8%2029.6%20L135.8%2020.9'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.6'/%3E%3Cpath%20d='M135.2%2034.1%20L128.0%2030.4%20L121.7%2027.7'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='2'/%3E%3Cpath%20d='M136.1%2035.0%20L128.9%2031.3%20L122.6%2028.6'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.1'/%3E%3Cpath%20d='M132.9%2028.7%20L137.5%2023.6%20L140.5%2018.5%20L140.1%209.8'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='2'/%3E%3Cpath%20d='M133.8%2029.6%20L138.4%2024.5%20L141.4%2019.4%20L141.0%2010.7'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.1'/%3E%3Cpath%20d='M132.9%20388.7%20L137.5%20383.6%20L140.5%20378.5%20L140.1%20369.8'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='2'/%3E%3Cpath%20d='M133.8%20389.6%20L138.4%20384.5%20L141.4%20379.4%20L141.0%20370.7'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.1'/%3E%3Cpath%20d='M332.7%2044.5%20L324.9%2055.5%20L318.7%2071.5%20L317.2%2080.5%20L313.7%2095.9%20L320.5%20110.6%20L330.4%20123.2%20L331.7%20136.5'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='3.2'/%3E%3Cpath%20d='M333.6%2045.4%20L325.8%2056.4%20L319.6%2072.4%20L318.1%2081.4%20L314.6%2096.8%20L321.4%20111.5%20L331.3%20124.1%20L332.6%20137.4'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.6'/%3E%3Cpath%20d='M320.5%20110.6%20L330.6%20115.2%20L339.7%20120.2%20L348.1%20120.5'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='2'/%3E%3Cpath%20d='M321.4%20111.5%20L331.5%20116.1%20L340.6%20121.1%20L349.0%20121.4'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.1'/%3E%3Cpath%20d='M330.4%20123.2%20L337.0%20119.9%20L341.9%20114.2%20L346.1%20109.6'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='2'/%3E%3Cpath%20d='M331.3%20124.1%20L337.9%20120.8%20L342.8%20115.1%20L347.0%20110.5'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.1'/%3E%3Cpath%20d='M217.9%2010.0%20L224.7%2013.6%20L233.2%2018.9%20L237.0%2026.9%20L245.2%2032.8%20L249.3%2042.5%20L257.8%2050.4%20L270.4%2053.3'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='3.2'/%3E%3Cpath%20d='M218.8%2010.9%20L225.6%2014.5%20L234.1%2019.8%20L237.9%2027.8%20L246.1%2033.7%20L250.2%2043.4%20L258.7%2051.3%20L271.3%2054.2'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.6'/%3E%3Cpath%20d='M217.9%20370.0%20L224.7%20373.6%20L233.2%20378.9%20L237.0%20386.9%20L245.2%20392.8%20L249.3%20402.5%20L257.8%20410.4%20L270.4%20413.3'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='3.2'/%3E%3Cpath%20d='M218.8%20370.9%20L225.6%20374.5%20L234.1%20379.8%20L237.9%20387.8%20L246.1%20393.7%20L250.2%20403.4%20L258.7%20411.3%20L271.3%20414.2'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.6'/%3E%3Cpath%20d='M224.7%2013.6%20L230.8%2011.1%20L235.8%204.1'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='2'/%3E%3Cpath%20d='M225.6%2014.5%20L231.7%2012.0%20L236.7%205.0'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.1'/%3E%3Cpath%20d='M224.7%20373.6%20L230.8%20371.1%20L235.8%20364.1'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='2'/%3E%3Cpath%20d='M225.6%20374.5%20L231.7%20372.0%20L236.7%20365.0'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.1'/%3E%3Cpath%20d='M270.4%2053.3%20L276.1%2051.7%20L282.1%2050.3%20L285.2%2048.1'%20stroke='%23000'%20stroke-opacity='.9'%20stroke-width='2'/%3E%3Cpath%20d='M271.3%2054.2%20L277.0%2052.6%20L283.0%2051.2%20L286.1%2049.0'%20stroke='%23fff'%20stroke-opacity='.13'%20stroke-width='1.1'/%3E%3C/g%3E%3C/svg%3E"); }
+#title {
+  background:
+    radial-gradient(ellipse at 50% -10%, rgba(255, 150, 60, 0.24), transparent 55%),
+    radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(0, 0, 0, 0.45)),
+    var(--wall) 0 0 / 360px 360px,
+    #2a2a2c;
+}
+/* 対局・設定の画面も同じ石の壁に（文字が読みやすいよう少し暗く） */
+#game { background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), var(--wall) 0 0 / 360px 360px, #2a2a2c; }
+#settings-pop { background: linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45)), radial-gradient(ellipse at 50% 0%, rgba(255, 150, 60, 0.18), transparent 60%), var(--wall) 0 0 / 360px 360px, #2a2a2c; }
+/* 記録のお知らせを閉じたあとも、右上の ⚙ がロゴに重ならないように */
+#title:has(#save-note[hidden]) .title-wrap { margin-top: 46px; }
+.top-bar { gap: 4px; }
+.top-bar button { white-space: nowrap; padding-left: 9px; padding-right: 9px; }
+@media (max-width: 400px) { .top-bar button { font-size: 12px; padding-left: 7px; padding-right: 7px; } }
+
+/* ---------- ピクセル風（背景の石垣・ロゴ・サブタイトルはそのまま）：ドットの字、角のない四角、黒いふちとカクッとした影 ---------- */
+:root { --px-font: 'DotGothic16', 'Hiragino Sans', monospace; }
+body, button, input, select, textarea { font-family: var(--px-font); }
+.logo, .sublogo { font-family: var(--font-logo); }
+.sublogo { font-family: var(--font-en); }
+.dg-text b { font-family: var(--px-font) !important; font-weight: 400 !important; text-shadow: 2px 2px 0 #000 !important; }
+/* マス・ボタン */
+.home-tile, .local-btn, .tut-tile, #title .on-item, #title .sub-btn, .fs-big, .home-gear, #save-note, .rank-card .home-tile.wide,
+.top-bar button, .controls button, #online-body button, .sp-head button, .m-buttons button, .tut-pick-list button, #bg-found button {
+  border-radius: 0 !important; border: 3px solid #111 !important;
+  background: #4a4846 !important; color: #f1ede6;
+  box-shadow: inset -3px -3px 0 #2f2e2c, inset 3px 3px 0 #6a6763, 3px 3px 0 rgba(0, 0, 0, 0.55) !important;
+}
+.home-tile b, .local-btn b, .tut-tile b, #title .on-item { font-weight: 400 !important; text-shadow: 2px 2px 0 #000; }
+.home-tile small, .local-btn small { color: #d8d2c6 !important; }
+.rank-card .home-tile.wide { background: #7a3d1c !important; box-shadow: inset -3px -3px 0 #4a220e, inset 3px 3px 0 #b8622c, 4px 4px 0 rgba(0, 0, 0, 0.6) !important; }
+.rank-card .home-tile.wide b { font-size: 26px !important; color: #ffe08a !important; text-shadow: 2px 2px 0 #2a1000; }
+.card-tag { border-radius: 0 !important; border: 2px solid #111 !important; background: #2a2826 !important; color: #ffd36a !important; box-shadow: 2px 2px 0 #000 !important; }
+.dungeon-btn { border-radius: 0 !important; border: 3px solid #111 !important; box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.6) !important; }
+.home-gear { width: 40px; height: 40px; }
+/* 赤いボタン（部屋を作る・この設定で閉じる など）はピクセルの赤に */
+#online-body button.accent, .sp-ok, .m-buttons button.accent, #bg-found button.accent, .controls button.accent, .tut-pick-list button.accent {
+  background: #c8321c !important; box-shadow: inset -3px -3px 0 #7a1608, inset 3px 3px 0 #ff7a52, 3px 3px 0 rgba(0, 0, 0, 0.55) !important; }
+.sp-ok { border-radius: 0 !important; border: 3px solid #111 !important; }
+/* チップ（設定の選ぶボタン） */
+.chip { border-radius: 0 !important; border: 2px solid #111 !important; box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5) !important; background: #3e3c3a !important; }
+.chip[aria-pressed="true"] { background: #6a4a1c !important; color: #ffe08a !important; box-shadow: inset 2px 2px 0 #8a6428, 2px 2px 0 rgba(0, 0, 0, 0.5) !important; }
+.sp-tabs { border-radius: 0 !important; border: 2px solid #111; }
+.sp-tabs button { border-radius: 0 !important; }
+.sp-tabs button[aria-selected="true"] { background: #c8321c !important; }
+/* 対局の札（プレイヤーの欄）・ポップアップ */
+.player, #online-pop, #dojo-pop, #rules-pop, #log-pop, #kifu-pop, .modal-box, #bg-found, #settings-pop .sp-panel .rule-row {
+  border-radius: 0 !important; }
+.player { border: 3px solid #111 !important; box-shadow: inset -3px -3px 0 rgba(0, 0, 0, 0.3), 3px 3px 0 rgba(0, 0, 0, 0.5) !important; }
+#online-pop, #dojo-pop, #rules-pop, #log-pop, #kifu-pop, .modal-box, #bg-found { border: 3px solid #111 !important; box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.6) !important; }
+.hp-bar { border-radius: 0 !important; border: 1px solid #000; }
+.hp-fill { border-radius: 0 !important; }
+/* 下のタブ */
+.home-tabs { border-top: 3px solid #111 !important; }
+.player.active { border-color: #ff3b2f !important; box-shadow: inset -3px -3px 0 rgba(0, 0, 0, 0.3), 3px 3px 0 rgba(0, 0, 0, 0.5), 0 0 0 2px #ff3b2f !important; }
+.log-head button { border-radius: 0 !important; border: 2px solid #111 !important; box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5) !important; }
+/* ピクセルのふちで少し背が高くなった分、背の低いスマホでは詰める */
+@media (max-height: 720px) {
+  .rank-card .home-tile.wide { padding: 12px 14px; }
+  .rank-card .home-tile.wide b { font-size: 22px !important; }
+  .home-tile.wide, .local-btn { padding-top: 7px; padding-bottom: 7px; }
+  .dungeon-btn.dg-small { padding-top: 8px; padding-bottom: 8px; }
+  #title .fs-big { padding-top: 6px; padding-bottom: 6px; }
+}

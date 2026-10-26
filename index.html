@@ -15,8 +15,8 @@
   <meta name="apple-mobile-web-app-title" content="デストロイ碁">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Black+Ops+One&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=20261026144844">
+  <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Black+Ops+One&family=DotGothic16&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=20261026172050">
 </head>
 <body>
   <div id="stage">
@@ -30,16 +30,23 @@
         <h1 class="logo" data-text="デストロイ碁">デストロイ碁</h1>
         <p class="sublogo">DESTROY GO</p>
       </div>
-      <!-- 全画面にする（元の場所）。⚙ 設定はその横の小さいアイコン -->
-      <div class="fs-row"><button id="btn-fs-title" class="fs-btn fs-big">⛶ 全画面にする</button><button id="btn-settings" class="home-gear" title="設定" aria-label="設定">⚙</button></div>
+      <!-- 全画面にする（元の場所）。⚙ 設定は右上 -->
+      <button id="btn-settings" class="home-gear" title="設定" aria-label="設定">⚙</button>
+      <button id="btn-fs-title" class="fs-btn fs-big">⛶ 全画面にする</button>
 
       <!-- 🏠 ホーム：破壊の迷宮・CPU と対戦・オンライン・チュートリアル -->
       <div class="tab-pane" data-pane="home">
-        <!-- 破壊の迷宮（CPU のボスを倒して下へ潜る）。石の壁とたいまつの見た目 -->
-        <button id="btn-dojo" class="dungeon-btn"><i class="dg-torch l"><i class="dg-fire"></i></i><span class="dg-text"><b>破壊の迷宮</b><small id="dojo-note"></small><span class="dg-go">潜る ▼</span></span><i class="dg-torch r"><i class="dg-fire"></i></i><em class="card-tag">CPU戦</em></button>
-        <!-- ローカルマッチ：この端末で 2 人で対戦（CPU 戦は破壊の迷宮で）。「変える」で対局の設定をひらく -->
+        <!-- オンライン：ランクマッチ（右上に観戦）と、フレンド対戦 -->
+        <div class="home-grid">
+          <div class="rank-card">
+            <button class="home-tile wide" data-go="btn-rank-top"><b>🏆 ランクマッチ <em class="on-live hot" id="live-home" hidden>🔥 相手が待っています！</em></b><small data-note="btn-rank-top"></small></button>
+            <button class="card-tag watch-tag" data-go="btn-watch-top">👀 観戦<span id="watch-tag-n"></span></button>
+          </div>
+          <button class="home-tile wide" data-go="btn-friend-top"><b>🤝 フレンド対戦</b><small data-note="btn-friend-top"></small></button>
+        </div>
+        <!-- この端末で遊ぶ：1 台で 2 人で対戦（CPU 戦は破壊の迷宮で）。「ルール変更」で対局の設定をひらく -->
         <div class="local-card">
-          <button id="btn-local" class="local-btn"><b>👥 ローカルマッチ</b><small id="start-summary"></small><span class="local-go">対戦する ▶</span></button>
+          <button id="btn-local" class="local-btn"><b>👥 この端末で遊ぶ</b><small id="start-summary"></small><span class="local-go">対戦する ▶</span></button>
           <button id="hs-toggle" class="card-tag local-chg"><span id="hs-ar">ルール変更</span></button>
         </div>
         <button id="btn-start" hidden></button>
@@ -56,33 +63,25 @@
           </div>
           <span id="hs-sum" hidden></span>
         </div>
-        <!-- オンライン（くわしくは下の「⚔️ オンライン」のタブ） -->
-        <p class="home-h">✦ オンライン（β）<em class="on-live hot" id="live-home" hidden>🔥 相手が待っています！</em></p>
-        <div class="home-grid">
-          <button class="home-tile" data-go="btn-random-top"><b>ランダムマッチ</b><small data-note="btn-random-top"></small></button>
-          <button class="home-tile" data-go="btn-rank-top"><b>ランクマッチ</b><small data-note="btn-rank-top"></small></button>
-          <button class="home-tile" data-go="btn-friend-top"><b>フレンド対戦</b><small data-note="btn-friend-top"></small></button>
-          <button class="home-tile" data-go="btn-watch-top"><b>👀 観戦</b><small data-note="btn-watch-top"></small></button>
-        </div>
-        <!-- はじめての人向け：チュートリアルと、押すだけでコンピューター Lv1・9路で始める -->
+        <!-- はじめての人向け：チュートリアル（ほかのマスと同じ形。大きい字がチュートリアル） -->
         <div class="beginner">
-          <span>📖 囲碁を知らなくても大丈夫！</span>
-          <div class="title-links"><button id="btn-tutorial" class="sub-btn">チュートリアル</button><button id="btn-beginner" class="sub-btn">▶ おすすめで始める</button></div>
+          <button id="btn-tutorial" class="home-tile wide tut-tile"><b>📖 チュートリアル</b><small>囲碁を知らなくても大丈夫！</small></button>
         </div>
         <button id="btn-tutorial-sm" class="sub-btn" hidden>📖 チュートリアル</button>
+        <!-- 破壊の迷宮（サブの遊び方なのでいちばん下に小さく）。押すと潜る -->
+        <button id="btn-dojo" class="dungeon-btn dg-small"><i class="dg-torch l"><i class="dg-fire"></i></i><span class="dg-text"><b>破壊の迷宮</b><small id="dojo-note"></small></span><i class="dg-torch r"><i class="dg-fire"></i></i><em class="card-tag">CPU戦</em></button>
       </div>
 
       <!-- ⚔️ オンライン：ランダムマッチ・ランクマッチ・フレンド対戦・観戦・ランキング -->
       <div class="tab-pane" data-pane="online" hidden>
         <p class="pane-h">⚔️ オンライン対戦（β）</p>
         <p class="home-me" id="home-me"></p>
-        <button id="btn-random-top" class="on-item">ランダムマッチ<em class="on-live" id="live-random" hidden></em><span>知らない人とすぐ対戦</span></button>
         <button id="btn-rank-top" class="on-item">ランクマッチ<em class="on-live" id="live-rank" hidden></em><span id="rank-top-note"></span></button>
         <button id="btn-friend-top" class="on-item">フレンド対戦<span>合言葉で友だちと</span></button>
         <button id="btn-watch-top" class="on-item">👀 観戦<span id="watch-top-note">対戦中の試合を見る</span></button>
         <button id="btn-ranking-top" class="on-item ghost">🏆 ランキング<span>レート上位・称号</span></button>
         <p class="pane-note" id="battle-note"></p>
-        <p class="on-rule-note">ランダム・ランクは<b>デストロイ碁オリジナルのルール</b>。石を取ると相手にダメージ、HPを0にしても勝ち<button id="btn-online-rules">ルールを見る</button></p>
+        <p class="on-rule-note">ランクマッチは<b>デストロイ碁オリジナルのルール</b>。石を取ると相手にダメージ、HPを0にしても勝ち<button id="btn-online-rules">ルールを見る</button></p>
       </div>
 
       <!-- 📼 記録：棋譜・演出・BGM・称号・引き継ぎ・2人で対局。COMING SOON など -->
@@ -172,6 +171,10 @@
             </div>
           </div>
           <div class="sp-panel" data-panel="fx" hidden>
+      <div class="rule-row">
+        <span class="tr-label">碁盤</span>
+        <div class="chips" id="board-chips"></div>
+      </div>
       <div class="themes">
         <div class="theme-row" data-color="1">
           <span class="tr-label"><i class="p-stone black"></i>黒の演出</span>
@@ -231,13 +234,13 @@
 
     <!-- 対局画面 -->
     <section id="game" class="screen">
-      <div class="top-bar"><button id="btn-title">← タイトルへ</button><button id="btn-result" hidden>結果を見る</button><button id="btn-rules">？ ルール</button><button id="btn-log" hidden>📜 履歴</button><button id="btn-share">📷</button></div>
+      <div class="top-bar"><button id="btn-title">← タイトルへ</button><button id="btn-result" hidden>結果を見る</button><button id="btn-rules">？ ルール</button><button id="btn-log" hidden>📜 履歴</button><button id="btn-board" title="碁盤を変える（明るい木・古い木・石板）">盤</button><button id="btn-share">📷</button></div>
       <div class="player" id="p2" data-color="2">
         <div class="p-stone white"></div>
         <div class="p-info">
           <div class="p-name">白 <button class="p-theme" title="演出を切り替え"></button></div>
           <div class="p-cap">アゲハマ <b class="cap">0</b></div>
-          <div class="p-hp" hidden><div class="hp-bar"><div class="hp-fill"></div></div><span class="hp-num"></span><span class="hp-carry" title="取られない石があと何子で回復するか"><i></i><i></i><i></i><i></i></span></div>
+          <div class="p-hp" hidden><div class="hp-bar"><div class="hp-fill"></div></div><span class="hp-num"></span><span class="hp-carry" title="取られない石があと何子で回復するか"><i></i><i></i><i></i><i></i></span><span class="hp-charge" title="残りのため撃ち（必殺技）"><i></i><i></i><i></i></span></div>
         </div>
         <div class="p-clock">
           <div class="time">7:00</div>
@@ -263,7 +266,7 @@
         <div class="p-info">
           <div class="p-name">黒 <button class="p-theme" title="演出を切り替え"></button></div>
           <div class="p-cap">アゲハマ <b class="cap">0</b></div>
-          <div class="p-hp" hidden><div class="hp-bar"><div class="hp-fill"></div></div><span class="hp-num"></span><span class="hp-carry" title="取られない石があと何子で回復するか"><i></i><i></i><i></i><i></i></span></div>
+          <div class="p-hp" hidden><div class="hp-bar"><div class="hp-fill"></div></div><span class="hp-num"></span><span class="hp-carry" title="取られない石があと何子で回復するか"><i></i><i></i><i></i><i></i></span><span class="hp-charge" title="残りのため撃ち（必殺技）"><i></i><i></i><i></i></span></div>
         </div>
         <div class="p-clock">
           <div class="time">7:00</div>
@@ -377,13 +380,20 @@
   <div id="unlock-pop"></div>
   <!-- はじめて開いたとき：チュートリアルをやるか聞く（1 回だけ） -->
   <!-- 📖 チュートリアル：どちらを覚えるか選ぶ -->
+  <!-- アップデートのお知らせ（前から遊んでいる人に 1 回だけ。中身は js/app.js の NEWS） -->
+  <div id="news-pop" hidden>
+    <div class="modal-box">
+      <div class="a2hs-title">🆕 アップデートのお知らせ</div>
+      <ul class="news-list" id="news-list"></ul>
+      <div class="m-buttons"><button id="news-tut" class="accent">チュートリアルで確かめる</button><button id="news-close">閉じる</button></div>
+    </div>
+  </div>
   <div id="tut-pick" hidden>
     <div class="modal-box">
       <div class="a2hs-title">📖 チュートリアル</div>
       <div class="tut-pick-list">
         <button id="tut-pick-basic"><b>囲碁の基本</b><small>石の取り方・打てない場所・二眼・勝ち負け（10問）</small></button>
-        <button id="tut-pick-destroy" class="accent"><b>デストロイ初級</b><small>HP バトル・クリティカル・K.O.・地の総攻撃（5問）</small></button>
-        <button id="tut-pick-adv" class="accent"><b>デストロイ上級</b><small>ため撃ち・背水・カウンター・コンボ・ラストスパート・回復（9問）</small></button>
+        <button id="tut-pick-destroy" class="accent"><b>デストロイルール</b><small>HP バトル・K.O.・地の総攻撃・ため撃ち（必殺技）・コンボ・回復など（12問）</small></button>
       </div>
       <div class="m-buttons"><button id="tut-pick-close">閉じる</button></div>
     </div>
@@ -441,7 +451,7 @@
     </div>
   </div>
 
-  <script src="js/edition.js?v=20261026144844"></script>
+  <script src="js/edition.js?v=20261026172050"></script>
   <!-- アクセス解析（GoatCounter）。Cookie を使わず、個人は分からない（開かれた回数・どこから来たか・端末の種類だけ）。
        公開しているサイトでだけ数える。開発者とテスト用の端末は数えない -->
   <script>
@@ -455,14 +465,14 @@
       document.head.appendChild(s);
     })();
   </script>
-  <script src="js/go.js?v=20261026144844"></script>
-  <script src="js/clock.js?v=20261026144844"></script>
-  <script src="js/sounds.js?v=20261026144844"></script>
-  <script src="js/effects.js?v=20261026144844"></script>
-  <script src="js/boardfx.js?v=20261026144844"></script>
-  <script src="js/destroy-rule.js?v=20261026144844"></script>
-  <script src="js/ai.js?v=20261026144844"></script>
-  <script src="js/online.js?v=20261026144844"></script>
-  <script src="js/app.js?v=20261026144844"></script>
+  <script src="js/go.js?v=20261026172050"></script>
+  <script src="js/clock.js?v=20261026172050"></script>
+  <script src="js/sounds.js?v=20261026172050"></script>
+  <script src="js/effects.js?v=20261026172050"></script>
+  <script src="js/boardfx.js?v=20261026172050"></script>
+  <script src="js/destroy-rule.js?v=20261026172050"></script>
+  <script src="js/ai.js?v=20261026172050"></script>
+  <script src="js/online.js?v=20261026172050"></script>
+  <script src="js/app.js?v=20261026172050"></script>
 </body>
 </html>

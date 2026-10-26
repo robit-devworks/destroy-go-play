@@ -1,20 +1,17 @@
 // デストロイルール（HP バトル）の計算。画面とは独立させ、テストやコンピューター同士の試合でも使う。
 //  ・相手の石を取ると相手の HP が減る（まとめて取るほど 1 子あたりのダメージが大きい）
 //  ・クリティカル（碁盤ごとの子数以上）は最初の最大 HP の半分のダメージ、さらに多く取ると即 KO
-//  ・ため撃ち MAX はダメージ 1.5 倍、自分の HP が 4 分の 1 以下なら「背水」で 1.2 倍
-//  ・反動：ため撃ち MAX で増えた分と同じだけ、自分の HP も減る（HP は 1 で止まる。相手を KO したときは受けない）。
-//    相手との HP の差は溜めなくても同じなので、溜めるのはとどめを刺すときと、わざと背水に入るときだけ得になる
+//  ・ため撃ち（必殺技）：MAX まで溜めるとダメージ 1.5 倍。1 局 CHARGES の回数まで（9 路 1 回・13 路 2 回・19 路 3 回。反動はない）
+//  ・自分の HP が 4 分の 1 以下なら「背水」で 1.2 倍
 //  ・2 眼ができて取られなくなった石 HEAL_STONES 子ごとに 1 回復。最大 HP を超えた分は最大 HP も増やす（最初の 2 倍まで）
-//  ・カウンター：相手が石を取った直後に、その取りに来た石（相手が直前に打った石）ごと取り返すと 1.5 倍
-//    （うってがえしなどの返り討ち。別の場所の石を取り返すだけならカウンターにしない＝先に取った側が損をしないように）
 //  ・コンボ：自分の手番で続けて取ると、2 連続 1.2 倍・3 連続 1.4 倍…（2 倍まで）。取れなかった手やパスで途切れる
 //  ・ラストスパート：盤の 7 割が石で埋まるか、2 人の残り時間の合計が試合時間（1 人分の持ち時間）の 3 分の 2 以下になったら（2 人の合計時間の 3 分の 1 が残ったら）、2 人とも 1.5 倍。一度入ったら最後まで
-//  ・倍率は全部掛け合わせるが、合計 2.5 倍までにする（重なりすぎて一撃で終わらないように）
+//  ・倍率（ため撃ち・背水・コンボ・ラストスパート）は全部掛け合わせるが、合計 2.5 倍までにする（重なりすぎて一撃で終わらないように）
 //  ・HP ハンデ：弱い側の最初の HP を増やせる（+25%・+50%・+100%）
 //  ・HP が 0 で KO 負け。パスで終局したら、お互いに地 1 目につき相手に 1 ダメージを同時に与える。
 //    HP が 0 以下になった側の KO 負け（両方なら残りのマイナスが大きいほう）。両方残ったら残り HP の多いほうの勝ち
 //  シンプル版（advanced = false）は、HP・ダメージ・クリティカル・即 KO・終局だけ。
-//  ため撃ちは演出だけになり、倍率（ため撃ち・背水・カウンター・コンボ・ラストスパート）・反動・2 眼の回復はなし
+//  ため撃ちは演出だけになり、倍率（ため撃ち・背水・コンボ・ラストスパート）・2 眼の回復はなし（今は古い棋譜の再生だけで使う）
 (function (root) {
   'use strict';
   const BLACK = 1, WHITE = 2, EMPTY = 0;
@@ -40,6 +37,8 @@
   function perStone(n) { return n <= 3 ? 2 : n <= 6 ? 3 : 4; }
 
   const MAX_MULT = 2.5;
+  const CHARGES = { 9: 1, 13: 2, 19: 3 }; // ため撃ちは 1 局この回数まで（必殺技。碁盤が大きいほどまとめて取れる場面が多い）
+  const chargesOf = (size) => CHARGES[size] || 3;
   const comboMult = (combo) => (combo >= 2 ? Math.min(2, 1 + 0.2 * (combo - 1)) : 1);
   // 一度に n 子取ったときのダメージ。{ amount, kind: 'normal' | 'critical' | 'ko', tags: 付いた倍率の名前 }
   // 画面で計算式を出せるように、内訳も返す：base（倍率をかける前）、per（1 子あたり。クリティカルは null）、
@@ -120,7 +119,8 @@
       this.start = { [BLACK]: c.hp, [WHITE]: c.hp + c.white };
       if (bonus && bonus.rate > 0) this.start[bonus.color] += Math.round(c.hp * bonus.rate);
       this.combo = { [BLACK]: 0, [WHITE]: 0 }; // 続けて取った回数
-      this.last = null; // 直前の手 { mover, captured, point }（カウンターの判定用）
+      this.charges = { [BLACK]: chargesOf(size), [WHITE]: chargesOf(size) }; // 残りのため撃ち
+      this.last = null; // 直前の手 { mover, captured, point }
       this.hp = { ...this.start };
       this.max = { ...this.start };
       this.credited = { [BLACK]: new Set(), [WHITE]: new Set() }; // 回復済みの石
@@ -129,32 +129,26 @@
       this.spurtOn = false; // ラストスパートに入ったか（一度入ったら最後まで）
     }
     snapshot() {
-      return { hp: { ...this.hp }, max: { ...this.max }, carry: { ...this.carry }, combo: { ...this.combo }, last: this.last, credited: { [BLACK]: new Set(this.credited[BLACK]), [WHITE]: new Set(this.credited[WHITE]) }, ko: this.ko, spurtOn: this.spurtOn };
+      return { hp: { ...this.hp }, max: { ...this.max }, carry: { ...this.carry }, combo: { ...this.combo }, charges: { ...this.charges }, last: this.last, credited: { [BLACK]: new Set(this.credited[BLACK]), [WHITE]: new Set(this.credited[WHITE]) }, ko: this.ko, spurtOn: this.spurtOn };
     }
-    restore(s) { this.hp = { ...s.hp }; this.max = { ...s.max }; this.carry = { ...s.carry }; this.combo = { ...s.combo }; this.last = s.last; this.credited = { [BLACK]: new Set(s.credited[BLACK]), [WHITE]: new Set(s.credited[WHITE]) }; this.ko = s.ko; this.spurtOn = !!s.spurtOn; }
+    restore(s) { this.hp = { ...s.hp }; this.max = { ...s.max }; this.carry = { ...s.carry }; this.combo = { ...s.combo }; this.charges = { ...(s.charges || { [BLACK]: chargesOf(this.size), [WHITE]: chargesOf(this.size) }) }; this.last = s.last; this.credited = { [BLACK]: new Set(s.credited[BLACK]), [WHITE]: new Set(s.credited[WHITE]) }; this.ko = s.ko; this.spurtOn = !!s.spurtOn; }
     desperate(color) { return this.advanced && this.hp[color] <= this.max[color] / 4; }
-    // mover が point に打って n 子取った（0 子でも呼ぶ：コンボとカウンターの記録のため）。
+    // mover が point に打って n 子取った（0 子でも呼ぶ：コンボの記録のため）。maxCharge はため撃ち（残りがあれば 1 回使う）。
     // stones は取った石の位置。ダメージを相手に与えて結果を返す
     hit(mover, n, { maxCharge = false, spurt = false, point = -1, stones = [] } = {}) {
       const victim = 3 - mover;
       if (!this.advanced) maxCharge = spurt = false;
-      const l = this.last;
-      const counter = this.advanced && n > 0 && !!l && l.mover === victim && l.captured > 0 && l.point >= 0 && stones.includes(l.point);
+      if (maxCharge && (n <= 0 || this.charges[mover] <= 0)) maxCharge = false; // 使い切ったら溜めても 1.5 倍にならない
+      if (maxCharge) this.charges[mover]--;
+      void stones;
       this.combo[mover] = n > 0 ? this.combo[mover] + 1 : 0;
       this.last = { mover, captured: n, point };
-      const opts = { advanced: this.advanced, desperate: this.desperate(mover), counter, combo: this.advanced ? this.combo[mover] : 0, spurt };
+      const opts = { advanced: this.advanced, desperate: this.desperate(mover), combo: this.advanced ? this.combo[mover] : 0, spurt };
       const d = damage(n, this.size, { ...opts, maxCharge });
       if (d.kind === 'none') return d;
       this.hp[victim] = Math.max(0, this.hp[victim] - d.amount);
       if (this.hp[victim] <= 0) this.ko = victim;
-      // 反動：ため撃ちで増えた分（plain は溜めなかったときのダメージ。画面で計算式を出すのに使う）
-      let recoil = 0, plain = d.amount;
-      if (maxCharge && !this.ko) {
-        plain = damage(n, this.size, opts).amount;
-        recoil = Math.min(d.amount - plain, this.hp[mover] - 1);
-        this.hp[mover] -= recoil;
-      }
-      return { ...d, victim, hp: this.hp[victim], recoil, plain };
+      return { ...d, victim, hp: this.hp[victim], recoil: 0, plain: d.amount, charged: maxCharge };
     }
     // 盤面を見て、新しく取られなくなった石の分だけ回復する。{ [色]: 回復量 } を返す
     heal(board) {
@@ -189,7 +183,7 @@
     winnerByHp(territory = {}) { return this.finalAttack(territory).winner; }
   }
 
-  const api = { CONFIG, CONFIG_SIMPLE, config: conf, HEAL_STONES, MAX_MULT, damage, aliveStones, DestroyState, SPURT_FILL: 0.7, SPURT_TIME: 2 / 3 };
+  const api = { CONFIG, CONFIG_SIMPLE, config: conf, HEAL_STONES, MAX_MULT, CHARGES, chargesOf, damage, aliveStones, DestroyState, SPURT_FILL: 0.7, SPURT_TIME: 2 / 3 };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.DestroyRule = api;
 })(this);

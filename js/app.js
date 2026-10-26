@@ -139,16 +139,15 @@
   // HP ハンデ（デストロイルールのとき）：なし／+25%／+50%／+100%、もらうのは黒か白
   let hpBonus = 0, hpBonusColor = BLACK;
   try { const h = JSON.parse(localStorage.getItem('destroy-go-hpbonus') || '{}'); if ([0.25, 0.5, 1].includes(h.rate)) hpBonus = h.rate; if (h.color === WHITE) hpBonusColor = WHITE; } catch (e) { /* 無視 */ }
-  // デストロイルールの種類：初級（基本だけ。中ではシンプル版と呼ぶ）か上級（倍率・反動あり）
-  let dAdvanced = false;
+  // デストロイルールは 1 つ（前の上級：倍率・反動・回復あり）。前の初級は、古い棋譜の再生と古い部屋に入ったときだけ
+  let dAdvanced = true;
   // オンライン対戦（β）の状態。対戦していないときは null
   //   { code, host, color, g: 何局目, min: 持ち時間, settings, applying: 相手の手を再現中, out: 送る手, again: もう一局を押した人, ... }
   let net = null;
   let homeReady = false; // タイトルのカード（今の設定の 1 行など）を描いてよいか（準備がすべて終わってから）
-  try { dAdvanced = localStorage.getItem('destroy-go-dlevel') === 'advanced'; } catch (e) { /* 無視 */ }
   function renderMode() {
     document.querySelectorAll('#dlevel-chips .chip').forEach((c) => c.setAttribute('aria-pressed', (c.dataset.level === 'advanced') === dAdvanced));
-    $('#dlevel-row').hidden = mode !== 'destroy';
+    $('#dlevel-row').hidden = true; // 初級・上級は選ばない（デストロイルールは 1 つ）
     document.querySelectorAll('#mode-chips .chip').forEach((c) => c.setAttribute('aria-pressed', c.dataset.mode === mode));
     document.querySelectorAll('#hpb-chips .chip').forEach((c) => c.setAttribute('aria-pressed', +c.dataset.rate === hpBonus));
     document.querySelectorAll('#hpb-who-chips .chip').forEach((c) => c.setAttribute('aria-pressed', +c.dataset.color === hpBonusColor));
@@ -218,7 +217,7 @@
   // タイトルの「この端末で遊ぶ」：今の設定を 1 行で出し、CPU と／2人で のボタンに今の相手を出す
   function renderHome() {
     if (!homeReady) return;
-    const rule = mode === 'destroy' ? `デストロイ${dAdvanced ? '上級' : '初級'}` : 'ふつうの囲碁';
+    const rule = mode === 'destroy' ? 'デストロイルール' : 'ふつうの囲碁';
     $('#start-summary').textContent = ['2人で対戦', rule, `${SIZE}路`, timeText()].join('・');
     $('#q-cpu').setAttribute('aria-pressed', opponent === 'cpu');
     $('#q-human').setAttribute('aria-pressed', opponent !== 'cpu');
@@ -228,8 +227,8 @@
   // ふだんはたたんでおき、「変える」で開く（ホームを短くするため）
   let homeSetOpen = false;
   const HOME_SET = {
-    rule: { list: () => [['go', 'ふつうの囲碁'], ['simple', 'デストロイ初級'], ['advanced', 'デストロイ上級']],
-      now: () => (mode === 'destroy' ? (dAdvanced ? 'advanced' : 'simple') : 'go'),
+    rule: { list: () => [['go', 'ふつうの囲碁'], ['advanced', 'デストロイルール']],
+      now: () => (mode === 'destroy' ? 'advanced' : 'go'),
       pick: (v) => { $(`#mode-chips .chip[data-mode="${v === 'go' ? 'go' : 'destroy'}"]`).click(); if (v !== 'go') $(`#dlevel-chips .chip[data-level="${v}"]`).click(); } },
     lv: { list: () => [1, 2, 3, 4, 5, 6, 7, 8, 9].map((lv) => [lv, String(lv)]), now: () => cpuLevel, pick: (v) => $(`#level-chips .chip[data-level="${v}"]`).click() },
     size: { list: () => Object.keys(BOARDS).sort((a, b) => b - a).map((n) => [+n, `${n}路`]), now: () => SIZE, pick: (v) => $(`#size-chips .chip[data-size="${v}"]`).click() },
@@ -252,7 +251,7 @@
       }
       row.querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', c.dataset.v === String(HOME_SET[k].now())));
     });
-    box.querySelector('[data-row="lv"]').hidden = true; // ホームの設定はローカルマッチ用（CPU の強さは迷宮で）
+    box.querySelector('[data-row="lv"]').hidden = true; // ホームの設定は「この端末で遊ぶ」用（CPU の強さは迷宮で）
   }
   $('#hs-toggle').onclick = () => { homeSetOpen = !homeSetOpen; renderHomeSet(); };
   // ---------- ホームの下のタブ：ホーム・オンライン・記録は中身を切り替え、迷宮・ランキングはその画面をひらく ----------
@@ -266,9 +265,9 @@
   }
   document.querySelectorAll('#home-tabs button').forEach((b) => { b.onclick = () => showHomeTab(b.dataset.tab); });
   // ホームのオンラインの 4 つのマス：オンラインのタブの同じボタンを押す。下の小さい字もそちらと同じにする
-  document.querySelectorAll('.home-tile').forEach((t) => { t.onclick = () => $('#' + t.dataset.go).click(); });
+  document.querySelectorAll('.home-tile[data-go], .watch-tag').forEach((t) => { t.onclick = () => $('#' + t.dataset.go).click(); });
   function syncHomeTiles() {
-    document.querySelectorAll('.home-tile').forEach((t) => {
+    document.querySelectorAll('.home-tile[data-go]').forEach((t) => {
       const src = $('#' + t.dataset.go), sp = src.querySelector('span');
       t.querySelector('small').textContent = sp ? sp.textContent : '';
       t.classList.toggle('locked', src.classList.contains('locked'));
@@ -278,8 +277,8 @@
   $('#rec-fx').onclick = () => { showSettingsTab('fx'); $('#settings-pop').hidden = false; };
   $('#rec-bgm').onclick = () => { showSettingsTab('sound'); $('#settings-pop').hidden = false; };
   $('#rec-title').onclick = () => $('#btn-ranking-top').click();
-  // ローカルマッチ：この端末で 2 人で対戦（CPU と戦うのは破壊の迷宮で）
-  $('#btn-local').onclick = () => { $('#opp-chips .chip[data-opp="human"]').click(); track('ローカルマッチを始めた'); $('#btn-start').click(); };
+  // この端末で遊ぶ：1 台で 2 人で対戦（CPU と戦うのは破壊の迷宮で）
+  $('#btn-local').onclick = () => { $('#opp-chips .chip[data-opp="human"]').click(); track('この端末で遊ぶを始めた'); $('#btn-start').click(); };
   $('#hs-more').onclick = () => $('#btn-settings').click();
   $('#q-cpu').onclick = () => $('#opp-chips .chip[data-opp="cpu"]').click();
   $('#q-human').onclick = () => $('#opp-chips .chip[data-opp="human"]').click();
@@ -354,7 +353,7 @@
   // 今の設定を 1 行で（不具合の報告に入れる）
   function setupSummary() {
     const hc = effectiveHandicap();
-    const parts = [mode === 'destroy' ? `デストロイ（${dAdvanced ? '上級' : '初級'}）` : 'ふつうの囲碁',
+    const parts = [mode === 'destroy' ? 'デストロイルール' : 'ふつうの囲碁',
       opponent === 'cpu' ? `CPU Lv${cpuLevel}` : '2人', `${SIZE}路`, timeText()];
     if (hc) parts.push(`置き石${hc}`);
     if (mode === 'destroy' && hpBonus) parts.push(`${NAMES[hpBonusColor]}HP+${hpBonus * 100}%`);
@@ -620,7 +619,7 @@
       let i = keys.indexOf(themes[color]);
       do { i = (i + 1) % keys.length; } while (clash(keys[i], themes[otherColor(color)]));
       setTheme(color, keys[i]);
-      if (net) Online.send({ t: 'th', c: color, k: themes[color], g: net.g });
+      if (net) Online.send({ t: 'th', c: color, k: themes[color], g: net.g, rv: RULE_VER });
       toast(`${NAMES[color]}の演出：${themeOf(themes[color]).label}`);
     };
   }
@@ -740,26 +739,104 @@
     g2.globalAlpha = 1;
   }
 
+  // ---------- 碁盤の見た目：wood（明るい木）・oldwood（古い木：木目と傷。しみはなし）・stone（石板） ----------
+  const BOARD_LOOKS = {
+    wood: { line: '#3b2a10', label: 'rgba(59,42,16,0.85)', carve: null },
+    oldwood: { line: '#2a1a0a', label: 'rgba(40,24,10,0.85)', carve: null },
+    stone: { line: '#232220', label: 'rgba(30,29,27,0.9)', carve: 'rgba(255,255,255,0.16)' },
+  };
+  let boardLook = (() => { let q = (location.search.match(/[?&]board=(\w+)/) || [])[1]; if (!q) try { q = localStorage.getItem('destroy-go-board'); } catch (e) { /* 無視 */ } return BOARD_LOOKS[q] ? q : 'oldwood'; })(); // はじめは古い木（石垣になじむ）
+  let boardTex = null; // { key, canvas } 盤の模様（大きさが変わったときだけ作り直す）
+  function boardTexture(S) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 3), key = `${boardLook}:${S}:${dpr}`;
+    if (boardTex && boardTex.key === key) return boardTex.canvas;
+    const cv = document.createElement('canvas'); cv.width = Math.round(S * dpr); cv.height = Math.round(S * dpr);
+    const x = cv.getContext('2d'); x.scale(dpr, dpr);
+    let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647); // 毎回同じ模様になるように
+    if (boardLook === 'oldwood') {
+      const g = x.createLinearGradient(0, 0, S, S);
+      g.addColorStop(0, '#a77c45'); g.addColorStop(0.5, '#93683a'); g.addColorStop(1, '#7c5530');
+      x.fillStyle = g; x.fillRect(0, 0, S, S);
+      for (let i = 0; i < 70; i++) { // 木目
+        const y0 = rnd() * S, amp = 2 + rnd() * 6, f = 0.004 + rnd() * 0.01, ph = rnd() * 6;
+        x.strokeStyle = `rgba(${rnd() < 0.5 ? '60,35,15' : '190,150,95'},${0.08 + rnd() * 0.14})`; x.lineWidth = 0.6 + rnd() * 1.6;
+        x.beginPath(); for (let px0 = 0; px0 <= S; px0 += 6) { const yy = y0 + Math.sin(px0 * f + ph) * amp; px0 ? x.lineTo(px0, yy) : x.moveTo(px0, yy); } x.stroke();
+      }
+      for (let i = 0; i < 25; i++) { // 傷
+        const sx = rnd() * S, sy = rnd() * S, a = rnd() * Math.PI, l = 6 + rnd() * 24;
+        x.strokeStyle = `rgba(40,22,8,${0.15 + rnd() * 0.2})`; x.lineWidth = 0.6;
+        x.beginPath(); x.moveTo(sx, sy); x.lineTo(sx + Math.cos(a) * l, sy + Math.sin(a) * l); x.stroke();
+      }
+    } else if (boardLook === 'stone') {
+      const g = x.createLinearGradient(0, 0, S, S);
+      g.addColorStop(0, '#8d8a84'); g.addColorStop(0.5, '#7a7772'); g.addColorStop(1, '#67645f');
+      x.fillStyle = g; x.fillRect(0, 0, S, S);
+      for (let i = 0; i < S * S / 18; i++) { // 石のざらつき
+        x.fillStyle = rnd() < 0.5 ? `rgba(0,0,0,${0.05 + rnd() * 0.12})` : `rgba(255,255,255,${0.04 + rnd() * 0.08})`;
+        const r = 0.4 + rnd() * 1.4; x.fillRect(rnd() * S, rnd() * S, r, r);
+      }
+      for (let i = 0; i < 6; i++) { // しみ
+        const cx = rnd() * S, cy = rnd() * S, r = S * (0.08 + rnd() * 0.15);
+        const k = x.createRadialGradient(cx, cy, 0, cx, cy, r); k.addColorStop(0, `rgba(${rnd() < 0.5 ? '40,40,38' : '160,155,145'},0.18)`); k.addColorStop(1, 'rgba(0,0,0,0)');
+        x.fillStyle = k; x.fillRect(cx - r, cy - r, r * 2, r * 2);
+      }
+      for (let i = 0; i < 3; i++) { // ひび
+        let cx = rnd() * S, cy = rnd() * S, a = rnd() * Math.PI * 2;
+        x.strokeStyle = 'rgba(25,24,22,0.55)'; x.lineWidth = 1.1; x.beginPath(); x.moveTo(cx, cy);
+        for (let k = 0; k < 6; k++) { a += (rnd() - 0.5) * 1.2; cx += Math.cos(a) * (8 + rnd() * 14); cy += Math.sin(a) * (8 + rnd() * 14); x.lineTo(cx, cy); }
+        x.stroke();
+      }
+      // ふちを少し欠けたように暗く
+      const v = x.createRadialGradient(S / 2, S / 2, S * 0.35, S / 2, S / 2, S * 0.75); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.35)');
+      x.fillStyle = v; x.fillRect(0, 0, S, S);
+    } else {
+      const g = x.createLinearGradient(0, 0, S, S);
+      g.addColorStop(0, '#e6c06e'); g.addColorStop(0.5, '#d9ad57'); g.addColorStop(1, '#c99a45');
+      x.fillStyle = g; x.fillRect(0, 0, S, S);
+    }
+    boardTex = { key, canvas: cv };
+    return cv;
+  }
+
+  // ⚙ 設定の「演出」：碁盤を明るい木・古い木・石板から選ぶ（だれでも選べる。選んだものは端末に保存）
+  for (const [key, label] of [['wood', '明るい木'], ['oldwood', '古い木'], ['stone', '石板']]) {
+    const chip = document.createElement('button');
+    chip.className = 'chip rule-chip'; chip.dataset.board = key; chip.textContent = label;
+    chip.onclick = () => { boardLook = key; try { localStorage.setItem('destroy-go-board', key); } catch (e) { /* 無視 */ } renderBoardChips(); draw(); };
+    $('#board-chips').appendChild(chip);
+  }
+  // 対局中も、上の「盤」ボタンで碁盤を切り替えられる（明るい木 → 古い木 → 石板 → …）
+  const BOARD_NAMES = { wood: '明るい木', oldwood: '古い木', stone: '石板' };
+  $('#btn-board').onclick = () => {
+    const keys = Object.keys(BOARD_NAMES), next = keys[(keys.indexOf(boardLook) + 1) % keys.length];
+    $(`#board-chips [data-board="${next}"]`).click();
+    toast(`碁盤：${BOARD_NAMES[next]}`);
+  };
+  function renderBoardChips() { document.querySelectorAll('#board-chips .chip').forEach((c) => c.setAttribute('aria-pressed', c.dataset.board === boardLook)); }
+  renderBoardChips();
+
   function draw() {
     if (!game || !geo.css) return;
-    const S = geo.css, c = geo.cell;
+    const S = geo.css, c = geo.cell, look = BOARD_LOOKS[boardLook];
     // 盤
-    const wood = g2.createLinearGradient(0, 0, S, S);
-    wood.addColorStop(0, '#e6c06e'); wood.addColorStop(0.5, '#d9ad57'); wood.addColorStop(1, '#c99a45');
-    g2.fillStyle = wood; g2.fillRect(0, 0, S, S);
-
-    g2.strokeStyle = '#3b2a10'; g2.lineWidth = Math.max(0.7, c / 26);
-    g2.beginPath();
-    for (let i = 0; i < SIZE; i++) {
-      g2.moveTo(px(0), px(i)); g2.lineTo(px(SIZE - 1), px(i));
-      g2.moveTo(px(i), px(0)); g2.lineTo(px(i), px(SIZE - 1));
-    }
-    g2.stroke();
+    g2.drawImage(boardTexture(S), 0, 0, S, S);
+    const lines = (off) => {
+      g2.beginPath();
+      for (let i = 0; i < SIZE; i++) {
+        g2.moveTo(px(0) + off, px(i) + off); g2.lineTo(px(SIZE - 1) + off, px(i) + off);
+        g2.moveTo(px(i) + off, px(0) + off); g2.lineTo(px(i) + off, px(SIZE - 1) + off);
+      }
+      g2.stroke();
+    };
+    const lw = Math.max(0.7, c / 26);
+    if (look.carve) { g2.strokeStyle = look.carve; g2.lineWidth = lw; lines(lw); } // 石板は、彫った溝に見えるよう明るい線を少しずらして足す
+    g2.strokeStyle = look.line; g2.lineWidth = lw;
+    lines(0);
     g2.lineWidth *= 2; g2.strokeRect(px(0), px(0), px(SIZE - 1) - px(0), px(SIZE - 1) - px(0));
     if (opt.coords.checked) {
       // 外枠から少し内側（端の石にかからない位置）に座標を書く
       const d = c * 0.42;
-      g2.fillStyle = 'rgba(59,42,16,0.85)';
+      g2.fillStyle = look.label;
       g2.font = `700 ${Math.round(c * 0.34)}px system-ui, sans-serif`;
       g2.textAlign = 'center'; g2.textBaseline = 'middle';
       for (let i = 0; i < SIZE; i++) {
@@ -767,7 +844,7 @@
         g2.fillText(String(SIZE - i), d, px(i)); g2.fillText(String(SIZE - i), S - d, px(i));
       }
     }
-    g2.fillStyle = '#3b2a10';
+    g2.fillStyle = look.line;
     for (const [a, b] of BOARDS[SIZE]) { g2.beginPath(); g2.arc(px(a), px(b), c * 0.12, 0, Math.PI * 2); g2.fill(); }
 
     // 計算モードでの地の表示
@@ -898,9 +975,11 @@
     pending = -1;
     // 相手の石が取れる手なら、長押しで「ため撃ち」できる（離したときに打つ）
     const t = game.tryPlay(p);
-    if (t.ok && chargeSteps(t.captured.length).length) { startCharge(p, t.captured, e); return; }
+    if (t.ok && chargeSteps(t.captured.length).length && chargesLeft(game.turn)) { startCharge(p, t.captured, e); return; }
     playAt(p);
   });
+  // デストロイルールのため撃ちは 1 局の回数が決まっている（9 路 1 回・13 路 2 回・19 路 3 回。使い切ったら長押ししても溜まらず、すぐ打つ）。ふつうの囲碁は演出だけなので何回でも
+  const chargesLeft = (c) => !dstate || !dstate.advanced || dstate.charges[c] > 0;
 
   // ---------- ため撃ち ----------
   // 取れる手を長押しすると、取られる石がカタカタ揺れて、離したときに勢いよく取れる。
@@ -1026,14 +1105,14 @@
   function popDamage(color, text, cls, tags = []) {
     const el = document.createElement('div');
     el.className = 'dmg-pop ' + cls;
-    // 倍率の名前（COUNTER!! など）を小さく上に並べる
+    // 倍率の名前（2 COMBO! など）を小さく上に並べる
     for (const t of tags) { const s = document.createElement('span'); s.className = 'tag'; s.textContent = t; el.appendChild(s); }
     el.appendChild(document.createTextNode(text));
     $('#p' + color).appendChild(el);
     setTimeout(() => el.remove(), 1700);
   }
-  // 盤の真ん中に、付いた倍率（COUNTER!! など）を大きく、ダメージの計算式をその下に出す
-  // 例：5子×3 ×1.5（ため撃ち）×1.5（カウンター）＝ 34
+  // 盤の真ん中に、付いた倍率（2 COMBO! など）を大きく、ダメージの計算式をその下に出す
+  // 例：5子×3 ×1.5（ため撃ち）×1.2（背水）＝ 27
   const fmtMult = (m) => String(Math.round(m * 100) / 100);
   function showFormula(victim, h, n) {
     const el = $('#dmg-formula');
@@ -1089,7 +1168,8 @@
         <li>2人連続パスで終局 → 死に石をタップして計算（コンピューター戦では死に石を自動で判定）</li></ul>`;
   }
   function renderRulesInto(box, rp) {
-    const tabs = [['go', 'ノーマル'], ['basic', 'デストロイ初級'], ['adv', 'デストロイ上級'], ['words', '用語']]
+    if (rp.tab === 'basic') rp.tab = 'adv'; // デストロイルールは 1 つ
+    const tabs = [['go', 'ノーマル'], ['adv', 'デストロイ'], ['words', '用語']]
       .map(([k, l]) => `<button data-rp-tab="${k}" aria-selected="${rp.tab === k}">${l}</button>`).join('');
     let html = `<div class="rp-tabs">${tabs}</div>`;
     if (rp.tab === 'go') {
@@ -1111,12 +1191,12 @@
       const dg = [
         ['にじみ', '<b>デストロイ碁の用語</b>（囲碁のふつうの用語ではありません）。打った石のまわりに、その石の勢力を色でにじませて表示する（陣地ヒント）'],
         ['つながり', '<b>デストロイ碁の用語</b>（囲碁のふつうの用語ではありません）。近くにある味方の石どうしを線で結んで、つながり具合を表示する（陣地ヒント）'],
-        ['ため撃ち', '石が取れる手を長押しして溜めてから打つ。演出が派手になる（デストロイ上級ではダメージも増える）'],
+        ['ため撃ち', '石が取れる手を長押しして溜めてから打つ。演出が派手になり、デストロイルールではダメージも増える'],
         ['HP', 'デストロイルールの体力。石を取られると減り、0 で KO 負け'],
         ['クリティカル', 'デストロイルールで、たくさんまとめて取ったときの大ダメージ'],
         ['即 KO', 'デストロイルールで、もっとたくさんまとめて取ると、HP に関係なく一撃で勝ち'],
         ['地の総攻撃', 'デストロイルールで、パスで終局したときに地 1目につき相手に 1 ダメージを与えること'],
-        ['盾マーク', '二眼ができて取られなくなった石に付く印。デストロイ上級では 4子ごとに HP が回復する'],
+        ['盾マーク', '二眼ができて取られなくなった石に付く印。デストロイルールでは 4子ごとに HP が回復する'],
       ];
       const dl = (list) => `<dl class="rp-words">${list.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
       html += '<h3>囲碁の用語</h3>' + dl(go) + '<h3>デストロイ碁の用語</h3>' + dl(dg);
@@ -1135,20 +1215,18 @@
         <li>相手の石を取ると、相手の HP が減る。まとめて取るほど 1子あたりのダメージが大きい</li>
         <li>HP が 0 になったら <b>KO 負け</b></li>
         <li>2人がパスしたら<b>地の総攻撃</b>：お互いに地 1目につき相手に 1 ダメージを同時に与え、HP が 0 以下なら KO。両方残ったら残り HP の多いほうの勝ち</li>
-        <li>${adv ? 'ため撃ち MAX はダメージ 1.5 倍（反動あり。下を見てね）' : 'ため撃ちは演出だけ（ダメージは変わらない）'}</li>
+        <li>${adv ? `ため撃ち MAX はダメージ 1.5 倍（${n}路は 1 局 ${DestroyRule.chargesOf(n)} 回まで。下を見てね）` : 'ため撃ちは演出だけ（ダメージは変わらない）'}</li>
         <li>持ち時間・5秒ルールはノーマルと同じ</li></ul>`;
       if (adv) {
         const fx = [
-          ['ため撃ち', '×1.5', '石が取れる手を長押しして、ゲージを MAX まで溜めてから離すとダメージが 1.5 倍。', '例：5子取り 15 → 23'],
-          ['反動', '自分にも', 'ため撃ち MAX で増えた分だけ、自分の HP も減る。HP は 1 で止まり、相手を KO したときは受けない。溜めて得するのは、とどめを刺すときや、わざと背水に入るとき。', '例：6（ため撃ち）− 4（溜めない）＝ 自分に 2'],
+          ['ため撃ち', '×1.5', '石が取れる手を長押しして、ゲージを MAX まで溜めてから離すとダメージが 1.5 倍。<b>9路は 1 局 1 回・13路 2 回・19路 3 回</b>だけの必殺技で、HP の横の ⚡ が残りの回数。使い切ったら長押ししても溜まらない。', '例：5子取り 15 → 23'],
           ['背水', '×1.2', `自分の HP が最大 HP の 4 分の 1 以下のとき、攻撃が 1.2 倍。HP バーが赤く光る（${n}路なら HP ${Math.floor(c.hp / 4)} 以下）。`, ''],
-          ['カウンター', '×1.5', '相手に石を取られた直後に、その取りに来た石ごと取り返すと 1.5 倍（うってがえしなど）。別の場所の石を取り返すだけではならない。', ''],
           ['コンボ', '×1.2〜2', '自分の手番で続けて石を取ると、2 連続 1.2 倍・3 連続 1.4 倍…と上がる（2 倍まで）。取れなかった手やパスで途切れる。', ''],
           ['ラストスパート', '×1.5', '盤の 7 割が石で埋まるか、2 人の残り時間の合計が試合時間の 3 分の 2 以下になると、2 人とも 1.5 倍。一度入ったら最後まで続く。最初に入ったとき「LAST SPURT!!」と出る。', '例：3 分の試合なら、2 人の残りの合計が 2 分（黒が残り 1 分半・白が残り 30 秒など）'],
-          ['倍率の上限', '2.5倍まで', 'いくつ重なっても、全部掛け合わせて 2.5 倍まで。', '例：ため撃ち×カウンター×ラストスパート＝3.375 → 2.5倍'],
+          ['倍率の上限', '2.5倍まで', 'いくつ重なっても、全部掛け合わせて 2.5 倍まで。', '例：ため撃ち×ラストスパート×3コンボ＝3.15 → 2.5倍'],
           ['2眼で回復', '+1', '2 眼ができて取られなくなった石（盾マーク）4子ごとに HP が 1 回復。最大 HP を超えたら最大 HP も増える（最初の 2 倍まで）。', ''],
         ];
-        html += '<h3>上級で加わる効果</h3>' + fx.map(([k, m, d, ex]) => `<div class="rp-card"><div class="rp-name">${k}<span>${m}</span></div><p>${d}</p>${ex ? `<p class="rp-ex">${ex}</p>` : ''}</div>`).join('');
+        html += '<h3>ダメージが増える決まり・回復</h3>' + fx.map(([k, m, d, ex]) => `<div class="rp-card"><div class="rp-name">${k}<span>${m}</span></div><p>${d}</p>${ex ? `<p class="rp-ex">${ex}</p>` : ''}</div>`).join('');
       } else html += '<p class="rp-note">上級では、ため撃ち・反動・背水・カウンター・コンボ・ラストスパート・2眼の回復が加わる（HP も多い）。</p>';
     }
     if (rp.tab === 'basic' || rp.tab === 'adv') html += '<p class="rp-note">β版のため、シーズンの合間にバランスを調整することがあります。</p>';
@@ -1160,7 +1238,7 @@
     e.stopPropagation();
     if ($('#rules-pop').hidden) { rp.tab = dstate ? (dstate.advanced ? 'adv' : 'basic') : 'go'; rp.size = SIZE; } // 開くときは今の対局に合わせる
     renderRulesPop(); $('#rules-pop').hidden = !$('#rules-pop').hidden; $('#log-pop').hidden = true; };
-  // オンライン対戦の前に、デストロイ碁のルールを見る（上級＝ランクマッチ、初級＝ランダムマッチ）
+  // オンライン対戦の前に、デストロイルールを見る
   function openRulesFor(adv) { rp.tab = adv ? 'adv' : 'basic'; rp.size = 9; renderRulesPop(); $('#rules-pop').hidden = false; $('#log-pop').hidden = true; }
   $('#rules-close').onclick = () => { $('#rules-pop').hidden = true; };
   $('#btn-log').onclick = (e) => { e.stopPropagation(); renderLog(); $('#log-pop').hidden = !$('#log-pop').hidden; $('#rules-pop').hidden = true; };
@@ -1204,6 +1282,10 @@
       box.querySelector('.hp-fill').style.width = (100 * hp / dstate.max[c]) + '%';
       box.querySelector('.hp-num').textContent = `HP ${hp}/${dstate.max[c]}`;
       box.classList.toggle('low', dstate.advanced && hp <= dstate.max[c] / 4);
+      const ch = box.querySelector('.hp-charge'); // 残りのため撃ち（⚡）
+      ch.hidden = !dstate.advanced;
+      const chMax = DestroyRule.chargesOf(dstate.size);
+      ch.querySelectorAll('i').forEach((d, k) => { d.hidden = k >= chMax; d.classList.toggle('on', k < dstate.charges[c]); });
     }
   }
   // 石を取ったらダメージ、2 眼で取られなくなった石が増えたら回復。HP が 0 なら演出が終わってから KO
@@ -1236,7 +1318,7 @@
       dstate.spurtOn = true;
       later(() => showBigNote('LAST SPURT!! ダメージ1.5倍', '#ff3b3b'), Math.min(hold, 900) + 1200);
     }
-    const h = dstate.hit(mover, captured, { maxCharge, spurt, point, stones: capturedStones }); // 取れなかった手も記録する（コンボ・カウンターのため）
+    const h = dstate.hit(mover, captured, { maxCharge, spurt, point, stones: capturedStones }); // 取れなかった手も記録する（コンボのため）
     dstate.lastSpurt = spurt; // 棋譜に残す（再生で同じダメージにするため）
     dstate.lastHit = h.kind; // BGM の解放（クリティカル）に使う
     logHit(mover, captured, h);
@@ -1403,8 +1485,7 @@
   // ため撃ち MAX なら相手を KO できて、溜めないと KO できない取りか
   function cpuFinishes(stones) {
     const me = game.turn, foe = otherColor(me), l = dstate.last, n = stones.length;
-    const opts = { desperate: dstate.desperate(me), combo: dstate.combo[me] + 1, spurt: isSpurt(me),
-      counter: !!l && l.mover === foe && l.captured > 0 && stones.includes(l.point) };
+    const opts = { desperate: dstate.desperate(me), combo: dstate.combo[me] + 1, spurt: isSpurt(me) }; void l;
     const hp = dstate.hp[foe];
     return DestroyRule.damage(n, SIZE, opts).amount < hp && DestroyRule.damage(n, SIZE, { ...opts, maxCharge: true }).amount >= hp;
   }
@@ -1423,8 +1504,12 @@
     // 取れる手ならため撃ちで煽る（強いほど長くためる。レベル 1〜3 はためない）
     const steps = chargeSteps(t.captured.length);
     let target = cpuLevelInGame <= 3 ? 0 : cpuLevelInGame <= 6 ? 1 : steps.length;
-    // デストロイルールでは MAX に反動があるので、MAX まで溜めるのはとどめを刺せるとき（Lv7〜9）だけ
-    if (dstate && dstate.advanced && target >= steps.length && !(cpuLevelInGame >= 7 && cpuFinishes(t.captured))) target = steps.length - 1;
+    // デストロイルールのため撃ち（MAX）は 1 局の回数が決まった必殺技：Lv4〜6 は 4 子以上のとき、Lv7〜9 はとどめを刺せるときか 4 子以上のときに使う
+    if (dstate && dstate.advanced && steps.length) {
+      const big = t.captured.length >= 4, fin = cpuFinishes(t.captured);
+      const use = dstate.charges[game.turn] > 0 && cpuLevelInGame >= 4 && (big || (cpuLevelInGame >= 7 && fin));
+      target = use ? steps.length : Math.min(target, steps.length - 1);
+    }
     if (steps.length && target > 0) startCpuCharge(move, t.captured, Math.min(target, steps.length));
     else playAt(move);
   }
@@ -1435,7 +1520,7 @@
     // ランダム・ランクマッチのデストロイは死に石を判定しないので、初めてパスするときに 1 回だけ知らせる
     if (noDeadJudge() && lsGet('destroy-go-pass-tip') !== '1') {
       lsSet('destroy-go-pass-tip', '1');
-      if (!confirm('ランダムマッチ・ランクマッチでは、死に石を判定しません。\n盤の石はすべて生きているものとして地を数えます。\n\n相手の地に残った死んでいる石は、パスする前に取りきろう（取ればダメージにもなる）。\n\nパスしますか？')) return;
+      if (!confirm('ランクマッチでは、死に石を判定しません。\n盤の石はすべて生きているものとして地を数えます。\n\n相手の地に残った死んでいる石は、パスする前に取りきろう（取ればダメージにもなる）。\n\nパスしますか？')) return;
     }
     cancelCharge();
     doPass();
@@ -1778,7 +1863,7 @@
       return;
     }
     el.className = '';
-    $('#save-note-text').innerHTML = '💾 記録はこの端末に保存されています'; // くわしくは「記録を守る」で（ホームを短くするため 1 行に）
+    $('#save-note-text').innerHTML = '💾 記録はこの端末に保存中'; // くわしくは「記録を守る」で（ホームを短くするため 1 行に）
     $('#save-note-how').hidden = false; $('#save-note-how').textContent = isIOS || isAndroid ? '消えないようにする' : '記録を守る';
     el.hidden = lsGet('destroy-go-save-note') === '1';
   }
@@ -2100,14 +2185,10 @@
         if (dstate && title.startsWith('K.O.')) later(() => unlockSecret('thunder'), 700);
         if (cpuSide && cpuLevelInGame === 9) later(() => unlockSecret('light'), 700);
         if (cpuSide && cpuLevelInGame >= 5) later(() => unlockBgm('boss03'), 4900); // 演出の解放と重ならないよう後で
-        if (warmupCpu && cpuSide && randomPlayed() < RANK_UNLOCK) {
-          lsSet('destroy-go-random-played', randomPlayed() + 1); syncProfile(); renderRankTop();
-          later(() => toast(rankButtonOpen() ? '🏆 ランクマッチのボタンが押せるようになりました！' : `ランクマッチまで：あと ${rankRandomLeft()} 局（CPU 戦は勝ったときだけ数えます）`), 1200);
-        }
-        // 上級ルールの CPU 戦で勝った（ランクマッチの開放の条件）
+        // デストロイルールの CPU 戦ではじめて勝った：ランクマッチにさそう
         if (cpuSide && dstate && dstate.advanced && !advCpuWon()) {
           lsSet('destroy-go-adv-cpu-win', '1'); syncProfile(); renderRankTop();
-          later(() => toast(rankOpen() ? '🏆 上級ルールで勝った！ランクマッチに入れます' : `上級ルールで勝った！あとはランダムマッチ ${rankRandomLeft()} 局`), 1400);
+          later(() => toast('🏆 デストロイルールで勝った！ ランクマッチにも挑戦してみよう'), 1400);
         }
       }
       // 終えた対局の数（BGM の解放に使う）
@@ -2138,13 +2219,13 @@
   const NEXT_CHOICES = {
     opp: [['cpu', 'コンピューター'], ['human', '2人で']],
     lv: [1, 2, 3, 4, 5, 6, 7, 8, 9].map((lv) => [lv, `Lv${lv}`]),
-    rule: [['go', 'ふつうの囲碁'], ['simple', 'デストロイ初級'], ['advanced', 'デストロイ上級']],
+    rule: [['go', 'ふつうの囲碁'], ['advanced', 'デストロイルール']],
     size: Object.keys(BOARDS).sort((a, b) => b - a).map((n) => [+n, `${n}路`]),
   };
   // 碁盤の大きさは、今の盤面を描き直すと崩れるので、次の対局を始めるときに変える
   let nextSize = 0;
   const applyNextSize = () => { if (nextSize && nextSize !== SIZE) $(`#size-chips .chip[data-size="${nextSize}"]`).click(); nextSize = 0; };
-  const nextNow = { opp: () => opponent, lv: () => cpuLevel, rule: () => (mode === 'destroy' ? (dAdvanced ? 'advanced' : 'simple') : 'go'), size: () => nextSize || SIZE };
+  const nextNow = { opp: () => opponent, lv: () => cpuLevel, rule: () => (mode === 'destroy' ? 'advanced' : 'go'), size: () => nextSize || SIZE };
   function pickNext(k, v) {
     if (k === 'opp') $(`#opp-chips .chip[data-opp="${v}"]`).click();
     if (k === 'lv') $(`#level-chips .chip[data-level="${v}"]`).click();
@@ -2300,7 +2381,7 @@
     clock.start(game.turn);
     updatePanels();
     FX.gameStart();
-    if (net) Online.send({ t: 'th', c: net.color, k: themes[net.color], g: net.g }); // 自分の演出を相手に知らせる
+    if (net) Online.send({ t: 'th', c: net.color, k: themes[net.color], g: net.g, rv: RULE_VER }); // 自分の演出（とルールの版）を相手に知らせる
     maybeCpuTurn(); // コンピューターが黒なら先に打つ
     if (!net) track(cpuSide ? (curFloor ? `迷宮 B${curFloor}F に挑んだ` : `CPU Lv${cpuLevel} を始めた`) : '2人で対局を始めた');
   }
@@ -2308,15 +2389,6 @@
   $('#btn-start').onclick = () => { FX.unlock(); gauntlet = null; clearStage(); newGame(); };
   $('#btn-dojo').onclick = () => { FX.unlock(); openDojo(); };
   $('#dojo-close').onclick = () => { $('#dojo-pop').hidden = true; };
-  // おすすめで始める：コンピューター Lv1・9路・置き石なし（ほかの設定は今のまま）。選んだ内容は保存されるので、次からもそのまま
-  $('#btn-beginner').onclick = () => {
-    FX.unlock(); clearStage();
-    $('#opp-chips .chip[data-opp="cpu"]').click();
-    $('#level-chips .chip[data-level="1"]').click();
-    $('#hc-chips .chip[data-hc="0"]').click();
-    $('#size-chips .chip[data-size="9"]').click();
-    newGame();
-  };
   // スマホは「指を離したとき」「クリックしたとき」でないと音を出す許可がもらえないことがあるので、そこでも音を有効にする
   for (const ev of ['touchend', 'click']) document.addEventListener(ev, () => FX.unlock(), { capture: true, passive: true });
 
@@ -2587,41 +2659,35 @@
     { title: '勝ち負け', type: 'view', b: [[3, 0], [3, 1], [3, 2], [3, 3], [3, 4], [3, 5], [3, 6], [3, 7], [3, 8]], w: [[5, 0], [5, 1], [5, 2], [5, 3], [5, 4], [5, 5], [5, 6], [5, 7], [5, 8]],
       text: '2人が続けて<b>パス</b>したら終局。自分の石で囲んだ空き（<b>地</b>）が多いほうの勝ちです（この盤なら黒の地は左側、白の地は右側）。<b>デストロイルール</b>では、石を取って相手の HP を 0 にすると KO 勝ち！' },
   ];
-  // デストロイルールのチュートリアル。hp：最初の HP（{ b, w }）、pre：その前に起きたこと（コンボ・カウンターの判定用）
-  // 初級：HP・ダメージ・クリティカル・K.O.・地の総攻撃（実際にパスして見る）
+  // デストロイルールのチュートリアル。hp：最初の HP（{ b, w }）、pre：その前に起きたこと（コンボの判定用）、foe：先に白が打つ手
+  // しくみ：HP・ダメージ・クリティカル・K.O.・地の総攻撃（実際にパスして見る）
   const TUT_DESTROY = [
-    { title: 'HP バトル', type: 'view', hp: {}, b: [[2, 2], [3, 3], [6, 6]], w: [[6, 2], [5, 5], [2, 6]],
+    { title: 'HP バトル', type: 'view', hp: {}, adv: true, b: [[2, 2], [3, 3], [6, 6]], w: [[6, 2], [5, 5], [2, 6]],
       text: '<b>デストロイルール</b>では、黒と白それぞれに<b>HP</b>（上と下のゲージ）があります。<b>相手の石を取ると相手の HP が減り</b>、<b>0 にしたら K.O. 勝ち</b>。ふつうの囲碁と同じように打ちながら、HP を削り合います' },
-    { title: '取るとダメージ', type: 'play', hp: {}, b: [[3, 4], [5, 4], [4, 3]], w: [[4, 4]], answer: [4, 5],
+    { title: '取るとダメージ', type: 'play', hp: {}, adv: true, b: [[3, 4], [5, 4], [4, 3]], w: [[4, 4]], answer: [4, 5],
       text: '白の石を取って、白の HP を減らしてみよう（上の白のゲージを見てね）',
       done: '1 子取って <b>2 ダメージ</b>！ まとめて取るほど、1 子あたりのダメージも増えます（1〜3 子は 2、4〜6 子は 3、それ以上は 4）' },
-    { title: 'クリティカル', type: 'play', hp: {}, b: [[2, 3], [2, 4], [6, 3], [6, 4], [3, 2], [4, 2], [5, 2], [3, 5], [4, 5]], w: [[3, 3], [4, 3], [5, 3], [3, 4], [4, 4], [5, 4]], answer: [5, 5],
+    { title: 'クリティカル', type: 'play', hp: {}, adv: true, b: [[2, 3], [2, 4], [6, 3], [6, 4], [3, 2], [4, 2], [5, 2], [3, 5], [4, 5]], w: [[3, 3], [4, 3], [5, 3], [3, 4], [4, 4], [5, 4]], answer: [5, 5],
       text: '白の 6 子をまとめて取ろう。<b>9路では 6 子以上</b>まとめて取ると……',
       done: '<b>CRITICAL!!</b> 一度にたくさん取ると、相手の<b>最大 HP の半分</b>のダメージ！ さらに 10 子以上（9路）なら<b>一撃 K.O.</b>' },
-    { title: 'K.O. 勝ち', type: 'play', hp: { w: 2 }, b: [[1, 0]], w: [[0, 0]], answer: [0, 1],
+    { title: 'K.O. 勝ち', type: 'play', hp: { w: 2 }, adv: true, b: [[1, 0]], w: [[0, 0]], answer: [0, 1],
       text: '白の HP は残り 2。角の白を取って、<b>とどめ</b>を刺そう！',
       done: '<b>K.O.!!</b> HP を 0 にしたら、地が少なくても<b>その場で勝ち</b>です' },
-    { title: '地の総攻撃', type: 'pass', hp: { w: 25 }, b: [0, 1, 2, 3, 4, 5, 6, 7, 8].map((y) => [3, y]), w: [0, 1, 2, 3, 4, 5, 6, 7, 8].map((y) => [6, y]),
+    { title: '地の総攻撃', type: 'pass', hp: { w: 25 }, adv: true, b: [0, 1, 2, 3, 4, 5, 6, 7, 8].map((y) => [3, y]), w: [0, 1, 2, 3, 4, 5, 6, 7, 8].map((y) => [6, y]),
       text: 'K.O. しないまま 2 人がパスしたら終局。<b>自分の地 1 目につき、相手に 1 ダメージ</b>を同時に与えます（<b>地の総攻撃</b>）。黒の地は左の 27 目、白の地は右の 18 目。下の「<b>パスする</b>」を押してみよう',
       done: '黒の地 27 目で白に 27 ダメージ → 白の HP 25 は <b>0（K.O.!!）</b>。白の地 18 目で黒は 18 ダメージ、でも HP が残ったので<b>黒の勝ち</b>！ 地が多いほど大ダメージ。2 人とも残ったら<b>HP が多いほうの勝ち</b>' },
   ];
-  // 上級：ため撃ち（反動）・背水・カウンター・コンボ・ラストスパート・2眼で回復（実際に打って見る）
+  // ダメージが増える決まりと回復：ため撃ち（必殺技）・背水・コンボ・ラストスパート・2眼で回復（実際に打って見る）
   const TUT_ADV = [
-    { title: '上級ルール', type: 'view', hp: {}, adv: true, b: [], w: [],
-      text: '<b>上級</b>（ランクマッチのルール）は、初級に<b>ダメージが増える決まり</b>と<b>回復</b>が加わります。ため撃ち・背水・カウンター・コンボ・ラストスパート・2眼で回復。1 つずつ打って確かめよう' },
     { title: 'ため撃ち', type: 'play', charge: true, hp: {}, adv: true, b: [[2, 4], [5, 4], [3, 3], [4, 3], [3, 5]], w: [[3, 4], [4, 4]], answer: [4, 5],
-      text: '取れる場所を<b>長押し</b>して溜めよう。ゲージが MAX になると自動で打ちます。<b>ダメージ 1.5 倍</b>！ ただし……',
-      done: '2 子×2 = 4 が、ため撃ちで <b>6</b> に。でも<b>増えた 2 の分だけ、自分の HP も減ります（反動）</b>。使いどころは次で試そう' },
+      text: '取れる場所を<b>長押し</b>して溜めよう。ゲージが MAX になると自動で打ちます。<b>ダメージ 1.5 倍</b>！',
+      done: '2 子×2 = 4 が、ため撃ちで <b>6</b> に！ ため撃ちは<b>必殺技</b>：9路では<b>1 局 1 回だけ</b>（13路 2 回・19路 3 回）。HP の横の <b>⚡</b> が残りの回数です。いつ使うかが勝負' },
     { title: 'ため撃ちでとどめ', type: 'play', charge: true, hp: { w: 5 }, adv: true, b: [[2, 4], [5, 4], [3, 3], [4, 3], [3, 5]], w: [[3, 4], [4, 4]], answer: [4, 5],
       text: '白の HP は残り 5。ふつうに取ると 4 ダメージで足りない。<b>長押しで溜めて</b>、とどめを刺そう',
-      done: '<b>K.O.!!</b> 相手を K.O. したときは<b>反動を受けません</b>。ため撃ちは<b>とどめの一撃</b>に使うのが得です' },
+      done: '<b>K.O.!!</b> ため撃ちは<b>とどめの一撃</b>や、たくさん取れるときのために取っておくのがおすすめ。使い切ったら、長押ししても溜まりません' },
     { title: '背水', type: 'play', hp: { b: 8 }, adv: true, b: [[2, 3], [2, 4], [5, 3], [5, 4], [3, 2], [4, 2], [3, 5]], w: [[3, 3], [4, 3], [3, 4], [4, 4]], answer: [4, 5],
       text: '黒の HP は残り 8（最大 HP の 4 分の 1 以下）。この状態で白の 4 子を取ろう',
       done: '<b>背水</b>：自分の HP が最大の 4 分の 1 以下のときは、ダメージ <b>1.2 倍</b>。追いつめられてからの逆転のチャンスです' },
-    { title: 'カウンター', type: 'play', hp: {}, adv: true, b: [[3, 4], [5, 4], [3, 3], [5, 3], [4, 2], [4, 5]], w: [[4, 3], [3, 5], [5, 5], [4, 6]], answer: [4, 5],
-      foe: [4, 4], text: '白の番です。白が打つのを見ていよう……',
-      foeText: '白が <b>E5</b> に打って、黒の石を取りました！ すぐに<b>取りに来た白の石ごと</b>取り返そう',
-      done: '<b>COUNTER!!</b> 相手に取られた<b>直後</b>に、<b>相手が今打った石を含めて</b>取り返すと 1.5 倍（打って返しなど）。別の場所の石を取り返すだけではカウンターになりません' },
     { title: 'コンボ', type: 'play', hp: {}, adv: true,
       b: [[0, 1], [3, 1], [1, 0], [2, 0], [1, 2], [5, 1], [8, 1], [6, 0], [7, 0], [7, 2], [2, 6], [5, 6], [3, 7], [4, 7], [3, 5]],
       w: [[1, 1], [2, 1], [6, 1], [7, 1], [3, 6], [4, 6]],
@@ -2639,10 +2705,12 @@
       text: '左上の黒の中に打って、眼を 2 つに分けよう（黒の HP は 30）',
       done: '<b>2眼で回復</b>：取られなくなった（2眼の）石 <b>4 子ごとに HP 1 回復</b>。最大 HP をこえた分は最大 HP も増えます（最初の 2 倍まで）' },
     { title: '倍率のまとめ', type: 'view', hp: {}, adv: true, b: [], w: [],
-      text: '倍率は<b>全部かけ合わせ</b>ます（ため撃ち×背水×カウンター×コンボ×ラストスパート）。ただし合計は<b>最大 2.5 倍</b>まで。一撃で終わりすぎないようにしています' },
+      text: '倍率は<b>全部かけ合わせ</b>ます（ため撃ち×背水×コンボ×ラストスパート）。ただし合計は<b>最大 2.5 倍</b>まで。一撃で終わりすぎないようにしています' },
   ];
+  // デストロイルールのチュートリアルは 1 つにまとめる（しくみ → ダメージが増える決まりと回復）
+  TUT_DESTROY.push(...TUT_ADV);
   let TUT = TUT_BASIC; // 今やっているチュートリアル（囲碁の基本／デストロイルール）
-  const tutKey = () => (TUT === TUT_ADV ? 'destroy-go-tut-a' : TUT === TUT_DESTROY ? 'destroy-go-tut-d' : 'destroy-go-tut');
+  const tutKey = () => (TUT === TUT_DESTROY ? 'destroy-go-tut-d' : 'destroy-go-tut');
   const tut = { i: 0, solved: false, hint: -1, saved: null, wrong: 0, step: 0 };
   const tutAnswer = () => { const q = TUT[tut.i]; return game.idx(...(q.seq ? q.seq[tut.step].at : tut.step ? q.next : q.answer)); };
   function tutLoad(i) {
@@ -2651,7 +2719,7 @@
     const q = TUT[i];
     FX.clear(); BoardFX.clear(); BoardFX.resetTraces();
     game = new GoGame(9, rules); wiped = new Set(); dead = new Set(); terrGlow = null;
-    dstate = q.hp ? new DestroyRule.DestroyState(9, null, !!q.adv) : null; // デストロイルールのチュートリアル（初級・上級）
+    dstate = q.hp ? new DestroyRule.DestroyState(9, null, !!q.adv) : null; // デストロイルールのチュートリアル
     if (q.hp && q.hp.w !== undefined) dstate.hp[WHITE] = q.hp.w;
     if (q.hp && q.hp.b !== undefined) dstate.hp[BLACK] = q.hp.b;
     if (q.pre && q.pre.combo) dstate.combo[BLACK] = q.pre.combo;
@@ -2665,7 +2733,7 @@
     tutButtons(); draw(); updatePanels(); renderHp();
     lsSet(tutKey(), i);
     const tok = tut.tok = (tut.tok || 0) + 1;
-    if (q.foe) { // 先に白が打って黒を取る（カウンター）。打ち終わるまで黒は打てない
+    if (q.foe) { // 先に白が打つ（打ち終わるまで黒は打てない）
       game.turn = WHITE; lockUntil = Infinity;
       setTimeout(() => { if (tut.tok === tok && phase === 'tutorial') tutFoe(q); }, 1200);
     }
@@ -2757,7 +2825,7 @@
   }
   function startTutorial(from = 0, course = TUT_BASIC) {
     TUT = course;
-    track(course === TUT_ADV ? 'デストロイ上級のチュートリアルを始めた' : course === TUT_DESTROY ? 'デストロイ初級のチュートリアルを始めた' : 'チュートリアルを始めた');
+    track(course === TUT_DESTROY ? 'デストロイルールのチュートリアルを始めた' : 'チュートリアルを始めた');
     if (!tut.saved) tut.saved = { size: SIZE, hint: hintMode }; // チュートリアルから次のチュートリアルへ進んだときは、最初の設定を残す
     SIZE = 9; clock = new GoClock({ base: 60000 }); cpuSide = 0;
     gameSerial++; cpuToken++; setThinking(false);
@@ -2804,7 +2872,7 @@
     }, 1400 + 2 * 2300 + 400);
   }
   $('#tut-pass').onclick = tutPass;
-  // クリアしたあと：左は「ホームへ」、右は次のチュートリアル（上級のあとは上級の CPU 戦）
+  // クリアしたあと：左は「ホームへ」、右は次のチュートリアル（デストロイルールのあとは CPU 戦）
   function tutFinish(next, label) {
     tut.finished = next;
     $('#tut-prev').disabled = false; $('#tut-prev').textContent = '🏠 ホームへ';
@@ -2816,7 +2884,7 @@
   $('#tut-next').onclick = () => {
     if (tut.finished) {
       const nx = tut.finished; tut.finished = null;
-      if (nx === 'cpu') { // 上級のルールで CPU と戦ってみる（9路・Lv1）
+      if (nx === 'cpu') { // デストロイルールで CPU と戦ってみる（9路・Lv1）
         goTitle(); HOME_SET.rule.pick('advanced'); $('#opp-chips .chip[data-opp="cpu"]').click();
         $('#level-chips .chip[data-level="1"]').click(); $('#size-chips .chip[data-size="9"]').click(); $('#btn-start').click();
       } else openTutorialCourse(nx);
@@ -2824,14 +2892,12 @@
     }
     if (!tut.solved) return;
     if (tut.i < TUT.length - 1) { tutLoad(tut.i + 1); return; }
-    if (TUT === TUT_DESTROY || TUT === TUT_ADV) {
-      const adv = TUT === TUT_ADV;
-      lsSet(adv ? 'destroy-go-tut-a-done' : 'destroy-go-tut-d-done', '1'); track(adv ? 'デストロイ上級のチュートリアルをクリアした' : 'デストロイ初級のチュートリアルをクリアした');
-      showBigNote(adv ? 'デストロイ上級 クリア！' : 'デストロイ初級 クリア！', '#ffd23f');
+    if (TUT === TUT_DESTROY) {
+      lsSet('destroy-go-tut-d-done', '1'); track('デストロイルールのチュートリアルをクリアした');
+      showBigNote('デストロイルール クリア！', '#ffd23f');
       $('#tut-title').textContent = 'クリア！';
-      $('#tut-text').innerHTML = adv ? 'おつかれさま！ 上級のしくみもばっちり。<b>デストロイ上級</b>の CPU 戦で試して、ランクマッチに挑もう！'
-        : 'おつかれさま！ これで HP バトルのしくみはばっちり。次は、ため撃ちなどが加わる<b>デストロイ上級</b>へ進もう！';
-      tutFinish(adv ? 'cpu' : TUT_ADV, adv ? '上級で CPU と戦う ▶' : 'デストロイ上級へ ▶');
+      $('#tut-text').innerHTML = 'おつかれさま！ デストロイルールはばっちり。CPU 戦で試して、<b>ランクマッチ</b>に挑もう！';
+      tutFinish('cpu', 'CPU と戦ってみる ▶');
       return;
     }
     // クリア：ご褒美は BGM「冒険」（10 局遊んでも手に入る）
@@ -2840,8 +2906,8 @@
     unlockBgm('fantasy15', 'チュートリアルをクリアした');
     showBigNote('チュートリアル クリア！', '#ffd23f');
     $('#tut-title').textContent = 'クリア！';
-    $('#tut-text').innerHTML = 'おつかれさま！ これで対局を始められます。まずは「おすすめで始める」（コンピューター Lv1・9路）がおすすめ。<br>石を取ると HP が減る<b>デストロイルール</b>は、「📖 チュートリアル」の「デストロイ初級」で覚えられます！';
-    tutFinish(TUT_DESTROY, 'デストロイ初級へ ▶');
+    $('#tut-text').innerHTML = 'おつかれさま！ これで対局を始められます。まずは「<b>破壊の迷宮</b>」で CPU と戦ってみよう。<br>石を取ると HP が減る<b>デストロイルール</b>は、「📖 チュートリアル」の「デストロイルール」で覚えられます！';
+    tutFinish(TUT_DESTROY, 'デストロイルールへ ▶');
   };
   // 📖 チュートリアル：「囲碁の基本」か「デストロイルール」を選ぶ（途中までやっていたら続きから）
   function openTutorialCourse(course) {
@@ -2852,10 +2918,9 @@
   $('#btn-tutorial').onclick = () => { $('#tut-pick').hidden = false; };
   $('#tut-pick-basic').onclick = () => { $('#tut-pick').hidden = true; openTutorialCourse(TUT_BASIC); };
   $('#tut-pick-destroy').onclick = () => { $('#tut-pick').hidden = true; openTutorialCourse(TUT_DESTROY); };
-  $('#tut-pick-adv').onclick = () => { $('#tut-pick').hidden = true; openTutorialCourse(TUT_ADV); };
   $('#tut-pick-close').onclick = () => { $('#tut-pick').hidden = true; };
   $('#btn-tutorial-sm').onclick = () => $('#btn-tutorial').onclick();
-  // はじめての人向けの案内（チュートリアル・おすすめで始める）は、チュートリアルを終えたか 1 局でも遊んだら隠す。
+  // はじめての人向けの案内（チュートリアル）は、チュートリアルを終えたか 1 局でも遊んだら隠す。
   // チュートリアルは、下の小さいボタンからいつでも開ける
   function renderBeginner() {
     let seen = false;
@@ -2881,6 +2946,24 @@
     $('#tut-ask-skip').onclick = () => { done(); track('チュートリアルをスキップした'); };
     $('#tut-ask').hidden = false;
   })();
+  // アップデートのお知らせ：前から遊んでいる人に、変わったところを 1 回だけ出す（はじめての人には出さない）
+  const NEWS = { id: '2026-10-27', items: [
+    '<b>ランダムマッチ</b>は<b>ランクマッチ</b>にまとめました。ランクマッチは最初から誰でも遊べます',
+    'デストロイルールは<b>1 つ</b>になりました（前の上級ルール）',
+    '<b>ため撃ちは必殺技</b>に：9路は 1 局 1 回だけ（13路 2 回・19路 3 回）。HP の横の ⚡ が残りの回数。<b>反動はなくなりました</b>',
+    '<b>カウンター</b>はなくなりました',
+    'ホーム画面を新しくしました（下のタブ・この端末で遊ぶ・観戦）',
+  ] };
+  (function showNews() {
+    const old = lsGet('destroy-go-tut-done') === '1' || +lsGet('destroy-go-played') > 0 || !!lsGet('destroy-go-tut-asked');
+    if (EMBEDDED || lsGet('destroy-go-news') === NEWS.id) return;
+    lsSet('destroy-go-news', NEWS.id);
+    if (!old || !$('#tut-ask').hidden) return; // はじめての人（チュートリアルを聞いている人）には出さない
+    $('#news-list').innerHTML = NEWS.items.map((t) => `<li>${t}</li>`).join('');
+    $('#news-close').onclick = () => { $('#news-pop').hidden = true; };
+    $('#news-tut').onclick = () => { $('#news-pop').hidden = true; FX.unlock(); openTutorialCourse(TUT_DESTROY); };
+    $('#news-pop').hidden = false;
+  })();
   // 途中まで進めていたら、続きから始めるか聞く（埋め込み環境では confirm が使えないことがあるので、使えなければ続きから）
   function confirmFrom(i) { try { return window.confirm(`前回の続き（${i + 1}問目）から始めますか？\n「キャンセル」で最初から`); } catch (e) { return true; } }
 
@@ -2895,7 +2978,7 @@
     try { localStorage.setItem(KIFU_KEY, JSON.stringify(list)); } catch (e) { /* いっぱいなら保存しない */ }
     $('#btn-replay-last').hidden = false;
   }
-  const kifuLabel = (k) => `${k.size}路・${k.mode === 'destroy' ? `デストロイ${k.adv ? '上級' : '初級'}` : 'ふつう'}${k.cpu ? `・CPU Lv${k.cpu.level}` : '・2人'}・${k.moves.length}手`;
+  const kifuLabel = (k) => `${k.size}路・${k.mode === 'destroy' ? `デストロイ${k.adv ? '' : '（旧初級）'}` : 'ふつう'}${k.cpu ? `・CPU Lv${k.cpu.level}` : '・2人'}・${k.moves.length}手`;
   function renderKifuList() {
     const list = loadKifus();
     $('#kifu-list').innerHTML = list.length ? list.map((k, i) => {
@@ -3132,7 +3215,7 @@
     const el = $('#watch-pill'); el.textContent = `👀 観戦 ${n}人`; el.hidden = !n;
     if (n > prev) toast(`👀 観戦している人がいます（${n}人）`);
   }
-  const settingText = (st) => `${st.size}路・${st.mode === 'destroy' ? `デストロイ${st.adv ? '上級' : '初級'}` : `ふつうの囲碁（${RULES[st.rules].label}）`}・持ち時間${st.min}分`;
+  const settingText = (st) => `${st.size}路・${st.mode === 'destroy' ? `デストロイルール${st.adv ? '' : '（旧初級）'}` : `ふつうの囲碁（${RULES[st.rules].label}）`}・持ち時間${st.min}分`;
   function onlineView(html) { $('#online-body').innerHTML = html; }
   // ランダムマッチ（β）のルール。人が少ないうちは分かれないよう 1 つだけ。ランクマッチは上級でレートが動く
   // ランダムマッチ：ふだんは 9 路・3 分、週末（日本時間の土日）は 13 路・5 分。待合室は 1 つのまま（ルールは部屋を作った側のものになる）
@@ -3142,13 +3225,16 @@
   const isWeekend = () => [0, 6].includes(new Date(Date.now() + 9 * 3600000).getUTCDay());
   const randomRule = () => (isWeekend() ? { size: 13, mode: 'destroy', adv: false, rules: 'japanese', min: 5 } : { size: 9, mode: 'destroy', adv: false, rules: 'japanese', min: 3 });
   const RANK_RULE = { size: 9, mode: 'destroy', adv: true, rules: 'japanese', min: 3 };
+  // デストロイルールの版（ため撃ちに回数・カウンターなしにしたので 2）。古い画面のままの相手とは HP の計算がずれるので見分ける
+  const RULE_VER = 2;
   // ランクマッチの開放：ランダムマッチ（待ち時間の CPU 戦の勝ちも含む）を 3 局でボタンが押せるようになり、
   // 押すと、上級ルールの CPU 戦で 1 勝するよう案内する（上級を一度体験してからランクマッチに入る）。前にランクマッチを遊んだ人はそのまま
   const RANK_UNLOCK = 3;
   const advCpuWon = () => lsGet('destroy-go-adv-cpu-win') === '1';
   const rankPlayedBefore = () => lsGet('destroy-go-rank-played') === '1';
-  const rankButtonOpen = () => rankPlayedBefore() || randomPlayed() >= RANK_UNLOCK;
-  const rankOpen = () => rankPlayedBefore() || (randomPlayed() >= RANK_UNLOCK && advCpuWon());
+  // ランダムマッチはなくしたので、ランクマッチは最初から誰でも入れる（人が少ないうちは待つ人を 1 か所に集める）
+  const rankButtonOpen = () => true;
+  const rankOpen = () => true;
   const rankRandomLeft = () => (rankButtonOpen() ? 0 : RANK_UNLOCK - randomPlayed());
   function rankLockText() {
     const r = rankRandomLeft();
@@ -3587,7 +3673,7 @@
     try {
       const [list, me, f, sr, pi] = await Promise.all([Online.topRatings(50), loadRating(), loadFounders(), loadSeason(), loadPioneers()]);
       const rows = list.map((v, i) => `<li data-u="${v.u}"${v.u === Online.me() ? ' class="on-mine"' : ''}><span>${i + 1}</span><span class="rk-name">${nameHtml(v.name)}<span class="rk-sub">${tagHtml(v.u)}${v.u === DEV_UID || (v.u === Online.me() && isDev()) ? devBadge : founderBadge(f.list[v.u], true)}${seasonBadge(sr, v.u)}${pioneerBadge(pi.list[v.u])}${dojoBadge(v.cl)}${nonstopBadge(v.ns)}</span></span><span>${v.r}</span><small>${v.n || 0}局</small></li>`).join('');
-      onlineView(`<p class="on-set">ランクマッチ（上級・9路）のレート上位 50 人。名前を押すと、直近 5 局の棋譜が見られます</p>
+      onlineView(`<p class="on-set">ランクマッチ（9路）のレート上位 50 人。名前を押すと、直近 5 局の棋譜が見られます</p>
         <p class="on-founder on-season">${seasonLine(me, sr)}</p>
         <p class="on-founder">${founderLeft(f)}</p>
         <ol class="on-rank">${rows || '<li class="on-empty">まだ誰もいません</li>'}</ol>
@@ -3673,7 +3759,7 @@
     if (m.error) { onlineError(new Error('相手を探せませんでした。少ししてからもう一度試してください')); return; }
     if (!m.host) { onlineJoin(m.code, kind); return; }
     // 見つけた側：部屋を作って合言葉を相手に送る。15 秒たっても相手が入らなければ、探し直す
-    const settings = { ...RULE, hostColor: Math.random() < 0.5 ? BLACK : WHITE };
+    const settings = { ...RULE, hostColor: Math.random() < 0.5 ? BLACK : WHITE, rv: RULE_VER };
     try {
       const code = await Online.create(settings, onlineHandlers);
       net = { code, host: true, settings, color: settings.hostColor, g: 1, min: settings.min, waiting: true, kind };
@@ -3692,7 +3778,7 @@
   }
   async function onlineCreate(st) {
     onlineView('<p class="on-wait">部屋を作っています</p>');
-    const settings = { ...st, hostColor: Math.random() < 0.5 ? BLACK : WHITE };
+    const settings = { ...st, hostColor: Math.random() < 0.5 ? BLACK : WHITE, rv: RULE_VER };
     try {
       const code = await Online.create(settings, onlineHandlers);
       net = { code, host: true, settings, color: settings.hostColor, g: 1, min: settings.min, waiting: true };
@@ -3715,6 +3801,10 @@
     onlineView('<p class="on-wait">つないでいます</p>');
     try {
       const settings = await Online.join(code, onlineHandlers);
+      if (settings.mode === 'destroy' && settings.rv !== RULE_VER) { // 部屋を作った人が古い版のまま
+        if (kind === 'rank') { Online.leave(); toast('相手の画面が古い版だったので、探し直します'); onlineRandom('rank'); return; }
+        throw new Error('相手の画面が古い版です。相手に読み込み直してもらってから、もう一度入ってください');
+      }
       net = { code, host: false, settings, color: otherColor(settings.hostColor), g: 1, min: settings.min, kind };
       onlineStart();
     } catch (e) { onlineError(e); }
@@ -3736,7 +3826,7 @@
     newGame();
     toast(`${{ random: 'ランダムマッチ', rank: 'ランクマッチ' }[net.kind] || 'オンライン対戦'}：あなたは${NAMES[net.color]}です`);
     if (net.kind === 'rank' && myRating) Online.send({ t: 'rt', r: myRating.r, n: myRating.n, name: myRating.name, g: net.g });
-    if (net.host && (net.kind === 'random' || net.kind === 'rank')) Online.livePut({ k: net.kind, size: st.size, adv: !!st.adv }); // 観戦の一覧に出す
+    if (net.host && net.kind === 'rank') Online.livePut({ k: net.kind, size: st.size, adv: !!st.adv }); // 観戦の一覧に出す（ランクマッチだけ）
   }
   function leaveOnline() {
     stopSeek();
@@ -3857,7 +3947,7 @@
     if (rM && !rF) return; // 自分が優先。相手の画面で相手が変える
     if (rM === rF && mine === BLACK) return; // どちらも同じなら白が変える
     themes[mine] = themeKeys().find((k) => !clash(k, themes[foe])) || 'default';
-    Online.send({ t: 'th', c: mine, k: themes[mine], g: net.g });
+    Online.send({ t: 'th', c: mine, k: themes[mine], g: net.g, rv: RULE_VER });
     toast(`相手と演出の色がかぶったので、${themeOf(themes[mine]).label}に変えました`);
   }
   // 相手から届いたものを盤に反映する（自分が送ったものは、もう反映してあるので飛ばす）
@@ -3877,7 +3967,15 @@
     if (m.t === 'bye') { if (phase === 'over') peerGoneAfterGame(); else if (!net.waiting) toast('相手が対局をやめました'); return; }
     if (m.g !== net.g) return;
     const foe = otherColor(net.color);
-    if (m.t === 'th') { if (m.c === foe) { themes[foe] = m.k; resolveThemeClash(); renderThemes(); draw(); } return; }
+    if (m.t === 'th') {
+      if (m.c === foe && dstate && m.rv !== RULE_VER && !net.oldPeer) {
+        net.oldPeer = true; // 相手が古い版のまま：ランクマッチは探し直し、フレンド対戦は知らせる
+        if (net.kind === 'rank') { const k = net.kind; leaveOnline(); toast('相手の画面が古い版だったので、探し直します'); openOnline(); onlineRandom(k); return; }
+        toast('相手の画面が古い版です。HP の計算がずれることがあるので、読み込み直してもらってください');
+      }
+      if (m.c === foe) { themes[foe] = m.k; resolveThemeClash(); renderThemes(); draw(); }
+      return;
+    }
     if (m.t === 'rt') { rankStart({ r: m.r, n: m.n || 0, name: String(m.name || ''), u: m.u }); return; }
     if (m.t === 'dead') { const d = m.d || []; if (net.deadWait) { net.deadWait(d); net.deadWait = null; } else net.deadIn = d; return; }
     if (phase !== 'play') return;
@@ -3893,17 +3991,16 @@
   }
   // タイトルの「対局開始」の下：ランダムマッチはすぐ探し始め、フレンド対戦は合言葉の画面を開く
   document.querySelectorAll('.on-item.soon').forEach((el) => { el.onclick = () => toast(`「${el.firstChild.textContent}」は準備中です。お楽しみに！`); });
-  $('#btn-random-top').onclick = () => { FX.unlock(); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; } openOnline(); onlineRandom('random'); };
-  $('#btn-online-rules').onclick = () => openRulesFor(false);
-  // ---------- 👀 観戦：対戦中のランダムマッチ・ランクマッチを、ハイライトの再生と同じ画面で見る ----------
+  $('#btn-online-rules').onclick = () => openRulesFor(true); // ランクマッチ（上級）のルール
+  // ---------- 👀 観戦：対戦中のランクマッチを、ハイライトの再生と同じ画面で見る ----------
   const KIND_NAME = { random: 'ランダムマッチ', rank: 'ランクマッチ' };
   async function watchList() {
     onlineView('<p class="on-wait">対戦中の試合を探しています</p>');
     let list;
-    try { list = await Online.liveList(); } catch (e) { onlineError(e); return; }
+    try { list = (await Online.liveList()).filter((v) => v.k === 'rank'); } catch (e) { onlineError(e); return; }
     const ago = (t) => { const m = Math.max(0, Math.round((Date.now() - t) / 60000)); return m < 1 ? 'いま始まった' : `${m}分前から`; };
     onlineView(`<p class="on-title">👀 観戦</p>
-      ${list.length ? `<p class="on-set">見たい試合を選んでください（${list.length}試合）</p>${list.map((v) => `<button class="on-live-item" data-code="${esc(String(v.code))}"><b>${KIND_NAME[v.k] || 'オンライン対戦'}</b><span>${v.adv ? 'デストロイ上級' : 'デストロイ初級'}・${+v.size || 9}路</span><small>${ago(+v.t || Date.now())}</small></button>`).join('')}`
+      ${list.length ? `<p class="on-set">見たい試合を選んでください（${list.length}試合）</p>${list.map((v) => `<button class="on-live-item" data-code="${esc(String(v.code))}"><b>${KIND_NAME[v.k] || 'オンライン対戦'}</b><span>デストロイルール・${+v.size || 9}路</span><small>${ago(+v.t || Date.now())}</small></button>`).join('')}`
         : `<p>いま対戦中の試合はありません。</p><p class="on-set">人が集まりやすいのは、毎晩 ${BATTLE_FROM}〜${BATTLE_TO} 時の対戦タイムです。</p>`}
       <button id="on-live-reload">🔄 更新</button><button id="on-back">戻る</button>`);
     $('#online-body').querySelectorAll('.on-live-item').forEach((b) => { b.onclick = () => watchGame(b.dataset.code); });
@@ -4000,15 +4097,15 @@
     liveCountAt = Date.now();
     let c;
     try { c = await Online.peek(); } catch (e) { return; }
-    for (const k of ['random', 'rank']) {
-      // 人数は出さない（人が少ないうちは「0人」が多く、いなくなった人が数から消えるのも遅いため）。待っている人がいるときだけ目立たせる
-      const el = $('#live-' + k), v = c[k];
+    { // ランクマッチ：待っている人がいるときだけ目立たせ、対戦中なら数を出す（人数は出さない）
+      const el = $('#live-rank'), v = c.rank;
       el.textContent = v.wait ? '🔥 相手が待っています！' : v.live ? `🟢 ${v.live}試合中` : '';
       el.classList.toggle('hot', !!v.wait); el.hidden = !v.wait && !v.live;
-      el.parentElement.classList.toggle('hot-btn', !!v.wait); // 右の小さい説明は隠して、目立たせる
+      el.parentElement.classList.toggle('hot-btn', !!v.wait);
     }
-    const g = c.random.live + c.rank.live, hot = !!(c.random.wait || c.rank.wait);
+    const g = c.rank.live, hot = !!c.rank.wait;
     $('#watch-top-note').textContent = g ? `🟢 ${g}試合 対戦中` : '対戦中の試合を見る';
+    $('#watch-tag-n').textContent = g ? ` ${g}` : ''; // ホームのランクマッチの右上の「観戦」に、対戦中の数
     $('#live-home').hidden = !hot; $('#tab-dot-online').hidden = !hot; // ホームの見出しと、オンラインのタブに「待っている」を出す
     syncHomeTiles();
   }
@@ -4020,12 +4117,10 @@
   $('#btn-friend-top').onclick = () => { FX.unlock(); track('フレンド対戦を開いた'); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; } openOnline('friend'); };
   // ランクマッチは開放の条件をそろえるまで押せない（押すと、あと何が必要か案内する）
   function renderRankTop() {
-    $('#btn-random-top span').textContent = isBattleTime() ? `🔥 対戦タイム中${isWeekend() ? '・13路' : ''}` : `${isWeekend() ? '週末は13路・' : ''}対戦タイム 毎晩${BATTLE_FROM}時〜`;
-    const open = rankOpen(), btn = rankButtonOpen();
-    $('#btn-rank-top').classList.toggle('locked', !btn);
-    $('#rank-top-note').textContent = !btn ? `🔒 あと${rankRandomLeft()}局で開放` : open ? 'レートをかけて対戦' : 'まず上級をCPUで1勝';
+    const open = rankOpen();
+    $('#rank-top-note').textContent = isBattleTime() ? '🔥 対戦タイム中' : `レートをかけて対戦`;
     if (myRating && !myRating.fresh) $('#home-me').innerHTML = `${nameHtml(myRating.name)}${isDev() ? devBadge : founderBadge(myFounder)}　レート ${myRating.r}`;
-    $('#btn-rank-top').title = open ? 'デストロイ上級・9路でレートをかけて対戦' : `ランクマッチまで：${rankLockText()}`;
+    $('#btn-rank-top').title = 'デストロイルール・9路でレートをかけて対戦';
     $('#battle-note').textContent = isBattleTime() ? '🔥 いまは対戦タイム！ 人が集まりやすい時間です' : `🔥 人が集まりやすいのは、毎晩 ${BATTLE_FROM}〜${BATTLE_TO} 時の対戦タイム`;
     syncHomeTiles();
   }
@@ -4052,13 +4147,13 @@
     $('#hc-chips .chip[data-hc="0"]').click();
     $('#size-chips .chip[data-size="9"]').click();
     $('#mode-chips .chip[data-mode="destroy"]').click();
-    $(`#dlevel-chips .chip[data-level="${adv ? 'advanced' : 'simple'}"]`).click();
+    $('#dlevel-chips .chip[data-level="advanced"]').click(); void adv; // デストロイルールは 1 つ
     FX.unlock(); newGame();
   }
   // ランクマッチの案内：開くまでの条件と、上級ルールで加わること。初めて入る前にも 1 回出す
   const ADV_POINTS = [
-    ['ため撃ち', '取れる手を長押しして MAX まで溜めるとダメージ 1.5 倍。ただし増えた分だけ自分の HP も減る（反動）。相手を K.O. したときは反動なし'],
-    ['背水・カウンター', '自分の HP が 4 分の 1 以下だと 1.2 倍（背水）。取られた直後に、取りに来た石ごと取り返すと 1.5 倍（カウンター）'],
+    ['ため撃ち', '取れる手を長押しして MAX まで溜めるとダメージ 1.5 倍。ランクマッチ（9路）では 1 局 1 回だけの必殺技（⚡ が残りの回数）'],
+    ['背水', '自分の HP が 4 分の 1 以下だと 1.2 倍'],
     ['コンボ', '続けて取ると倍率が上がる'],
     ['ラストスパート', '終盤（2 人の残り時間が少ない・盤が 7 割埋まった）はダメージが増える'],
     ['2眼で回復', '2 眼で取られなくなった石が増えると HP が回復する'],
@@ -4068,13 +4163,12 @@
     openOnline();
     const head = !btn ? `<p class="on-rule">ランクマッチまで：<b>${rankLockText()}</b></p>`
       : !open ? '<p class="on-rule">あと 1 つ！<b>上級ルールの CPU 戦で 1 勝</b>すると、ランクマッチに入れます。</p>' : '';
-    onlineView(`<p class="on-title">🏆 ランクマッチ（デストロイ上級）</p>
-      ${head}<p>ランクマッチは<b>上級ルール</b>です。ランダムマッチ（初級）に、次のルールが加わります。</p>
+    onlineView(`<p class="on-title">🏆 ランクマッチ（デストロイルール）</p>
+      ${head}<p>ランクマッチは<b>デストロイルール・9路</b>で、レートをかけて戦います。石を取ると相手の HP にダメージ、HP を 0 にしたら勝ち。さらに次の決まりがあります。</p>
       <ul class="on-list">${ADV_POINTS.map(([k, d]) => `<li><b>${k}</b>：${d}</li>`).join('')}</ul>
-      <p class="on-rule">ランクマッチ・ランダムマッチでは<b>死に石を判定しません</b>。相手の地に残った死んでいる石は、パスする前に取りきろう（取ればダメージにもなる）。</p>
+      <p class="on-rule">ランクマッチでは<b>死に石を判定しません</b>。相手の地に残った死んでいる石は、パスする前に取りきろう（取ればダメージにもなる）。</p>
       ${open ? '<button class="accent" id="on-rank-go">わかった、ランクマッチへ</button>' : ''}
-      ${btn && !open ? '<button class="accent" id="on-adv-cpu">上級ルールで CPU と戦う<small>勝つとランクマッチに入れます</small></button>'
-        : `<button id="on-adv-cpu">${won ? 'CPU で上級を練習する' : '先に CPU で上級を試す'}</button>`}
+      <button id="on-adv-cpu">${won ? 'CPU で練習する' : '先に CPU で試す'}</button>
       ${cpuLevelRow()}
       <button id="on-adv-rules">ルールを詳しく見る</button>
       <p class="on-note">β版のため、シーズンの合間にバランスを調整することがあります。</p>
