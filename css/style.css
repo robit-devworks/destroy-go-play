@@ -1306,3 +1306,12 @@ body, button, input, select, textarea { font-family: var(--px-font); }
 }
 #title .tab-pane > .beginner, #title .tab-pane .tut-tile { width: 100%; }
 #title .tab-pane > .beginner { max-width: none; }
+/* PC の対局：碁盤をなるべく大きくするため、まわりの余白と名前欄を少し詰める */
+@media (min-width: 900px) and (min-height: 600px) and (pointer: fine) {
+  #game { gap: 6px; padding-top: 6px; padding-bottom: 8px; }
+  #game .player { padding-top: 4px; padding-bottom: 4px; }
+}
+/* 破壊の迷宮のメンテナンス中：たいまつを消して暗く */
+.dungeon-btn.maint { filter: grayscale(0.8) brightness(0.7); }
+.dungeon-btn.maint .dg-fire { display: none; }
+.dungeon-btn.maint .card-tag { display: none; }

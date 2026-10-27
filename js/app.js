@@ -656,9 +656,9 @@
       return kids.reduce((h, e) => h + e.getBoundingClientRect().height, 0) + 8 * kids.length
         + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     };
-    const fit = (other) => Math.floor(Math.max(200, Math.min(vw - 16, vh - other - 4, 900)));
+    const fit = (other) => Math.floor(Math.max(200, Math.min(vw - 16, vh - other - 4, pcScreen() ? 1400 : 900)));
     // PC（広い画面）では、碁盤のまわりの名前欄・ボタンを大きく（--gz 倍）する。幅は大きくした分だけ割って碁盤にそろえる
-    const gz = pcScreen() ? 1.25 : 1;
+    const gz = 1; // PC でも名前欄・ボタンは拡大しない（そのぶん碁盤を大きく）
     document.documentElement.style.setProperty('--gz', gz);
     // 名前欄・ボタン欄は碁盤より細くしない（画面が低いと碁盤だけ小さくなり、文字が縦に折り返してしまうため）
     const uiWidth = (b) => document.documentElement.style.setProperty('--ui-width', Math.max(b, Math.min(vw - 16, 360)) / gz + 'px');
@@ -2024,6 +2024,8 @@
     if (dojoCleared(18)) { unlockAll(); if (CLEAR_READY) grantFx('clear'); }
     const n = dojoCount(), t = DOJO_TITLES[dojoTitleLv()];
     const a = abyssCount();
+    $('#btn-dojo').classList.toggle('maint', DOJO_MAINT);
+    if (DOJO_MAINT) { $('#dojo-note').textContent = '🔧 メンテナンス中（CPU を調整しています）'; return; }
     $('#dojo-note').textContent = a >= 9 ? `深淵層まで完全制覇！${t ? `（${t}）` : ''}` : abyssOpen() ? `深淵層 ${a} / 9 階 突破${t ? `・${t}` : ''}` : `${n} / 9 階 突破${t ? `・${t}` : ''}`;
   }
   // 結果の画面：CPU 戦なら、ボスを倒したか（星・称号・撃破カード）と、勝ち抜き戦の続き
@@ -2408,7 +2410,14 @@
   }
 
   $('#btn-start').onclick = () => { FX.unlock(); gauntlet = null; clearStage(); newGame(); };
-  $('#btn-dojo').onclick = () => { FX.unlock(); openDojo(); };
+  // 破壊の迷宮のメンテナンス：CPU の動きを直している間は入れない（開発者は入れる。記録はそのまま残る）。直したら false に
+  const DOJO_MAINT = true;
+  $('#btn-dojo').onclick = () => {
+    FX.unlock();
+    // 開発者は入れる（直して試すため）。ほかの人も URL に ?dojo=test を付けると入れる
+    if (DOJO_MAINT && !isDev() && !/[?&]dojo=test\b/.test(location.search)) { toast('🔧 破壊の迷宮はメンテナンス中です。CPU を調整しています。記録はそのまま残ります'); return; }
+    openDojo();
+  };
   $('#dojo-close').onclick = () => { $('#dojo-pop').hidden = true; };
   // スマホは「指を離したとき」「クリックしたとき」でないと音を出す許可がもらえないことがあるので、そこでも音を有効にする
   for (const ev of ['touchend', 'click']) document.addEventListener(ev, () => FX.unlock(), { capture: true, passive: true });
