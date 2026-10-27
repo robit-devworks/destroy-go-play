@@ -2024,8 +2024,7 @@
     if (dojoCleared(18)) { unlockAll(); if (CLEAR_READY) grantFx('clear'); }
     const n = dojoCount(), t = DOJO_TITLES[dojoTitleLv()];
     const a = abyssCount();
-    $('#btn-dojo').classList.toggle('maint', DOJO_MAINT);
-    if (DOJO_MAINT) { $('#dojo-note').textContent = '🔧 メンテナンス中（CPU を調整しています）'; return; }
+    if (dojoLocked(10)) { $('#dojo-note').textContent = '🔧 B1F〜B4F のみ（B5F から下は調整中）'; return; }
     $('#dojo-note').textContent = a >= 9 ? `深淵層まで完全制覇！${t ? `（${t}）` : ''}` : abyssOpen() ? `深淵層 ${a} / 9 階 突破${t ? `・${t}` : ''}` : `${n} / 9 階 突破${t ? `・${t}` : ''}`;
   }
   // 結果の画面：CPU 戦なら、ボスを倒したか（星・称号・撃破カード）と、勝ち抜き戦の続き
@@ -2145,11 +2144,16 @@
     $('#share-dmg-row').hidden = true;
   }
   // 迷宮の画面：B1F〜B9F を上から下へ（階段を下りる）。押すとその階のボスと対局。ルールもここで選べる。ノンストップ潜行もここから
+  // 破壊の迷宮のメンテナンス：CPU の終盤の動きを直している間は、B1F〜B4F（決まりごとで打つ CPU）だけ遊べる。
+  // B5F から下・深淵層・ノンストップ潜行は調整中（開発者と ?dojo=test は全部遊べる）。記録はそのまま残る。直したら false に
+  const DOJO_MAINT = true, DOJO_OPEN_TO = 4;
+  const dojoLocked = (lv) => DOJO_MAINT && lv > DOJO_OPEN_TO && !isDev() && !/[?&]dojo=test\b/.test(location.search);
   function openDojo() {
     if ($('#dojo-pop').hidden) track('破壊の迷宮を開いた');
     const next = [1, 2, 3, 4, 5, 6, 7, 8, 9].find((lv) => !dojoCleared(lv));
     const floors = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((lv) => {
       const st = dojo.stars[lv] || 0, tl = DOJO_TITLES[lv];
+      if (dojoLocked(lv)) return `<button class="dj-stage locked${lv === 9 ? ' boss' : ''}" data-lv="${lv}" style="--depth:${lv}" disabled><span class="dj-lv">B${lv}F</span><span class="dj-name">${BOSSES[lv]}</span><span class="dj-st">🔧 調整中</span></button>`;
       return `<button class="dj-stage${st ? ' done' : ''}${lv === next ? ' next' : ''}${lv === 9 ? ' boss' : ''}" data-lv="${lv}" style="--depth:${lv}">
         <span class="dj-lv">B${lv}F</span><span class="dj-name">${BOSSES[lv]}${tl ? `<small>🏅 ${tl}</small>` : ''}</span>
         <span class="dj-st">${st ? starsText(st) : lv === next ? '▼ 次はここ' : '☆☆☆'}</span>${st ? '<i class="dj-stamp">突破</i>' : ''}</button>`;
@@ -2158,12 +2162,13 @@
     $('#dojo-body').innerHTML = `${myPioneer ? `<p class="dj-head">👑 あなたは<b>${pioneerName(myPioneer)}</b>です</p>` : ''}<p class="dj-head">${dojoCount()} / 9 階 突破${DOJO_TITLES[dojoTitleLv()] ? `　称号：<b>${DOJO_TITLES[dojoTitleLv()]}</b>` : ''}</p>
       <div class="dj-rule"><span>ルール</span>${HOME_SET.rule.list().map(([v, label]) => `<button class="chip rule-chip" data-v="${v}" aria-pressed="${v === rule}">${label}</button>`).join('')}</div>
       <div class="dj-floors">${floors}</div>
-      ${abyssOpen() ? `<div class="dj-abyss-head">▼ さらに深く… <b>深淵層</b><small>ルールはデストロイ固定。CPU がハンデ（置き石・HP）をもらって待ち構える</small></div>
+      ${dojoLocked(10) ? '<p class="dj-maint">🔧 いまは B1F〜B4F だけ遊べます。B5F から下・深淵層・ノンストップ潜行は、CPU を調整中です（記録はそのまま残ります）</p>' : ''}
+      ${dojoLocked(10) ? '' : abyssOpen() ? `<div class="dj-abyss-head">▼ さらに深く… <b>深淵層</b><small>ルールはデストロイ固定。CPU がハンデ（置き石・HP）をもらって待ち構える</small></div>
       <div class="dj-floors abyss">${abyssRows()}</div>` : '<div class="dj-abyss-lock">🔒 B9F の先に、何かがある…</div>'}
       <p class="dj-goal${dojoAll3() ? ' got' : ''}">👑 B1F〜B9F を全部 ★3 で特別な称号：<b>${dojoAll3() ? DOJO_TITLES[10] : '？？？'}</b>（★ ${[1, 2, 3, 4, 5, 6, 7, 8, 9].reduce((t, lv) => t + (dojo.stars[lv] || 0), 0)} / 27）</p>
       <p class="dj-help">★1 勝つ　★2 待ったなしで勝つ　★3 さらに KO・中押し・10目以上の大差<br>碁盤・持ち時間は「対局の設定」のまま</p>
-      <button id="dj-gauntlet" class="dj-gauntlet">🔥 ノンストップ潜行<small>B1F から負けるまで休まず潜る（9路）。自己ベスト：${dojo.best ? `B${dojo.best}F` : 'まだなし'}<br>${nonstopDone() ? `🏅 称号「${NONSTOP_TITLE}」獲得済み` : '🏅 B9F まで勝ち抜くと称号がもらえる'}</small></button>`;
-    $('#dojo-body').querySelectorAll('.dj-stage').forEach((b) => { b.onclick = () => startDojo(+b.dataset.lv); });
+      <button id="dj-gauntlet" class="dj-gauntlet"${dojoLocked(10) ? ' hidden' : ''}>🔥 ノンストップ潜行<small>B1F から負けるまで休まず潜る（9路）。自己ベスト：${dojo.best ? `B${dojo.best}F` : 'まだなし'}<br>${nonstopDone() ? `🏅 称号「${NONSTOP_TITLE}」獲得済み` : '🏅 B9F まで勝ち抜くと称号がもらえる'}</small></button>`;
+    $('#dojo-body').querySelectorAll('.dj-stage:not(.locked)').forEach((b) => { b.onclick = () => startDojo(+b.dataset.lv); });
     $('#dojo-body').querySelectorAll('.dj-rule .chip').forEach((b) => { b.onclick = () => { HOME_SET.rule.pick(b.dataset.v); openDojo(); }; });
     $('#dj-gauntlet').onclick = () => { $('#size-chips .chip[data-size="9"]').click(); startDojo(1, true); };
     $('#dojo-pop').hidden = false;
@@ -2180,6 +2185,7 @@
     }).join('');
   }
   function startDojo(lv, g = false) {
+    if (dojoLocked(lv) || (g && dojoLocked(10))) { toast('🔧 この階は CPU を調整中です'); openDojo(); return; } // 「次の階へ」からも入れない
     $('#dojo-pop').hidden = true;
     gauntlet = g ? { lv: 1, next: 0 } : null;
     clearStage(); curFloor = lv;
@@ -2410,12 +2416,8 @@
   }
 
   $('#btn-start').onclick = () => { FX.unlock(); gauntlet = null; clearStage(); newGame(); };
-  // 破壊の迷宮のメンテナンス：CPU の動きを直している間は入れない（開発者は入れる。記録はそのまま残る）。直したら false に
-  const DOJO_MAINT = true;
   $('#btn-dojo').onclick = () => {
     FX.unlock();
-    // 開発者は入れる（直して試すため）。ほかの人も URL に ?dojo=test を付けると入れる
-    if (DOJO_MAINT && !isDev() && !/[?&]dojo=test\b/.test(location.search)) { toast('🔧 破壊の迷宮はメンテナンス中です。CPU を調整しています。記録はそのまま残ります'); return; }
     openDojo();
   };
   $('#dojo-close').onclick = () => { $('#dojo-pop').hidden = true; };

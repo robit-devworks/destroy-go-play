@@ -1315,3 +1315,5 @@ body, button, input, select, textarea { font-family: var(--px-font); }
 .dungeon-btn.maint { filter: grayscale(0.8) brightness(0.7); }
 .dungeon-btn.maint .dg-fire { display: none; }
 .dungeon-btn.maint .card-tag { display: none; }
+.dj-stage.locked { opacity: 0.45; filter: grayscale(0.8); cursor: not-allowed; }
+.dj-maint { margin: 8px 0; padding: 8px 10px; font-size: 12.5px; line-height: 1.6; color: #e9d6b4; background: rgba(0, 0, 0, 0.35); border: 2px solid #111; }
