@@ -1317,3 +1317,25 @@ body, button, input, select, textarea { font-family: var(--px-font); }
 .dungeon-btn.maint .card-tag { display: none; }
 .dj-stage.locked { opacity: 0.45; filter: grayscale(0.8); cursor: not-allowed; }
 .dj-maint { margin: 8px 0; padding: 8px 10px; font-size: 12.5px; line-height: 1.6; color: #e9d6b4; background: rgba(0, 0, 0, 0.35); border: 2px solid #111; }
+
+/* ランクマッチの右上：「観戦」と「演出」の札は同じ大きさで縦に並べる */
+.rank-card .watch-tag, .rank-card .fx-tag { width: 86px; text-align: center; padding-left: 0; padding-right: 0; white-space: nowrap; }
+.rank-card .fx-tag { top: 40px; cursor: pointer; }
+.rank-card .fx-tag:active { transform: scale(0.95); }
+/* 演出を選ぶ窓（下から出る） */
+#fx-pick { position: fixed; inset: 0; z-index: 42; background: rgba(0, 0, 0, 0.55); display: flex; align-items: flex-end; justify-content: center; }
+#fx-pick[hidden] { display: none; }
+.fx-pick-box { width: min(520px, 100%); background: #2b2a28; border: 3px solid #111; border-bottom: 0; box-shadow: 0 -6px 0 rgba(0, 0, 0, 0.5); padding: 14px 16px max(18px, env(safe-area-inset-bottom)); }
+.fx-pick-head { display: flex; align-items: center; margin-bottom: 4px; }
+.fx-pick-head b { color: #ffd36a; font-size: 18px; font-weight: 400; }
+.fx-pick-head button { margin-left: auto; border: 2px solid #111; background: #3e3c3a; color: #f1ede6; padding: 4px 12px; font: inherit; font-size: 13px; box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5); }
+.fx-pick-note { margin: 2px 0 10px; font-size: 12px; line-height: 1.6; color: #c8c0b4; }
+.fx-pick-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.fx-pick-pv, .fx-pick-go { display: block; width: 100%; margin-top: 10px; padding: 11px; font: inherit; font-size: 15px; color: #f1ede6; border: 3px solid #111; background: #4a4846; box-shadow: inset -3px -3px 0 #2f2e2c, inset 3px 3px 0 #6a6763, 3px 3px 0 rgba(0, 0, 0, 0.55); }
+.fx-pick-go { background: #c8321c !important; box-shadow: inset -3px -3px 0 #7a1608, inset 3px 3px 0 #ff7a52, 3px 3px 0 rgba(0, 0, 0, 0.55) !important; }
+.m-onfx { margin: 10px 0 4px; text-align: left; }
+.m-onfx[hidden] { display: none; }
+.m-onfx .tr-label { display: block; margin-bottom: 6px; color: #ffd36a; }
+.rank-card .fx-tag { top: 8px; }
+.rank-card .watch-tag { top: 40px; }
+@media (max-height: 720px) { .rank-card .fx-tag { top: 5px; } .rank-card .watch-tag { top: 33px; } .rank-card .home-tile.wide { min-height: 92px; } }

@@ -2264,6 +2264,10 @@
     renderNext();
   }
   function renderNext() {
+    // ランクマッチのあとは、次の試合の演出（自分の分）だけ選べる。黒・白の演出の列は出さない
+    const rank = !!net && net.kind === 'rank';
+    $('#m-onfx').hidden = !rank; document.querySelector('.m-themes').hidden = rank;
+    if (rank) renderFxPick();
     const box = $('#m-next');
     box.hidden = !!net || warmupCpu || !!gauntlet || !!dojoNext || curFloor > 9 || phase === 'replay'; // 迷宮で次の階へ進むときは、迷宮の結果のほうでルールを選ぶ // オンライン対戦・ランクマッチまでの CPU 戦・ノンストップ潜行では選べない
     if (box.hidden) return;
@@ -2410,7 +2414,7 @@
     clock.start(game.turn);
     updatePanels();
     FX.gameStart();
-    if (net) Online.send({ t: 'th', c: net.color, k: themes[net.color], g: net.g, rv: RULE_VER }); // 自分の演出（とルールの版）を相手に知らせる
+    if (net) Online.send({ t: 'th', c: net.color, k: themes[net.color], g: net.g, rv: RULE_VER, r: myRating && net.kind === 'rank' ? myRating.r : 0 }); // 自分の演出（とルールの版・レート）を相手に知らせる
     maybeCpuTurn(); // コンピューターが黒なら先に打つ
     if (!net) track(cpuSide ? (curFloor ? `迷宮 B${curFloor}F に挑んだ` : `CPU Lv${cpuLevel} を始めた`) : '2人で対局を始めた');
   }
@@ -3850,7 +3854,9 @@
     // ランダムマッチ・ランクマッチでは、取っていない報酬の演出は使えない（開発者も）
     rankedNow = net.kind === 'random' || net.kind === 'rank';
     if (rankedNow) {
-      const ok = themeKeys();
+      const ok = themeKeys(), foe = otherColor(net.color);
+      if (ok.includes(onlineFx)) themes[net.color] = onlineFx; // 「🎨 演出」で選んだ演出を、自分の色に使う
+      if (clash(themes[foe], themes[net.color])) themes[foe] = ok.find((k) => !clash(k, themes[net.color])) || 'default'; // 相手の演出は届いたら置きかわる
       for (const c of [BLACK, WHITE]) if (!unlocked(themes[c])) themes[c] = ok.find((k) => k !== themes[otherColor(c)]) || 'default';
     }
     buildThemeChips(); renderThemes();
@@ -3975,12 +3981,14 @@
     if (!net) return;
     const mine = net.color, foe = otherColor(mine);
     if (!clash(themes[mine], themes[foe])) return;
+    // 1. ランキング報酬の演出を使っている人が優先 → 2. どちらも同じなら白が変える（色は毎回ランダムなので、強さに関係なく好きな演出を使える）
     const rM = !!SEASON_REWARDS[themes[mine]], rF = !!SEASON_REWARDS[themes[foe]];
     if (rM && !rF) return; // 自分が優先。相手の画面で相手が変える
     if (rM === rF && mine === BLACK) return; // どちらも同じなら白が変える
-    themes[mine] = themeKeys().find((k) => !clash(k, themes[foe])) || 'default';
+    const free = themeKeys().filter((k) => !clash(k, themes[foe])); // 持っている演出から、かぶらないものをランダムに
+    themes[mine] = free.length ? free[Math.floor(Math.random() * free.length)] : 'default';
     Online.send({ t: 'th', c: mine, k: themes[mine], g: net.g, rv: RULE_VER });
-    toast(`相手と演出の色がかぶったので、${themeOf(themes[mine]).label}に変えました`);
+    toast(`相手と演出の色がかぶったので、${themeOf(themes[mine]).label}になりました（名前の横のマークで変えられます）`);
   }
   // 相手から届いたものを盤に反映する（自分が送ったものは、もう反映してあるので飛ばす）
   function onlineMove(m) {
@@ -4005,7 +4013,7 @@
         if (net.kind === 'rank') { const k = net.kind; leaveOnline(); toast('相手の画面が古い版だったので、探し直します'); openOnline(); onlineRandom(k); return; }
         toast('相手の画面が古い版です。HP の計算がずれることがあるので、読み込み直してもらってください');
       }
-      if (m.c === foe) { themes[foe] = m.k; resolveThemeClash(); renderThemes(); draw(); }
+      if (m.c === foe) { if (typeof m.r === 'number') net.foeRate = m.r; themes[foe] = m.k; resolveThemeClash(); renderThemes(); draw(); }
       return;
     }
     if (m.t === 'rt') { rankStart({ r: m.r, n: m.n || 0, name: String(m.name || ''), u: m.u }); return; }
@@ -4158,6 +4166,37 @@
   }
   renderRankTop();
   setInterval(() => { if (phase === 'title') renderRankTop(); }, 60000); // 対戦タイムの始まり・終わりで表示を変える
+  // ---------- 🎨 ランクマッチで使う演出（ランクマッチの右上・対局のあとの結果の画面で選ぶ） ----------
+  let onlineFx = lsGet('destroy-go-online-fx') || themes[BLACK];
+  const rankFxOk = (k) => (SEASON_REWARDS[k] ? secretUnlocked.has(k) : unlocked(k)); // ランクマッチでは、取っていない報酬の演出は使えない
+  function renderFxPick() {
+    if (!rankFxOk(onlineFx)) onlineFx = FX.themes.map((t) => t.key).find(rankFxOk) || 'default';
+    $('#fx-tag-mk').textContent = '：' + themeOf(onlineFx).mark;
+    document.querySelectorAll('.fx-pick-chips').forEach((box) => {
+      box.textContent = '';
+      FX.themes.forEach((t) => {
+        if (SEASON_REWARDS[t.key] && !secretUnlocked.has(t.key)) return;
+        const chip = document.createElement('button');
+        chip.className = 'chip'; chip.dataset.key = t.key; chip.style.setProperty('--tc', t.color);
+        chip.innerHTML = '<span class="mk"></span>'; chip.querySelector('.mk').textContent = t.mark;
+        chip.appendChild(document.createTextNode(t.label));
+        chip.setAttribute('aria-pressed', t.key === onlineFx);
+        if (!rankFxOk(t.key)) { chip.classList.add('locked'); chip.onclick = () => toast(`🔒 ${SECRETS[t.key] ? lockedMsg(t.key) : '製品版で使えます'}`); }
+        else chip.onclick = () => { onlineFx = t.key; lsSet('destroy-go-online-fx', t.key); renderFxPick(); };
+        box.appendChild(chip);
+      });
+    });
+  }
+  $('#fx-tag').onclick = (e) => { e.stopPropagation(); FX.unlock(); renderFxPick(); $('#fx-pick').hidden = false; };
+  $('#fx-pick-close').onclick = () => { $('#fx-pick').hidden = true; };
+  $('#fx-pick').onclick = (e) => { if (e.target.id === 'fx-pick') $('#fx-pick').hidden = true; };
+  $('#fx-pick-go').onclick = () => { $('#fx-pick').hidden = true; $('#btn-rank-top').click(); };
+  $('#fx-pick-preview').onclick = () => { // 黒の演出として試し見（タイトルに戻ると元の演出に戻る）
+    $('#fx-pick').hidden = true; previewColor = BLACK;
+    const b = document.querySelector('.preview button[data-n="9"]') || document.querySelector('.preview button');
+    const saved = themes[BLACK]; themes[BLACK] = onlineFx; b.click(); if (previewSaved) previewSaved[BLACK] = saved;
+  };
+  renderFxPick();
   $('#btn-rank-top').onclick = () => {
     FX.unlock(); if (!Online.available()) { toast('オンライン対戦は準備中です'); return; }
     if (!rankOpen() || lsGet('destroy-go-rank-intro') !== '1') { rankGuide(); return; }
