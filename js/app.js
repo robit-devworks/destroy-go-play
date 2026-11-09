@@ -360,6 +360,8 @@
     parts.push(`黒:${themeOf(themes[BLACK]).label} 白:${themeOf(themes[WHITE]).label}`);
     return parts.join('・');
   }
+  // 作者のほかのゲーム（スワリタイ）へのリンク。押した数を数える
+  if ($('#other-game')) $('#other-game').addEventListener('click', () => track('スワリタイへ（記録タブ）'));
   // 版番号と、不具合・感想の送り先（版・設定・端末を書き込んだ状態で開く）
   $('#version').textContent = ED.version ? `v${ED.version}${FREE ? '（無料版）' : ''}` : '';
   if (ED.feedback) {
